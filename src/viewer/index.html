@@ -3261,7 +3261,7 @@
       dashboard: { loaded: false, health: null, sessions: [], memories: [], graphStats: null, recentAudit: [], lessons: [], crystals: [] },
       dashboardRefresh: { enabled: true, intervalMs: 30000 },
       graph: { loaded: false, nodes: [], edges: [], stats: null, filters: {}, selectedNode: null },
-      memories: { loaded: false, items: [], reviewItems: [], search: '', typeFilter: '' },
+      memories: { loaded: false, items: [], reviewItems: [], search: '', typeFilter: '', sourceFilter: '' },
 	      timeline: { loaded: false, observations: [], sessionId: '', projectKey: '', sessions: [], minImportance: 0, page: 0, pageSize: 50, mode: 'episodes', episodeFilter: 'all', expandedEpisodes: {} },
       sessions: { loaded: false, items: [], selectedId: null },
       audit: { loaded: false, entries: [], opFilter: '' },
@@ -3794,6 +3794,20 @@
       if (strength < 0) strength = 0;
       return strength;
     }
+    function memorySourceKind(m) {
+      var concepts = (m && Array.isArray(m.concepts) ? m.concepts : []).join(' ').toLowerCase();
+      var project = String((m && m.project) || '').toLowerCase();
+      var text = String((m && (m.title || m.content)) || '').toLowerCase();
+      if (project === 'browser' || concepts.indexOf('browser-context') >= 0 || text.indexOf('网页记忆线索') >= 0 || text.indexOf('浏览器候选记忆') >= 0) return 'browser';
+      if (m && m.sessionIds && m.sessionIds.length) return 'session';
+      return 'manual';
+    }
+    function memorySourceLabel(m) {
+      var kind = memorySourceKind(m);
+      if (kind === 'browser') return '浏览器';
+      if (kind === 'session') return '会话';
+      return '手动';
+    }
     function renderMemoryCard(card) {
       var mem = card.memory || {};
       var cls = card.kind || 'default';
@@ -3816,6 +3830,7 @@
       }
       html += '<div class="memory-card-footer">';
       html += '<span class="mem-meta-pill icon-badge pending" title="记忆条目" aria-label="记忆条目"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19.5A2.5 2.5 0 0 1 7.5 17H20"/><path d="M7.5 2H20v20H7.5A2.5 2.5 0 0 1 5 19.5v-17A2.5 2.5 0 0 1 7.5 2z"/></svg></span>';
+      html += '<span class="mem-meta-pill" title="来源">' + esc(memorySourceLabel(mem)) + '</span>';
       html += '<div class="memory-card-actions">';
       html += '<button class="btn" style="font-size:10px;padding:3px 8px;" data-action="edit-memory" data-memory-id="' + esc(mem.id || '') + '">编辑</button>';
       html += '<button class="btn btn-danger" style="font-size:10px;padding:3px 8px;" data-action="delete-memory" data-memory-id="' + esc(mem.id || '') + '" data-memory-title="' + esc(card.title || mem.title || '') + '">删除</button>';
@@ -5217,9 +5232,11 @@
       var items = state.memories.items;
       var search = state.memories.search.toLowerCase();
       var typeFilter = state.memories.typeFilter;
+      var sourceFilter = state.memories.sourceFilter || '';
 
       var filtered = items.filter(function(m) {
         if (typeFilter && m.type !== typeFilter) return false;
+        if (sourceFilter && memorySourceKind(m) !== sourceFilter) return false;
         const normalizedSearch = (search || '')
           .normalize("NFKC")
           .toLowerCase();
@@ -5272,6 +5289,11 @@
       typeOptions.forEach(function(t) {
         html += '<option value="' + esc(t) + '"' + (typeFilter === t ? ' selected' : '') + '>' + esc(t) + '</option>';
       });
+      html += '</select>';
+      html += '<select id="mem-source-filter" aria-label="筛选来源"><option value="">全部来源</option>';
+      [['browser', '浏览器'], ['session', '会话'], ['manual', '手动']].forEach(function(item) {
+        html += '<option value="' + item[0] + '"' + (sourceFilter === item[0] ? ' selected' : '') + '>' + item[1] + '</option>';
+      });
       html += '</select></div>';
 
       html += '<div class="memory-summary" style="background:#ffffff;margin-bottom:14px;">';
@@ -5323,6 +5345,13 @@
       if (typeSelect) {
         typeSelect.addEventListener('change', function() {
           state.memories.typeFilter = this.value;
+          renderMemories();
+        });
+      }
+      var sourceSelect = document.getElementById('mem-source-filter');
+      if (sourceSelect) {
+        sourceSelect.addEventListener('change', function() {
+          state.memories.sourceFilter = this.value;
           renderMemories();
         });
       }
