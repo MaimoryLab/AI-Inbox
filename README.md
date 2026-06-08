@@ -111,6 +111,8 @@ Chrome / Edge -> chrome://extensions -> 开发者模式 -> 加载已解压的扩
 
 本地 Skill 越装越多之后，很容易不知道每个 Skill 来自哪里、用于什么、路径在哪里。Skill 管理台会扫描本机的 Codex、Agents 和插件 Skill 目录，把它们放到一个可搜索、可筛选、可查看详情的界面里。
 
+可沉淀经验不会自动改写本地 Skill。你可以先从经验分组生成一份 `SKILL.md` 草稿，预览后再决定是否复制到某个 Skill 目录。
+
 <p align="center">
   <img src="docs/readme-assets/screenshots/skills.jpg" alt="Skill 管理台截图" width="860" />
 </p>
@@ -212,7 +214,7 @@ Agent Memory Lab 默认本地优先。记忆、会话、索引和插件设置都
 
 - 更精确地抽取 ChatGPT、Claude、Gemini、Perplexity 等 AI 对话
 - 保存前编辑候选记忆的标题、标签、项目归属
-- 把高频经验一键沉淀进本地 Skill
+- 把高频经验从草稿确认后沉淀进本地 Skill
 - 跨 Agent 注入：在不同 AI 产品页面提示可用记忆
 
 ## 开发验证

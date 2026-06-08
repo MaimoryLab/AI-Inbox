@@ -1542,6 +1542,25 @@
       padding: 16px;
       min-width: 0;
     }
+    .skill-draft-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .skill-draft-preview {
+      max-height: 56vh;
+      overflow: auto;
+      padding: 12px;
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg);
+      background: var(--bg-subtle);
+      color: var(--ink);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+    }
     .skill-draft-head {
       display: flex;
       justify-content: space-between;
@@ -6354,6 +6373,60 @@
       setTimeout(function() { btn.textContent = '生成摘要'; btn.disabled = false; }, 2200);
     }
 
+    function skillDraftSlug(text) {
+      var base = String(text || 'skill').toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '-').replace(/^-+|-+$/g, '');
+      return (base || 'memory-skill').slice(0, 48);
+    }
+    function skillDraftTitle(groupKey) {
+      var name = projectDisplayName(groupKey || '通用经验');
+      return name === '通用经验' ? '可复用工作流 Skill' : name + ' 工作流 Skill';
+    }
+    function buildSkillDraft(groupKey, lessons) {
+      var list = (lessons || []).slice().sort(function(a, b) { return (b.confidence || 0) - (a.confidence || 0); }).slice(0, 8);
+      var title = skillDraftTitle(groupKey);
+      var slug = skillDraftSlug(groupKey || title);
+      var tags = [];
+      list.forEach(function(l) { (l.tags || []).forEach(function(t) { if (tags.indexOf(t) < 0) tags.push(t); }); });
+      var lines = [];
+      lines.push('# ' + title);
+      lines.push('');
+      lines.push('## When to use');
+      lines.push('Use this skill when the user is working on ' + projectDisplayName(groupKey || 'a reusable workflow') + ' and needs the agent to apply the repeated lessons below.');
+      lines.push('');
+      lines.push('## Core lessons');
+      if (!list.length) lines.push('- Add confirmed lessons here before installing this skill.');
+      list.forEach(function(l) { lines.push('- ' + translateLessonText(l.content)); });
+      lines.push('');
+      lines.push('## Operating guidance');
+      lines.push('- Preserve the user-visible product intent before changing implementation details.');
+      lines.push('- Prefer reviewable drafts over automatic writes when the output changes durable memory or local skills.');
+      lines.push('- Keep examples, docs, and product UI aligned after every meaningful change.');
+      if (tags.length) {
+        lines.push('');
+        lines.push('## Tags');
+        lines.push(tags.slice(0, 10).map(function(t) { return '`' + t + '`'; }).join(' '));
+      }
+      lines.push('');
+      lines.push('## Suggested install path');
+      lines.push('`~/.codex/skills/' + slug + '/SKILL.md`');
+      return lines.join('\n');
+    }
+    function openSkillDraft(groupKey) {
+      var lessons = (state.lessons.items || []).filter(function(l) {
+        var key = l.project || (l.tags && l.tags[0]) || '通用经验';
+        return key === groupKey;
+      });
+      var draft = buildSkillDraft(groupKey, lessons);
+      var modal = document.getElementById('modal');
+      var overlay = document.getElementById('modal-overlay');
+      modal.innerHTML =
+        '<h3>Skill 草稿</h3>' +
+        '<p>这是从已确认经验生成的草稿，不会自动写入本地 Skill。确认适合长期复用后，再复制到对应 Skill 目录。</p>' +
+        '<pre id="skill-draft-preview" class="skill-draft-preview">' + esc(draft) + '</pre>' +
+        '<div class="modal-actions"><button class="btn" data-action="close-modal">关闭</button><button class="btn btn-primary" data-action="copy-skill-draft">复制草稿</button></div>';
+      overlay.classList.add('open');
+    }
+
     function openAddLesson() {
       var modal = document.getElementById('modal');
       var overlay = document.getElementById('modal-overlay');
@@ -6585,6 +6658,7 @@
           });
           if (group.length > 4) html += '<li>还有 ' + (group.length - 4) + ' 条相近经验</li>';
           html += '</ul>';
+          html += '<div class="skill-draft-actions"><button class="btn" data-action="open-skill-draft" data-skill-draft-key="' + esc(key) + '">生成草稿</button></div>';
           html += '</article>';
         });
         html += '</div>';
@@ -7519,6 +7593,18 @@
         copyTextToClipboard(skillPath).then(function() {
           target.setAttribute('title', '已复制');
           setTimeout(function() { target.setAttribute('title', '复制路径'); }, 1400);
+        });
+        return;
+      }
+      if (action === 'open-skill-draft') {
+        openSkillDraft(target.getAttribute('data-skill-draft-key') || '通用经验');
+        return;
+      }
+      if (action === 'copy-skill-draft') {
+        var draftEl = document.getElementById('skill-draft-preview');
+        copyTextToClipboard(draftEl ? draftEl.textContent || '' : '').then(function() {
+          target.textContent = '已复制';
+          setTimeout(function() { target.textContent = '复制草稿'; }, 1400);
         });
         return;
       }
