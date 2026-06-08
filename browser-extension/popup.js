@@ -1,9 +1,15 @@
 import { getSettings } from './config.js';
 
 const $ = (id) => document.getElementById(id);
+const EXTERNAL_TESTER_GUIDE_URL = 'https://github.com/sznnnnn/agentmemory-lab/blob/szn-viewer-ui-iteration/docs/external-tester-guide-cn.md';
 let settings = await getSettings();
 let latestCapture = null;
 let defaultDraft = { title: '', content: '' };
+
+function renderVersion() {
+  const manifest = chrome.runtime && chrome.runtime.getManifest ? chrome.runtime.getManifest() : {};
+  $('versionInfo').textContent = `Extension v${manifest.version || '0.1.0'}`;
+}
 
 function setMessage(text, kind = '') {
   $('message').textContent = text || '';
@@ -91,8 +97,10 @@ async function refresh() {
   try {
     const health = await send('HEALTH');
     $('status').textContent = health && health.status === 'ok' ? '本地服务已连接' : '本地服务可访问';
+    $('trialText').textContent = '已连接本地工作台。保存内容会先进入待审阅队列，公开发布前仍需真实 AI 站点验收。';
   } catch {
     $('status').textContent = '未连接本地服务';
+    $('trialText').textContent = '未连接本地工作台。先启动 Agent Memory Lab，再保存网页或查看审阅队列。';
   }
 
   try {
@@ -153,6 +161,7 @@ $('saveLesson').addEventListener('click', async () => {
 
 $('openWorkbench').addEventListener('click', () => send('OPEN_VIEWER', { tab: 'dashboard' }).catch(() => chrome.tabs.create({ url: `${settings.viewerBase}/#dashboard` })));
 $('openSkills').addEventListener('click', () => send('OPEN_VIEWER', { tab: 'lessons' }).catch(() => chrome.tabs.create({ url: `${settings.viewerBase}/#lessons` })));
+$('openGuide').addEventListener('click', () => chrome.tabs.create({ url: EXTERNAL_TESTER_GUIDE_URL }));
 $('openSidePanel').addEventListener('click', async () => {
   const win = await chrome.windows.getCurrent();
   await send('OPEN_SIDE_PANEL', { windowId: win.id });
@@ -160,4 +169,5 @@ $('openSidePanel').addEventListener('click', async () => {
 });
 $('openOptions').addEventListener('click', () => chrome.runtime.openOptionsPage());
 
+renderVersion();
 refresh();

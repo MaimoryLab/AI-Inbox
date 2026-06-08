@@ -75,6 +75,12 @@ if (!popupHtml.includes('待审阅草稿') || !popupHtml.includes('draftContent'
 if (!popupJs.includes('buildDraft') || !popupJs.includes('SAVE_CANDIDATE') || !popupJs.includes('resetDraft')) {
   throw new Error('Popup must save the edited review draft via SAVE_CANDIDATE.');
 }
+if (!popupHtml.includes('本地试用版') || !popupHtml.includes('versionInfo') || !popupHtml.includes('openGuide')) {
+  throw new Error('Popup must expose external testing status, version, and guide entry.');
+}
+if (!popupJs.includes('getManifest') || !popupJs.includes('external-tester-guide-cn.md')) {
+  throw new Error('Popup must render extension version and link the external tester guide.');
+}
 if (!sidepanelHtml.includes('审阅草稿') || !sidepanelHtml.includes('draftContent') || !sidepanelHtml.includes('resetDraft')) {
   throw new Error('Side panel must expose an editable review draft before saving.');
 }

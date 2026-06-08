@@ -21,9 +21,12 @@ header { display: flex; justify-content: space-between; gap: 12px; align-items: 
 h1 { margin: 0; font-size: 18px; letter-spacing: 0; }
 p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
 .icon-btn { width: 34px; height: 34px; border-radius: 999px; border: 1px solid var(--line); background: var(--paper); cursor: pointer; }
-.page-card, .review-card, .lesson-box, .recent-card { display: block; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.88); margin-bottom: 10px; }
+.page-card, .trial-card, .review-card, .lesson-box, .recent-card { display: block; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.88); margin-bottom: 10px; }
 .label, .lesson-box span { color: var(--faint); font-size: 12px; }
 .hint { margin-top: 2px; color: var(--muted); font-size: 11px; }
+.trial-card { display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; align-items: start; }
+.trial-title { margin-top: 2px; color: var(--ink); font-size: 13px; font-weight: 720; }
+.trial-text { grid-column: 1 / -1; color: var(--muted); font-size: 11px; line-height: 1.45; }
 .title { margin-top: 4px; font-weight: 700; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .url { margin-top: 2px; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .actions { display: grid; gap: 8px; margin-bottom: 10px; }

@@ -121,6 +121,11 @@ const deliveryManifest = {
     }
   },
   coreExperience: {
+    externalTestingEntry: {
+      popupVersionVisible: true,
+      popupLocalTestingStatusVisible: true,
+      testerGuideUrl: 'https://github.com/sznnnnn/agentmemory-lab/blob/szn-viewer-ui-iteration/docs/external-tester-guide-cn.md'
+    },
     reviewDraft: {
       popup: true,
       sidePanel: true,
@@ -195,6 +200,7 @@ Generated: ${generatedAt}
 
 | Capability | Status |
 | --- | --- |
+| Popup version and tester guide entry | ready |
 | Popup editable review draft | ready |
 | Side panel editable review draft | ready |
 | Candidate-to-draft flow | ready |

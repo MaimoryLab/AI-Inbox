@@ -179,6 +179,9 @@ for (const marker of ['Agent Memory Lab Delivery Summary', 'Extension zip', 'Ext
 }
 const deliveryManifest = JSON.parse(read('artifacts/delivery-manifest.json'));
 assert(deliveryManifest.product === 'Agent Memory Lab', 'Delivery manifest product mismatch.');
+assert(deliveryManifest.coreExperience?.externalTestingEntry?.popupVersionVisible === true, 'Delivery manifest must record popup version visibility.');
+assert(deliveryManifest.coreExperience?.externalTestingEntry?.popupLocalTestingStatusVisible === true, 'Delivery manifest must record popup local testing status.');
+assert(String(deliveryManifest.coreExperience?.externalTestingEntry?.testerGuideUrl || '').includes('external-tester-guide-cn.md'), 'Delivery manifest must record tester guide URL.');
 assert(deliveryManifest.coreExperience?.reviewDraft?.popup === true, 'Delivery manifest must record popup review draft support.');
 assert(deliveryManifest.coreExperience?.reviewDraft?.sidePanel === true, 'Delivery manifest must record side panel review draft support.');
 assert(deliveryManifest.coreExperience?.reviewDraft?.savesToReviewQueue === true, 'Delivery manifest must record review queue save behavior.');

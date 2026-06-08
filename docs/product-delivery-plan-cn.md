@@ -77,6 +77,7 @@
 - 真实站点验收记录：`docs/browser-extension-ai-validation-cn.md`
 - 插件 PNG 图标资产：`browser-extension/icons/icon16.png`、`icon32.png`、`icon48.png`、`icon128.png`
 - 本地检查：`npm run check:browser-extension`
+- 试用入口检查：`check:browser-extension` 会确认弹窗显示扩展版本、本地试用状态和外部试用指南入口
 - 保存前审阅草稿检查：`check:browser-extension` 会确认弹窗和同步侧栏都能编辑标题、正文，并通过 `SAVE_CANDIDATE` 进入 Viewer 待审阅队列
 - 一键交付检查：`npm run check:delivery`
 - 发布门槛检查：`npm run check:release-gates`；公开发布前必须通过 `npm run check:release-public`
