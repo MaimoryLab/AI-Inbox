@@ -103,7 +103,9 @@
         .item { border: 1px solid #ded7cf; border-radius: 8px; padding: 8px; background: #fff; }
         .item-title { font-weight: 720; margin-bottom: 3px; }
         .item-text { color: #5f574f; display: -webkit-box; overflow: hidden; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
-        .copy { margin-top: 7px; min-height: 28px; padding: 0 8px; border: 1px solid #ded7cf; border-radius: 7px; background: #fffefb; color: #292521; font-weight: 700; }
+        .actions { display: flex; gap: 6px; margin-top: 7px; }
+        .copy { min-height: 28px; padding: 0 8px; border: 1px solid #ded7cf; border-radius: 7px; background: #fffefb; color: #292521; font-weight: 700; }
+        .insert { min-height: 28px; padding: 0 8px; border: 1px solid #11100f; border-radius: 7px; background: #11100f; color: #fff; font-weight: 700; }
         .close { border: 0; background: transparent; color: #72685e; font-size: 18px; line-height: 1; padding: 0; }
       </style>
       <div class="wrap">
@@ -119,6 +121,15 @@
     root.querySelector('.trigger').addEventListener('click', () => root.querySelector('.panel').classList.toggle('open'));
     root.querySelector('.close').addEventListener('click', () => root.querySelector('.panel').classList.remove('open'));
     root.addEventListener('click', (event) => {
+      const insertButton = event.target && event.target.closest ? event.target.closest('[data-insert-memory]') : null;
+      if (insertButton) {
+        const index = Number(insertButton.getAttribute('data-insert-memory'));
+        const item = memoryWidget.results[index];
+        if (item) insertMemoryIntoEditor(provider, item);
+        insertButton.textContent = '已插入';
+        setTimeout(() => { insertButton.textContent = '插入'; }, 1200);
+        return;
+      }
       const button = event.target && event.target.closest ? event.target.closest('[data-copy-memory]') : null;
       if (!button) return;
       const index = Number(button.getAttribute('data-copy-memory'));
@@ -128,6 +139,32 @@
       setTimeout(() => { button.textContent = '复制'; }, 1200);
     });
     return memoryWidget;
+  }
+
+  function memorySnippet(item) {
+    return `[本地记忆]\n${item.title ? item.title + '\n' : ''}${item.text || ''}`.trim();
+  }
+
+  function insertMemoryIntoEditor(provider, item) {
+    const editor = findEditor(provider);
+    if (!editor) return false;
+    const snippet = memorySnippet(item);
+    if ('value' in editor) {
+      const start = typeof editor.selectionStart === 'number' ? editor.selectionStart : editor.value.length;
+      const end = typeof editor.selectionEnd === 'number' ? editor.selectionEnd : editor.value.length;
+      const before = editor.value.slice(0, start).trimEnd();
+      const after = editor.value.slice(end).trimStart();
+      editor.value = `${before}\n\n${snippet}${after ? '\n\n' + after : ''}`.trim();
+      editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: snippet }));
+      editor.dispatchEvent(new Event('change', { bubbles: true }));
+      editor.focus();
+      return true;
+    }
+    editor.focus();
+    const current = (editor.innerText || editor.textContent || '').trimEnd();
+    editor.textContent = `${current}\n\n${snippet}`.trim();
+    editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: snippet }));
+    return true;
   }
 
   function normalizeSearchResults(data) {
@@ -161,7 +198,7 @@
       <article class="item">
         <div class="item-title">${escapeHtml(item.title || '相关记忆')}</div>
         <div class="item-text">${escapeHtml(item.text || '')}</div>
-        <button class="copy" type="button" data-copy-memory="${index}">复制</button>
+        <div class="actions"><button class="insert" type="button" data-insert-memory="${index}">插入</button><button class="copy" type="button" data-copy-memory="${index}">复制</button></div>
       </article>
     `).join('');
   }
