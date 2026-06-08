@@ -83,8 +83,6 @@
     if (memoryWidget) return memoryWidget;
     const host = document.createElement('agent-memory-lab-widget');
     host.style.position = 'fixed';
-    host.style.right = '18px';
-    host.style.bottom = '88px';
     host.style.zIndex = '2147483647';
     const root = host.attachShadow({ mode: 'open' });
     root.innerHTML = `
@@ -138,7 +136,30 @@
       button.textContent = '已复制';
       setTimeout(() => { button.textContent = '复制'; }, 1200);
     });
+    positionMemoryWidget(provider);
     return memoryWidget;
+  }
+
+  function positionMemoryWidget(provider) {
+    if (!memoryWidget) return;
+    const editor = findEditor(provider);
+    if (!editor) {
+      memoryWidget.host.style.right = '18px';
+      memoryWidget.host.style.bottom = '88px';
+      memoryWidget.host.style.left = 'auto';
+      memoryWidget.host.style.top = 'auto';
+      return;
+    }
+    const rect = editor.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const width = 280;
+    const margin = 12;
+    const left = Math.max(margin, Math.min(window.innerWidth - width - margin, rect.right - width));
+    const top = rect.top > 96 ? rect.top - 46 : rect.bottom + 10;
+    memoryWidget.host.style.left = `${left}px`;
+    memoryWidget.host.style.top = `${Math.max(margin, top)}px`;
+    memoryWidget.host.style.right = 'auto';
+    memoryWidget.host.style.bottom = 'auto';
   }
 
   function memorySnippet(item) {
@@ -210,6 +231,7 @@
   }
 
   function scheduleMemorySearch(provider) {
+    positionMemoryWidget(provider);
     const draft = collectPromptDraft(provider);
     if (draft === latestQuery) return;
     latestQuery = draft;
@@ -244,6 +266,8 @@
       scheduleMemorySearch(provider);
     };
     attach();
+    window.addEventListener('resize', () => positionMemoryWidget(provider), { passive: true });
+    window.addEventListener('scroll', () => positionMemoryWidget(provider), { passive: true, capture: true });
     new MutationObserver(attach).observe(document.documentElement, { childList: true, subtree: true });
   }
 
