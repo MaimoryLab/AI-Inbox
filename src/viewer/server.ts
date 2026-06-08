@@ -44,6 +44,24 @@ function readViewerAsset(relativePath: string): Buffer | null {
   return null;
 }
 
+function readProjectDoc(relativePath: string): Buffer | null {
+  const safeDocs = new Set(["browser-extension-ai-site-test-cards-cn.md"]);
+  const name = basename(relativePath);
+  if (!safeDocs.has(name)) return null;
+  const base = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    join(process.cwd(), "docs", name),
+    join(base, "..", "..", "docs", name),
+    join(base, "..", "docs", name),
+  ];
+  for (const path of candidates) {
+    try {
+      return readFileSync(path);
+    } catch {}
+  }
+  return null;
+}
+
 function readJsonIfExists(path: string): Record<string, unknown> | null {
   try {
     if (!existsSync(path)) return null;
@@ -633,6 +651,21 @@ export function startViewerServer(
       }
       res.writeHead(404, { "Content-Type": "text/plain" });
       res.end("demo not found");
+      return;
+    }
+
+    if ((method === "GET" || method === "HEAD") && pathname === "/docs/browser-extension-ai-site-test-cards-cn.md") {
+      const doc = readProjectDoc("browser-extension-ai-site-test-cards-cn.md");
+      if (doc) {
+        res.writeHead(200, {
+          "Content-Type": "text/markdown; charset=utf-8",
+          "Cache-Control": "no-cache",
+        });
+        res.end(method === "HEAD" ? undefined : doc);
+        return;
+      }
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("doc not found");
       return;
     }
 
