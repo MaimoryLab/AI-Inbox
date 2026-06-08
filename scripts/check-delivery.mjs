@@ -39,6 +39,7 @@ const requiredFiles = [
   'docs/demo-checklist-cn.md',
   'docs/product-delivery-plan-cn.md',
   'docs/external-tester-guide-cn.md',
+  'docs/external-feedback-template-cn.md',
   'docs/release-gates-cn.md',
   'docs/browser-extension-ai-validation-cn.md',
   'docs/browser-extension-mem0-reference-cn.md',
@@ -110,8 +111,13 @@ for (const marker of ['审阅队列可用', 'AI 页面状态', '记忆建议', '
 }
 
 const testerGuide = read('docs/external-tester-guide-cn.md');
-for (const marker of ['外部试用指南', 'npm run preview:browser-extension', 'npm run check:workbench', 'npm run check:release-gates', '记忆建议', '诊断 JSON', '从仓库试用', '从 zip 试用', 'browser-extension/']) {
+for (const marker of ['外部试用指南', 'npm run preview:browser-extension', 'npm run check:workbench', 'npm run check:release-gates', '记忆建议', '诊断 JSON', '从仓库试用', '从 zip 试用', 'browser-extension/', '外部试用反馈模板']) {
   assert(testerGuide.includes(marker), `External tester guide missing marker: ${marker}`);
+}
+
+const feedbackTemplate = read('docs/external-feedback-template-cn.md');
+for (const marker of ['外部试用反馈模板', '基本信息', '试用路径', '问题描述', '诊断信息', 'manualValidation', '影响程度']) {
+  assert(feedbackTemplate.includes(marker), `External feedback template missing marker: ${marker}`);
 }
 
 const plan = read('docs/product-delivery-plan-cn.md');

@@ -152,6 +152,8 @@ npm run sync:ai-validation-table
 
 ## 反馈时请提供
 
+可以直接复制 [外部试用反馈模板](external-feedback-template-cn.md) 填写。
+
 - 试用日期。
 - 浏览器名称和版本。
 - 操作系统。

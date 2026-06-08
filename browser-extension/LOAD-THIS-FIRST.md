@@ -51,3 +51,13 @@ npm run status:delivery
 ```
 
 它会告诉你当前 zip、demo、核心体验和真实 AI 站点证据的状态。
+
+## 6. 反馈问题
+
+如果要反馈问题，请使用项目里的模板：
+
+```text
+docs/external-feedback-template-cn.md
+```
+
+优先附上同步侧栏“复制诊断”的 JSON，并确认截图或录屏不包含敏感信息。

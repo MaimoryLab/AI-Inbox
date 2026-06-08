@@ -73,6 +73,7 @@
 - 英文隐私政策草稿：`docs/browser-extension-privacy-en.md`
 - 英文商店发布文案草稿：`docs/browser-extension-store-listing-en.md`
 - 外部试用指南：`docs/external-tester-guide-cn.md`
+- 外部试用反馈模板：`docs/external-feedback-template-cn.md`
 - 发布门槛：`docs/release-gates-cn.md`
 - 真实站点验收记录：`docs/browser-extension-ai-validation-cn.md`
 - 真实站点证据目录：`docs/validation/browser-extension-ai-sites/`
