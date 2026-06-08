@@ -98,6 +98,15 @@ async function getRecentCaptures() {
   return Array.isArray(stored[RECENT_KEY]) ? stored[RECENT_KEY] : [];
 }
 
+async function searchMemories(query) {
+  const text = String(query || '').trim();
+  if (text.length < 3) return { results: [] };
+  return agentMemoryApi('/agentmemory/search', {
+    method: 'POST',
+    body: JSON.stringify({ query: text, limit: 5, format: 'compact', token_budget: 900 })
+  });
+}
+
 async function setupContextMenus() {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
@@ -129,6 +138,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === 'SAVE_PAGE_MEMORY') return savePageMemory();
     if (message.type === 'SAVE_PAGE_LESSON') return savePageLesson(message.note || '');
     if (message.type === 'SAVE_CANDIDATE') return saveCandidate(message.kind || 'memory', message.text || '');
+    if (message.type === 'SEARCH_MEMORIES') return searchMemories(message.query || '');
     if (message.type === 'OPEN_SIDE_PANEL') return chrome.sidePanel.open({ windowId: message.windowId });
     if (message.type === 'OPEN_VIEWER') return openViewer(message.tab || 'dashboard');
     throw new Error('未知操作');

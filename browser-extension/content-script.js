@@ -7,6 +7,9 @@
     { id: 'grok', label: 'Grok', hosts: ['grok.com', 'x.ai'], editorSelectors: ['textarea', '[contenteditable="true"]'], turnSelectors: ['[data-testid*="message"]', 'main article'] },
     { id: 'deepseek', label: 'DeepSeek', hosts: ['chat.deepseek.com', 'deepseek.com'], editorSelectors: ['textarea', '[contenteditable="true"]'], turnSelectors: ['[class*="message"]', 'main article'] }
   ];
+  let memoryWidget = null;
+  let searchTimer = null;
+  let latestQuery = '';
 
   function getProviderForHost(hostname) {
     const host = String(hostname || '').toLowerCase();
@@ -67,6 +70,146 @@
     return '';
   }
 
+  function findEditor(provider) {
+    if (!provider) return null;
+    for (const selector of provider.editorSelectors) {
+      const el = document.querySelector(selector);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  function createMemoryWidget(provider) {
+    if (memoryWidget) return memoryWidget;
+    const host = document.createElement('agent-memory-lab-widget');
+    host.style.position = 'fixed';
+    host.style.right = '18px';
+    host.style.bottom = '88px';
+    host.style.zIndex = '2147483647';
+    const root = host.attachShadow({ mode: 'open' });
+    root.innerHTML = `
+      <style>
+        * { box-sizing: border-box; }
+        .wrap { width: 280px; font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #292521; }
+        button { font: inherit; cursor: pointer; }
+        .trigger { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 11px; border: 1px solid #11100f; border-radius: 8px; background: #11100f; color: #fff; font-weight: 750; box-shadow: 0 8px 24px rgba(0,0,0,.16); }
+        .panel { display: none; margin-top: 8px; border: 1px solid #ded7cf; border-radius: 8px; background: #fffefb; box-shadow: 0 16px 44px rgba(0,0,0,.18); overflow: hidden; }
+        .panel.open { display: block; }
+        .head { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 10px 11px; border-bottom: 1px solid #ded7cf; background: #f7f3ee; }
+        .title { font-weight: 780; }
+        .provider { color: #72685e; font-size: 12px; }
+        .body { display: grid; gap: 8px; max-height: 290px; overflow: auto; padding: 10px; }
+        .empty { color: #9a9188; padding: 2px; }
+        .item { border: 1px solid #ded7cf; border-radius: 8px; padding: 8px; background: #fff; }
+        .item-title { font-weight: 720; margin-bottom: 3px; }
+        .item-text { color: #5f574f; display: -webkit-box; overflow: hidden; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+        .copy { margin-top: 7px; min-height: 28px; padding: 0 8px; border: 1px solid #ded7cf; border-radius: 7px; background: #fffefb; color: #292521; font-weight: 700; }
+        .close { border: 0; background: transparent; color: #72685e; font-size: 18px; line-height: 1; padding: 0; }
+      </style>
+      <div class="wrap">
+        <button class="trigger" type="button">本地记忆 <span class="count">0</span></button>
+        <div class="panel">
+          <div class="head"><div><div class="title">可用记忆</div><div class="provider"></div></div><button class="close" type="button" aria-label="关闭">×</button></div>
+          <div class="body"><div class="empty">输入问题后，会从本地记忆里找相关内容。</div></div>
+        </div>
+      </div>`;
+    document.documentElement.appendChild(host);
+    memoryWidget = { host, root, provider, results: [] };
+    root.querySelector('.provider').textContent = provider.label;
+    root.querySelector('.trigger').addEventListener('click', () => root.querySelector('.panel').classList.toggle('open'));
+    root.querySelector('.close').addEventListener('click', () => root.querySelector('.panel').classList.remove('open'));
+    root.addEventListener('click', (event) => {
+      const button = event.target && event.target.closest ? event.target.closest('[data-copy-memory]') : null;
+      if (!button) return;
+      const index = Number(button.getAttribute('data-copy-memory'));
+      const item = memoryWidget.results[index];
+      if (item) navigator.clipboard.writeText(item.text || item.title || '').catch(() => {});
+      button.textContent = '已复制';
+      setTimeout(() => { button.textContent = '复制'; }, 1200);
+    });
+    return memoryWidget;
+  }
+
+  function normalizeSearchResults(data) {
+    const raw = data && (data.results || data.memories || data.items || data.observations || []);
+    if (!Array.isArray(raw)) return [];
+    return raw.map((item) => {
+      const memory = item.memory || item.observation || item;
+      return {
+        title: memory.title || memory.type || '相关记忆',
+        text: memory.content || memory.narrative || memory.memory || item.text || ''
+      };
+    }).filter((item) => item.text || item.title).slice(0, 5);
+  }
+
+  function renderMemoryResults(results, loading) {
+    const provider = getProviderForHost(location.hostname);
+    if (!provider) return;
+    const widget = createMemoryWidget(provider);
+    widget.results = results || [];
+    widget.root.querySelector('.count').textContent = String(widget.results.length);
+    const body = widget.root.querySelector('.body');
+    if (loading) {
+      body.innerHTML = '<div class="empty">正在查找本地记忆...</div>';
+      return;
+    }
+    if (!widget.results.length) {
+      body.innerHTML = '<div class="empty">暂时没有找到相关记忆。</div>';
+      return;
+    }
+    body.innerHTML = widget.results.map((item, index) => `
+      <article class="item">
+        <div class="item-title">${escapeHtml(item.title || '相关记忆')}</div>
+        <div class="item-text">${escapeHtml(item.text || '')}</div>
+        <button class="copy" type="button" data-copy-memory="${index}">复制</button>
+      </article>
+    `).join('');
+  }
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>'"]/g, (char) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    }[char]));
+  }
+
+  function scheduleMemorySearch(provider) {
+    const draft = collectPromptDraft(provider);
+    if (draft === latestQuery) return;
+    latestQuery = draft;
+    if (searchTimer) clearTimeout(searchTimer);
+    if (!draft || draft.length < 8) {
+      renderMemoryResults([], false);
+      return;
+    }
+    searchTimer = setTimeout(() => {
+      renderMemoryResults([], true);
+      chrome.runtime.sendMessage({ type: 'SEARCH_MEMORIES', query: draft }, (response) => {
+        if (chrome.runtime.lastError || !response || !response.ok) {
+          renderMemoryResults([], false);
+          return;
+        }
+        renderMemoryResults(normalizeSearchResults(response.data), false);
+      });
+    }, 450);
+  }
+
+  function bootMemoryAssist() {
+    const provider = getProviderForHost(location.hostname);
+    if (!provider) return;
+    createMemoryWidget(provider);
+    const attach = () => {
+      const editor = findEditor(provider);
+      if (!editor || editor.__agentMemoryBound) return;
+      editor.__agentMemoryBound = true;
+      ['input', 'keyup', 'paste', 'compositionend'].forEach((eventName) => {
+        editor.addEventListener(eventName, () => scheduleMemorySearch(provider), true);
+      });
+      scheduleMemorySearch(provider);
+    };
+    attach();
+    new MutationObserver(attach).observe(document.documentElement, { childList: true, subtree: true });
+  }
+
   function inferRole(node, index) {
     const label = `${node.getAttribute('aria-label') || ''} ${node.className || ''}`.toLowerCase();
     if (/user|human|you|用户/.test(label)) return 'user';
@@ -81,4 +224,6 @@
     }
     return false;
   });
+
+  bootMemoryAssist();
 })();
