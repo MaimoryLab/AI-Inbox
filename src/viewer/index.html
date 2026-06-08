@@ -1404,6 +1404,15 @@
       color: var(--ink-muted);
       font-size: 12px;
     }
+    .activity-status-warning {
+      border-color: var(--border);
+      background: var(--bg-alt);
+      color: var(--ink-muted);
+    }
+    .activity-status-warning .activity-status-dot {
+      background: var(--ink-muted);
+      box-shadow: 0 0 0 4px rgba(12, 10, 9, 0.05);
+    }
     .activity-status-main {
       display: flex;
       align-items: center;
@@ -3263,9 +3272,9 @@
       graph: { loaded: false, nodes: [], edges: [], stats: null, filters: {}, selectedNode: null },
       memories: { loaded: false, items: [], reviewItems: [], search: '', typeFilter: '', sourceFilter: '' },
 	      timeline: { loaded: false, observations: [], sessionId: '', projectKey: '', sessions: [], minImportance: 0, page: 0, pageSize: 50, mode: 'episodes', episodeFilter: 'all', expandedEpisodes: {} },
-      sessions: { loaded: false, items: [], selectedId: null },
+      sessions: { loaded: false, items: [], selectedId: null, warnings: [] },
       audit: { loaded: false, entries: [], opFilter: '' },
-      activity: { loaded: false, observations: [], sessions: [], typeFilter: '', loadingPhase: '' },
+      activity: { loaded: false, observations: [], sessions: [], typeFilter: '', loadingPhase: '', warnings: [] },
       lessons: { loaded: false, items: [], search: '', skillSearch: '', skillRootFilter: 'all', mode: 'explicit', projects: [] },
       actions: { loaded: false, items: [], frontier: [], statusFilter: '', search: '' },
       crystals: { loaded: false, items: [], search: '', lessonMap: {} },
@@ -4102,6 +4111,21 @@
       var result = await apiGet('local-agent-sessions?limit=' + encodeURIComponent(count));
       if (!result) result = await apiGet('local-codex-sessions?limit=' + encodeURIComponent(count));
       return (result && result.sessions) || [];
+    }
+    async function settledData(label, fallback, loader) {
+      try {
+        var data = await loader();
+        return { label: label, data: data, failed: false };
+      } catch (err) {
+        console.warn('[viewer] ' + label + ' failed:', err);
+        return { label: label, data: fallback, failed: true };
+      }
+    }
+    function renderDataWarnings(warnings, retryAction) {
+      if (!warnings || warnings.length === 0) return '';
+      var html = '<div class="activity-status-card activity-status-warning"><div class="activity-status-main"><span class="activity-status-dot"></span><span>' + esc(warnings.join('、')) + ' 暂时没读到，已先展示可用数据。</span></div>';
+      html += '<button class="btn" data-action="' + esc(retryAction) + '">重试</button></div>';
+      return html;
     }
     function mergeSessions(primary, local) {
       var seen = {};
@@ -5916,13 +5940,15 @@
       var el = document.getElementById('view-activity');
       state.activity.loadingPhase = '正在读取本地会话';
       el.innerHTML = '<div class="loading">加载活动中...</div>';
+      state.activity.warnings = [];
       var results = await Promise.all([
-        apiGet('sessions'),
-        apiGet('audit?limit=80'),
-        loadLocalCodexSessions(60)
+        settledData('工作台会话', { sessions: [] }, function() { return apiGet('sessions'); }),
+        settledData('审计记录', { entries: [] }, function() { return apiGet('audit?limit=80'); }),
+        settledData('本地会话', [], function() { return loadLocalCodexSessions(60); })
       ]);
-      var sessions = mergeSessions(((results[0] && results[0].sessions) || []), results[2] || []).filter(function(s) { return !isDemoSession(s); });
-      var auditEntries = (results[1] && results[1].entries) || [];
+      state.activity.warnings = results.filter(function(r) { return r.failed; }).map(function(r) { return r.label; });
+      var sessions = mergeSessions(((results[0].data && results[0].data.sessions) || []), results[2].data || []).filter(function(s) { return !isDemoSession(s); });
+      var auditEntries = (results[1].data && results[1].data.entries) || [];
 
       var allObs = [];
       var sorted = sessions.slice().sort(function(a, b) { return (b.startedAt || '').localeCompare(a.startedAt || ''); });
@@ -5958,10 +5984,11 @@
       renderActivity();
 
       var obsResults = await Promise.all(recentSessions.filter(function(s) { return sessionId(s); }).map(function(s) {
-        return apiGet('observations?sessionId=' + encodeURIComponent(sessionId(s))).catch(function() { return null; });
+        return settledData('会话细节', null, function() { return apiGet('observations?sessionId=' + encodeURIComponent(sessionId(s))); });
       }));
       obsResults.forEach(function(r) {
-        if (r && r.observations) allObs = allObs.concat(r.observations);
+        if (r && r.failed && state.activity.warnings.indexOf(r.label) < 0) state.activity.warnings.push(r.label);
+        if (r && r.data && r.data.observations) allObs = allObs.concat(r.data.observations);
       });
       state.activity.observations = allObs;
       state.activity.loadingPhase = '';
@@ -5976,6 +6003,8 @@
       var TOOL_TYPE_MAP = { Read: 'file_read', Write: 'file_write', Edit: 'file_edit', Bash: 'command_run', Grep: 'search', Glob: 'search', WebFetch: 'web_fetch', WebSearch: 'web_fetch', AskUserQuestion: 'conversation', Task: 'subagent' };
 
       var html = '';
+
+      html += renderDataWarnings(state.activity.warnings, 'refresh-activity');
 
       if (state.activity.loadingPhase) {
         html += '<div class="activity-status-card"><div class="activity-status-main"><span class="activity-status-dot"></span><span>' + esc(state.activity.loadingPhase) + '</span></div><div class="activity-status-meta">' + obs.length + ' 条</div></div>';
@@ -6088,9 +6117,12 @@
     async function loadSessions() {
       var el = document.getElementById('view-sessions');
       el.innerHTML = '<div class="loading">加载会话中...</div>';
-      var result = await apiGet('sessions');
-      var localSessions = await loadLocalCodexSessions(120);
-      state.sessions.items = mergeSessions(((result && result.sessions) || []), localSessions).filter(function(s) { return !isDemoSession(s); });
+      var results = await Promise.all([
+        settledData('工作台会话', { sessions: [] }, function() { return apiGet('sessions'); }),
+        settledData('本地会话', [], function() { return loadLocalCodexSessions(120); })
+      ]);
+      state.sessions.warnings = results.filter(function(r) { return r.failed; }).map(function(r) { return r.label; });
+      state.sessions.items = mergeSessions(((results[0].data && results[0].data.sessions) || []), results[1].data || []).filter(function(s) { return !isDemoSession(s); });
       state.sessions.loaded = true;
       renderSessions();
     }
@@ -6102,8 +6134,11 @@
       });
 
       var html = '<div class="session-list">';
+      html += renderDataWarnings(state.sessions.warnings, 'refresh-sessions');
       if (items.length === 0) {
-        html += '<div class="empty-state"><div class="empty-icon">&#128466;</div><p>暂无会话</p></div>';
+        html += '<div class="empty-state"><div class="empty-icon">&#128466;</div><p>' + (state.sessions.warnings && state.sessions.warnings.length ? '暂时没有读到会话，请确认本地服务已启动后重试。' : '暂无会话') + '</p>';
+        if (state.sessions.warnings && state.sessions.warnings.length) html += '<div style="margin-top:10px;"><button class="btn btn-primary" data-action="refresh-sessions">重试加载</button></div>';
+        html += '</div>';
       } else {
         var historyGroups = groupSessionsByProject(items);
         var totalObs = items.reduce(function(sum, s) { return sum + (s.observationCount || 0); }, 0);
@@ -7398,6 +7433,16 @@
       }
       if (action === 'refresh-dashboard') {
         refreshDashboard();
+        return;
+      }
+      if (action === 'refresh-activity') {
+        state.activity.loaded = false;
+        loadActivity();
+        return;
+      }
+      if (action === 'refresh-sessions') {
+        state.sessions.loaded = false;
+        loadSessions();
         return;
       }
       if (action === 'open-session-group') {

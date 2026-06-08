@@ -12,6 +12,7 @@
 - 侧边栏查看当前页面类型、候选记忆、候选经验和隐私提示
 - 初步识别 ChatGPT、Claude、Gemini、Perplexity、Grok 等 AI 对话页面
 - 参考 OpenMemory / Mem0 的 supported-sites 架构，按 AI 产品维护独立站点配置
+- 在 AI 输入框附近召回本地记忆，但长期写入必须先进入本地审阅队列
 - 在支持的 AI 页面输入框附近显示“本地记忆”提示，并从本地搜索相关记忆，支持插入或复制到当前对话
 - 初步识别 GitHub、飞书、Notion、论文 / PDF、插件商店等网页类型
 - 右键菜单保存当前页面
@@ -118,6 +119,7 @@ Viewer: http://localhost:3113
 ## 参考方向
 
 - Mem0 / OpenMemory：Cross-LLM memory，把记忆带到 ChatGPT、Claude、Perplexity 等产品里。
-- Mem0 的实现启发：每个 AI 产品维护独立 content script / site config，再共享后台、侧栏和类型定义。
+- Mem0 的实现启发：每个 AI 产品维护独立 content script / site config，再共享后台、侧栏和类型定义；记忆召回应贴近输入框，而不是藏在单独页面里。
+- Agent Memory Lab 的差异：浏览器里只生成候选和召回建议，长期记忆写入必须经过 Viewer 的审阅、编辑、删除和来源筛选。
 - Rethread / Nico / ContextBridge / Personal AI Memory：都在强调跨 AI 产品的上下文延续。
 - Agent Memory Lab 的取向：本地优先、保存前可审阅、和主工作台统一数据，而不是把浏览器里看到的内容直接上传到云端。
