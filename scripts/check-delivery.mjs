@@ -91,6 +91,9 @@ assert(readme.includes('npm run check:release-gates'), 'README must mention rele
 assert(readme.includes('npm run check:release-public'), 'README must mention public release check command.');
 assert(readme.includes('npm run status:delivery'), 'README must mention delivery status command.');
 assert(readme.includes('.github/ISSUE_TEMPLATE/external-tester-feedback-cn.yml'), 'README must link external tester issue template.');
+for (const marker of ['外部测试者', '免登录看插件效果', '外部试用指南', '真实页面验收清单']) {
+  assert(readme.includes(marker), `README missing external tester marker: ${marker}`);
+}
 const imageRefs = [...readme.matchAll(/<img\s+src="([^"]+)"/g)].map((match) => match[1]);
 const allowedImages = new Set([
   'assets/banner.png',
@@ -193,7 +196,7 @@ const viewer = read('src/viewer/index.html');
 for (const marker of ['function reviewProject', 'function reviewTags', 'function reviewSourceLabel', 'payload.asLesson', '经验候选']) {
   assert(viewer.includes(marker), `Viewer review queue missing browser draft metadata marker: ${marker}`);
 }
-for (const marker of ['delivery-status', 'renderDeliveryStatusCard', '外部试用状态', '真实 AI 证据', '基本可试', '等待证据', '插件是浏览器入口层', '待验收', '待修复', '/docs/browser-extension-ai-site-test-cards-cn.md']) {
+for (const marker of ['delivery-status', 'renderDeliveryStatusCard', '外部试用入口', '外部试用指南', '真实页面验收', '真实 AI 证据', '基本可试', '等待证据', '插件是浏览器入口层', '本地工作台是记忆中枢', '待验收', '待修复', '/docs/browser-extension-ai-site-test-cards-cn.md']) {
   assert(viewer.includes(marker), `Viewer dashboard missing delivery status marker: ${marker}`);
 }
 

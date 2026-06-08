@@ -53,6 +53,16 @@ Agent 复用层
 
 演示前可以按 [演示检查清单](docs/demo-checklist-cn.md) 自查。
 
+如果是发给外部测试者，建议只给三样东西：
+
+| 先看什么 | 对应入口 |
+| --- | --- |
+| 免登录看插件效果 | `http://localhost:3113/demo/browser-extension.html` |
+| 按步骤加载浏览器插件 | [外部试用指南](docs/external-tester-guide-cn.md) |
+| 反馈真实 AI 页面是否可用 | [真实页面验收清单](docs/browser-extension-ai-site-test-cards-cn.md) |
+
+这样对方先看到产品体验，再补真实页面反馈，不需要一开始理解全部交付脚本。
+
 查看当前交付状态：
 
 ```bash

@@ -63,7 +63,7 @@ body {
   margin-bottom: 10px;
   padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 16px;
   background: var(--paper);
 }
 
@@ -75,7 +75,7 @@ body {
   margin-bottom: 10px;
   padding: 10px 11px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 16px;
   background: var(--paper);
 }
 
@@ -193,9 +193,9 @@ body {
   margin-top: 8px;
   padding: 8px 9px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 16px;
   color: var(--muted);
-  background: var(--subtle);
+  background: var(--paper);
   font-size: 12px;
   line-height: 1.35;
 }
@@ -342,14 +342,14 @@ body {
   gap: 8px;
   padding: 10px 14px 14px;
   border-top: 1px solid var(--line);
-  background: rgba(247, 243, 238, .94);
+  background: rgba(245, 245, 245, .94);
   backdrop-filter: blur(12px);
 }
 
 button {
   min-height: 36px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 999px;
   background: var(--paper);
   color: var(--ink);
   font: inherit;
