@@ -18,6 +18,7 @@
 - 插件保存内容先进入 Viewer 的待审阅队列
 - 插件结构按 OpenMemory / Mem0 的 supported-sites 思路拆出 AI 产品站点配置，并把记忆召回锚定在输入框附近
 - 插件 README 能说明如何预览
+- 有插件权限与隐私说明，能解释为什么需要当前权限
 - 飞书文档和 GitHub README 的产品叙事一致
 
 ### 明天可试用
@@ -43,6 +44,7 @@
 - 飞书文档包含产品定位、截图、工作流、当前能力、路线图
 - GitHub 分支保持最新，重要更新都有 commit 和 push
 - 有一个固定 demo checklist，避免现场演示时路径混乱
+- 能生成本地预览 zip，方便发给别人开发者模式加载
 
 ## 当前优先级
 
@@ -58,6 +60,14 @@
 | P1 | 记忆来源筛选 | 已有浏览器 / 会话 / 手动筛选，并支持 ChatGPT、Claude、Gemini、Perplexity 等 AI 来源细分 |
 | P1 | 经验到 Skill 草稿 | 已能从经验分组生成可复制的 SKILL.md 草稿，暂不自动写入本地目录 |
 | P2 | Chrome Web Store 打包 | 更正式的分发 |
+
+## 插件发布物料
+
+- 权限与隐私说明：`docs/browser-extension-privacy-cn.md`
+- 本地检查：`npm run check:browser-extension`
+- 本地预览包：`npm run package:browser-extension`，输出 `artifacts/agent-memory-lab-extension.zip`
+- 试用者解压后选择包内 `browser-extension/` 文件夹加载
+- 未来商店发布仍需英文隐私政策、发布截图和逐站真实网页验收
 
 ## 默认更新工作流
 

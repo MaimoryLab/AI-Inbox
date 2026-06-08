@@ -7,6 +7,7 @@
 - GitHub 分支打开：`szn-viewer-ui-iteration`
 - 本地 Viewer 可访问：`http://localhost:3113/#dashboard`
 - 浏览器插件已加载：Chrome / Edge → `chrome://extensions` → 加载 `browser-extension/`
+- 插件检查已通过：`npm run check:browser-extension`
 - README 截图只展示首页和 Skill 管理台
 - 不展示包含个人敏感资料的记忆卡片截图
 
@@ -85,6 +86,6 @@
 ## 演示后下一步
 
 - 精调 ChatGPT / Claude / Perplexity 的输入框定位和插入事件
-- Viewer 支持按来源筛选浏览器保存内容
-- 经验进入 Skill 候选队列
-- 准备 Chrome Web Store 需要的权限说明、隐私政策和发布截图
+- 继续逐站验收 ChatGPT / Claude / Gemini / Perplexity 的输入框定位和插入事件
+- Skill 草稿确认后写入本地目录
+- 准备 Chrome Web Store 英文隐私政策和发布截图

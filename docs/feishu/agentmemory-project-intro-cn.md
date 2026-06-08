@@ -68,6 +68,7 @@ Skill 页会扫描本机的 Codex、Agents 和插件 Skill 目录，展示每个
 | Skill 草稿 | 已支持从可沉淀经验生成 SKILL.md 草稿，先预览和复制，不自动改本地 Skill |
 | 记忆库 | 已支持待审阅入口、保存前编辑、浏览器/会话/手动来源筛选 |
 | 插件说明 | 已区分浏览器插件和 Agent/MCP 底层集成 |
+| 插件发布物料 | 已补权限与隐私说明，并可生成本地预览 zip |
 
 ## 5. 浏览器插件 MVP
 
@@ -111,8 +112,13 @@ Viewer: http://localhost:3113
 
 ```bash
 npm run check:browser-extension
+npm run package:browser-extension
 npm run build
 ```
+
+权限与隐私说明：`docs/browser-extension-privacy-cn.md`
+
+本地预览包输出：`artifacts/agent-memory-lab-extension.zip`
 
 ## 6. 还差什么
 

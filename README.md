@@ -97,6 +97,8 @@ Agent Memory Lab 更像“工作记忆层”：它关心这段内容以后怎么
 Chrome / Edge -> chrome://extensions -> 开发者模式 -> 加载已解压的扩展程序 -> 选择 browser-extension/
 ```
 
+插件权限与隐私说明见 [docs/browser-extension-privacy-cn.md](docs/browser-extension-privacy-cn.md)。如果需要打包给别人本地预览，可以运行 `npm run package:browser-extension`。
+
 然后点击工具栏里的 Agent Memory Lab 图标，打开“同步侧栏”。
 
 ### 3. 会话时间线

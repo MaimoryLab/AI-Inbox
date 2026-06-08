@@ -114,9 +114,14 @@ icons/                  插件图标
 
 ```bash
 npm run check:browser-extension
+npm run package:browser-extension
 ```
 
-这个检查会确认扩展脚本语法、Manifest V3 content script 配置，以及 `shared/site-config.js` 和运行脚本里的 AI provider 没有分叉。
+第一个命令会确认扩展脚本语法、Manifest V3 content script 配置，以及 `shared/site-config.js` 和运行脚本里的 AI provider 没有分叉。第二个命令会生成可分发的本地预览包：`artifacts/agent-memory-lab-extension.zip`。
+
+把 zip 发给别人本地试用时，解压后选择里面的 `browser-extension/` 文件夹加载。
+
+权限和隐私说明见：[`docs/browser-extension-privacy-cn.md`](../docs/browser-extension-privacy-cn.md)。
 
 默认连接：
 
