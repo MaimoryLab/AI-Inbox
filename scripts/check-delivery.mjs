@@ -20,6 +20,8 @@ const requiredFiles = [
   'docs/demo-checklist-cn.md',
   'docs/product-delivery-plan-cn.md',
   'docs/browser-extension-ai-validation-cn.md',
+  'docs/browser-extension-privacy-en.md',
+  'docs/browser-extension-store-listing-en.md',
   'docs/feishu/agentmemory-project-intro-cn.md',
   'docs/browser-extension-privacy-cn.md',
   'docs/readme-assets/screenshots/dashboard.jpg',
@@ -65,6 +67,16 @@ for (const marker of ['本地预览包', '权限与隐私说明', 'Skill 草稿'
 const aiValidation = read('docs/browser-extension-ai-validation-cn.md');
 for (const marker of ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', '复制诊断', '通过标准']) {
   assert(aiValidation.includes(marker), `AI validation doc missing marker: ${marker}`);
+}
+
+const privacyEn = read('docs/browser-extension-privacy-en.md');
+for (const marker of ['Privacy Policy', 'local-first', 'Data We Process', 'Where Data Goes', 'AI Diagnostics']) {
+  assert(privacyEn.includes(marker), `English privacy policy missing marker: ${marker}`);
+}
+
+const storeListing = read('docs/browser-extension-store-listing-en.md');
+for (const marker of ['Store Listing Draft', 'Short Description', 'Permission Justification', 'Pre-release Checklist']) {
+  assert(storeListing.includes(marker), `Store listing draft missing marker: ${marker}`);
 }
 
 const feishu = read('docs/feishu/agentmemory-project-intro-cn.md');

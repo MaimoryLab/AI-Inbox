@@ -68,7 +68,7 @@ Skill 页会扫描本机的 Codex、Agents 和插件 Skill 目录，展示每个
 | Skill 草稿 | 已支持从可沉淀经验生成 SKILL.md 草稿，先预览和复制，不自动改本地 Skill |
 | 记忆库 | 已支持待审阅入口、保存前编辑、浏览器/会话/手动来源筛选 |
 | 插件说明 | 已区分浏览器插件和 Agent/MCP 底层集成 |
-| 插件发布物料 | 已补权限与隐私说明、真实站点验收记录，并可生成本地预览 zip |
+| 插件发布物料 | 已补中英文隐私说明、英文商店文案草稿、真实站点验收记录，并可生成本地预览 zip |
 
 ## 5. 浏览器插件 MVP
 
@@ -119,6 +119,10 @@ npm run check:delivery
 
 权限与隐私说明：`docs/browser-extension-privacy-cn.md`
 
+英文隐私政策草稿：`docs/browser-extension-privacy-en.md`
+
+英文商店发布文案草稿：`docs/browser-extension-store-listing-en.md`
+
 真实站点验收记录：`docs/browser-extension-ai-validation-cn.md`
 
 本地预览包输出：`artifacts/agent-memory-lab-extension.zip`
@@ -130,7 +134,7 @@ npm run check:delivery
 | P1 | 精准 AI 对话抽取器 | ChatGPT、Claude、Gemini、Perplexity 应继续按站点优化采集方式 |
 | P1 | AI 输入框注入精调 | 已补常见输入框选择器、插入事件、复制诊断和 fixture 检查，仍需要真实网页逐站验收 |
 | P1 | 经验到 Skill 的安装流程 | 已有草稿预览和复制，后续再做明确确认后的本地写入 |
-| P2 | Chrome Web Store 打包 | 需要图标、权限说明、隐私政策、发布截图 |
+| P2 | Chrome Web Store 打包 | 已有英文隐私政策和商店文案草稿，仍需要稳定公开隐私政策 URL、发布截图和真实站点验收证据 |
 
 ## 7. 设计原则
 
