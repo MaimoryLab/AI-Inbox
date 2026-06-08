@@ -103,6 +103,9 @@ if (!sidepanel.includes('getDraftMetaFields') || !serviceWorker.includes('normal
 if (!sidepanelHtml.includes('openTestCards') || !sidepanel.includes('AI_SITE_TEST_CARDS_PATH')) {
   throw new Error('Side panel must expose the local AI site test cards entry.');
 }
+if (!sidepanelHtml.includes('copyEvidenceCommand') || !sidepanel.includes('buildEvidenceCommand') || !sidepanel.includes('record:ai-validation-evidence')) {
+  throw new Error('Side panel must expose a copyable AI validation evidence command.');
+}
 if (!sharedApi.includes('path =') || !serviceWorker.includes('message.path')) {
   throw new Error('OPEN_VIEWER must support local viewer document paths.');
 }

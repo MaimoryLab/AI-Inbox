@@ -189,6 +189,17 @@ body {
 
 .diagnostic-row.warn strong { color: var(--warn); }
 
+.command-hint {
+  margin-top: 8px;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  background: var(--subtle);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .candidate-list, .recent-list, .turn-list {
   display: grid;
   gap: 8px;

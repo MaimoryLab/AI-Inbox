@@ -41,6 +41,7 @@ function buildDiagnosticReport(capture) {
   const diagnostics = capture && capture.diagnostics ? capture.diagnostics : {};
   const conversation = capture && capture.conversation ? capture.conversation : {};
   const manifest = chrome.runtime && chrome.runtime.getManifest ? chrome.runtime.getManifest() : {};
+  const matched = diagnostics.matchedSelectors || {};
   return {
     product: 'Agent Memory Lab Browser Extension',
     extension: {
@@ -68,6 +69,21 @@ function buildDiagnosticReport(capture) {
       editorFound: !!diagnostics.editorFound,
       editorSelector: diagnostics.editorSelector || '',
       anchorFound: !!diagnostics.anchorFound,
+      anchorSelector: diagnostics.anchorSelector || '',
+      anchorSource: diagnostics.anchorSource || '',
+      adjacentSelector: diagnostics.adjacentSelector || '',
+      sendFound: !!diagnostics.sendFound,
+      sendSelector: diagnostics.sendSelector || '',
+      turnSelector: diagnostics.turnSelector || '',
+      turnSelectorCount: diagnostics.turnSelectorCount || 0,
+      matchedSelectors: {
+        editor: matched.editor || diagnostics.editorSelector || '',
+        anchor: matched.anchor || diagnostics.anchorSelector || '',
+        anchorSource: matched.anchorSource || diagnostics.anchorSource || '',
+        adjacent: matched.adjacent || diagnostics.adjacentSelector || '',
+        send: matched.send || diagnostics.sendSelector || '',
+        turn: matched.turn || diagnostics.turnSelector || ''
+      },
       placement: diagnostics.placement || '',
       memoryWidgetVisible: !!diagnostics.memoryWidgetVisible,
       promptLength: diagnostics.promptLength || 0,
@@ -82,6 +98,17 @@ function buildDiagnosticReport(capture) {
       notes: '填写无隐私信息的验收备注'
     }
   };
+}
+
+function providerArg(value) {
+  const provider = String(value || '').trim();
+  return provider ? ` --provider "${provider.replace(/"/g, '\\"')}"` : '';
+}
+
+function buildEvidenceCommand(capture) {
+  const diagnostics = capture && capture.diagnostics ? capture.diagnostics : {};
+  const provider = diagnostics.provider || (capture && capture.conversation && capture.conversation.provider) || '';
+  return `npm run record:ai-validation-evidence -- --clipboard${providerArg(provider)} --browser "Chrome 版本号" --notes "无隐私信息的备注"`;
 }
 
 function setConnectionState(state, text) {
@@ -227,10 +254,14 @@ function renderDiagnostics(capture) {
   if (!diagnostics.supportedAiPage) {
     section.hidden = true;
     $('copyDiagnostics').disabled = true;
+    $('copyEvidenceCommand').disabled = true;
+    $('evidenceCommandHint').hidden = true;
     return;
   }
   section.hidden = false;
   $('copyDiagnostics').disabled = false;
+  $('copyEvidenceCommand').disabled = false;
+  $('evidenceCommandHint').hidden = false;
   $('aiProvider').textContent = diagnostics.provider || 'AI 页面';
   const rows = [
     { label: '页面识别', value: diagnostics.provider || '已识别', ok: true },
@@ -335,6 +366,14 @@ $('copyDiagnostics').addEventListener('click', async () => {
   try {
     await copyText(JSON.stringify(buildDiagnosticReport(latestCapture), null, 2));
     setMessage('已复制诊断信息', 'ok');
+  } catch (err) {
+    setMessage(err.message || '复制失败', 'error');
+  }
+});
+$('copyEvidenceCommand').addEventListener('click', async () => {
+  try {
+    await copyText(buildEvidenceCommand(latestCapture));
+    setMessage('已复制证据保存命令', 'ok');
   } catch (err) {
     setMessage(err.message || '复制失败', 'error');
   }

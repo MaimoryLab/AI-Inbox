@@ -129,7 +129,7 @@ npm run check:release-public
 - 输入框状态是“已找到”。
 - 输入框附近出现“记忆建议”。
 - 记忆可以插入或复制。
-- 同步侧栏可以复制诊断 JSON。
+- 同步侧栏可以复制诊断 JSON，也可以复制保存证据的终端命令。
 - 原站点输入、发送、滚动没有异常。
 
 验收结果写入：
@@ -165,7 +165,7 @@ npm run sync:ai-validation-table
 - 操作系统。
 - 目标站点。
 - 截图或录屏。
-- 同步侧栏复制出来的诊断 JSON。
+- 同步侧栏复制出来的诊断 JSON，以及侧栏“复制命令”生成的保存命令执行结果。
 - 如果可以，直接提供 `docs/validation/browser-extension-ai-sites/` 下的证据 JSON 文件。
 - 复制诊断里的 `manualValidation` 字段需要按真实结果改成 `true` / `false`，不要默认当作通过。
 - 诊断 JSON 里 `editorFound`、`anchorFound`、`placement`、`memoryWidgetVisible` 的状态。

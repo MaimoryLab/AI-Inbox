@@ -112,6 +112,7 @@ assert(browserReadme.includes('docs/browser-extension-privacy-cn.md'), 'Browser 
 assert(browserReadme.includes('docs/browser-extension-mem0-reference-cn.md'), 'Browser extension README must link Mem0 reference doc.');
 assert(browserReadme.includes('docs/browser-extension-ai-site-test-cards-cn.md'), 'Browser extension README must link AI site test cards doc.');
 assert(browserReadme.includes('保存前编辑'), 'Browser extension README must mention edit-before-save flow.');
+assert(browserReadme.includes('复制命令'), 'Browser extension README must mention the copy evidence command flow.');
 for (const marker of ['项目', '标签', '经验候选']) {
   assert(browserReadme.includes(marker), `Browser extension README must mention draft ${marker}.`);
 }
@@ -124,7 +125,7 @@ for (const marker of ['五步验收', '项目、标签', '经验候选', 'AI-SIT
 }
 
 const siteCards = read('docs/browser-extension-ai-site-test-cards-cn.md');
-for (const marker of ['真实 AI 站点测试卡', 'ChatGPT', 'Claude', 'Gemini', 'Perplexity', 'manualValidation.memoryInsertPassed', 'manualValidation.diagnosticsCopied', 'manualValidation.siteInputStillWorks', 'npm run record:ai-validation-evidence']) {
+for (const marker of ['真实 AI 站点测试卡', 'ChatGPT', 'Claude', 'Gemini', 'Perplexity', '复制命令', 'manualValidation.memoryInsertPassed', 'manualValidation.diagnosticsCopied', 'manualValidation.siteInputStillWorks', 'npm run record:ai-validation-evidence']) {
   assert(siteCards.includes(marker), `AI site test cards missing marker: ${marker}`);
 }
 const zipSiteCards = read('browser-extension/AI-SITE-TEST-CARDS.md');
@@ -138,7 +139,7 @@ for (const marker of ['审阅队列可用', 'AI 页面状态', '记忆建议', '
 }
 
 const testerGuide = read('docs/external-tester-guide-cn.md');
-for (const marker of ['外部试用指南', 'npm run preview:browser-extension', 'npm run check:workbench', 'npm run check:release-gates', '记忆建议', '诊断 JSON', '从仓库试用', '从 zip 试用', 'browser-extension/', '外部试用反馈模板', 'external-tester-feedback-cn.yml', '外部反馈分诊指南', 'browser-extension-ai-site-test-cards-cn.md']) {
+for (const marker of ['外部试用指南', 'npm run preview:browser-extension', 'npm run check:workbench', 'npm run check:release-gates', '记忆建议', '诊断 JSON', '复制命令', '从仓库试用', '从 zip 试用', 'browser-extension/', '外部试用反馈模板', 'external-tester-feedback-cn.yml', '外部反馈分诊指南', 'browser-extension-ai-site-test-cards-cn.md']) {
   assert(testerGuide.includes(marker), `External tester guide missing marker: ${marker}`);
 }
 
