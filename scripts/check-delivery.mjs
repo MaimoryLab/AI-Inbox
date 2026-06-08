@@ -277,6 +277,10 @@ assert(deliveryManifest.artifacts?.extensionZip?.exists, 'Delivery manifest must
 assert(deliveryManifest.artifacts?.loadInstructions?.exists, 'Delivery manifest must mark zip load instructions as existing.');
 assert(deliveryManifest.artifacts?.externalTesterHandout?.exists === true, 'Delivery manifest must mark external tester handout as existing.');
 assert(deliveryManifest.artifacts?.releaseNotes?.exists === true, 'Delivery manifest must mark release notes as existing.');
+assert(deliveryManifest.artifacts?.githubReleaseDraft?.exists === true, 'Delivery manifest must mark GitHub release draft as existing.');
+assert(deliveryManifest.coreExperience?.aiInputMemoryHint?.mem0Reference?.documentedIn === 'docs/browser-extension-mem0-reference-cn.md', 'Delivery manifest must record Mem0 reference documentation.');
+assert(String(deliveryManifest.coreExperience?.aiInputMemoryHint?.mem0Reference?.inputPlacement || '').includes('prompt'), 'Delivery manifest must record prompt-adjacent placement.');
+assert(String(deliveryManifest.coreExperience?.aiInputMemoryHint?.mem0Reference?.reviewFirstDifference || '').includes('/agentmemory/review'), 'Delivery manifest must record review-first difference.');
 assert(deliveryManifest.artifacts.extensionZip.bytes > 0, 'Delivery manifest extension zip size must be positive.');
 assert(/^[a-f0-9]{64}$/.test(deliveryManifest.artifacts.extensionZip.sha256 || ''), 'Delivery manifest extension zip sha256 is invalid.');
 assert(deliveryManifest.releaseState?.publicRelease === 'not-ready', 'Delivery manifest must mark public release as not-ready until real site evidence exists.');
@@ -293,6 +297,11 @@ for (const marker of ['Agent Memory Lab 外部试用说明', 'agent-memory-lab-e
 const releaseNotes = read('artifacts/release-notes.md');
 for (const marker of ['Release Notes', '版本信息', 'Extension zip', '本版新增和已就绪能力', '已知边界', '真实 AI 页面证据', 'npm run check:delivery', 'npm run check:release-public', '反馈入口']) {
   assert(releaseNotes.includes(marker), `Release notes missing marker: ${marker}`);
+}
+
+const githubReleaseDraft = read('artifacts/github-release-draft.md');
+for (const marker of ['外部试用包', 'GitHub Release 草稿', 'Extension zip', 'Mem0 / OpenMemory', '输入框附近', '待审阅队列', '公开发布仍是 `not-ready`', 'browser-extension/shared/site-config.js', 'npm run check:release-public']) {
+  assert(githubReleaseDraft.includes(marker), `GitHub release draft missing marker: ${marker}`);
 }
 
 console.log('delivery checks ok');

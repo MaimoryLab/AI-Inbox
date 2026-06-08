@@ -32,6 +32,33 @@ Agent Memory Lab 要继承这个位置，但不要继承它的全部数据策略
 | 页面诊断 | `diagnostics` + “复制诊断” | AI 网页 DOM 经常变，逐站适配必须可反馈、可复现 |
 | 统一数据类型 | `PageCapture` | 避免 popup、sidepanel、content script 各自拼数据 |
 
+## 参考 Mem0 后的插件骨架
+
+Mem0 的代码给我们的重点不是视觉样式，而是“每个 AI 站点都是一个可维护的适配对象”。Agent Memory Lab 当前仍保持轻量实现，但骨架应该按下面几层理解：
+
+| 层级 | 当前文件 | 职责 | 交付要求 |
+| --- | --- | --- | --- |
+| 支持站点清单 | `browser-extension/shared/site-config.js` | 记录 host、输入框、锚点、发送按钮、对话轮次和摆放策略 | 每新增一个站点，先补这里，不在 content script 里散写魔法 selector |
+| 页面内入口 | `browser-extension/content-script.js` | 把“记忆建议”放到 AI 输入框附近，并处理插入/复制 | 入口靠近 prompt 编辑区，不遮挡发送、附件、语音、模型选择 |
+| 后台协调 | `browser-extension/service-worker.js` | 接收页面捕获、保存候选、打开 Viewer、维护最近记录 | 保存候选必须走 `/agentmemory/review`，不直接写长期记忆 |
+| 快速面板 | `browser-extension/popup.*` | 查看状态、编辑草稿、快速保存 | 显示本地连接状态、版本和可编辑草稿字段 |
+| 同步侧栏 | `browser-extension/sidepanel.*` | 展示上下文、候选草稿、复制诊断、打开测试卡 | 真实站点失败时能直接复制可复现诊断 |
+| 验收材料 | `docs/browser-extension-ai-site-test-cards-cn.md` | 按站点记录通过标准和失败反馈 | 公开支持前必须有真实页面证据 |
+
+这套骨架的判断标准很简单：用户在 ChatGPT / Claude / Gemini / Perplexity 里写 prompt 时，能在原工作流内看到记忆入口；用户决定保存时，又能回到本地 Viewer 做审阅和确认。
+
+## 与 Mem0 的产品差异
+
+| 维度 | Mem0 / OpenMemory 倾向 | Agent Memory Lab 倾向 |
+| --- | --- | --- |
+| 入口 | AI 输入框旁的记忆按钮和浮层 | 同样放在输入框附近 |
+| 数据归属 | 更偏账号/API/云端记忆 | 本地优先，先写入本地审阅队列 |
+| 写入方式 | 更强调自动记忆和跨产品同步 | 默认候选草稿，保存前可编辑，长期写入前可审阅 |
+| 适配策略 | 每个大站点独立 content 文件 | 先共享配置，复杂后拆 adapter |
+| 发布口径 | 面向商店和用户安装 | 当前先小范围外部试用，证据齐全后再公开发布 |
+
+所以我们要学 Mem0 的“插在工作流里”和“supported sites 可维护”，但不照搬“自动把一切变成长期记忆”。
+
 ## Mem0 到我们的实现映射
 
 Mem0 的实现方式可以拆成四层：站点适配、输入框入口、后台协调、管理界面。Agent Memory Lab 也按这四层推进，只是数据流改成本地优先和待审阅。

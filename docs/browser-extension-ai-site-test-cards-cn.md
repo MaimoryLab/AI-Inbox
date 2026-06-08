@@ -32,6 +32,18 @@ npm run record:ai-validation-evidence -- --clipboard --browser "Chrome 版本号
 - 原站输入、发送、滚动、模型选择和附件按钮没有异常。
 - 诊断 JSON 的 `manualValidation.memoryInsertPassed`、`manualValidation.diagnosticsCopied`、`manualValidation.siteInputStillWorks` 都为通过。
 
+## Mem0 式站点适配检查
+
+Mem0 的插件实现提醒我们：每个 AI 产品都要当成独立站点适配，而不是只看域名匹配。测试时请额外确认这 5 件事：
+
+- `provider` 是否与当前产品一致，而不是命中通用 fallback。
+- `editor` 是否指向真正写 prompt 的输入区，而不是历史消息、搜索结果或隐藏 textarea。
+- `anchor` 是否靠近输入框工具栏，入口是否避开发送、附件、语音和模型选择按钮。
+- 插入记忆后，原站是否触发输入状态，例如发送按钮可用、光标还在输入区。
+- `turnSelectors` 是否能读到当前会话区域，方便后续做上下文召回，而不是只保存网页标题。
+
+如果这 5 项里有任意一项不稳定，就不要把该站点标为通过。把诊断 JSON 和截图交回，优先更新 `browser-extension/shared/site-config.js`；当某个站点规则开始变复杂，再拆成独立 adapter。
+
 ## 测试卡 1：ChatGPT
 
 - 目标域名：`chatgpt.com` 或 `chat.openai.com`

@@ -129,6 +129,10 @@ const deliveryManifest = {
       path: 'artifacts/release-notes.md',
       exists: true
     },
+    githubReleaseDraft: {
+      path: 'artifacts/github-release-draft.md',
+      exists: true
+    },
     screenshots: {
       dashboard: existsSync('docs/readme-assets/screenshots/dashboard.jpg'),
       skills: existsSync('docs/readme-assets/screenshots/skills.jpg')
@@ -156,7 +160,14 @@ const deliveryManifest = {
       supportedSitesSource: 'browser-extension/shared/site-config.js',
       diagnosticsCopy: true,
       sidePanelTestCardsEntry: true,
-      diagnosticValidationGuide: true
+      diagnosticValidationGuide: true,
+      mem0Reference: {
+        source: 'https://github.com/mem0ai/mem0-chrome-extension',
+        documentedIn: 'docs/browser-extension-mem0-reference-cn.md',
+        adapterPattern: 'supported-sites config first, split provider adapter when DOM logic grows',
+        inputPlacement: 'near AI prompt editor',
+        reviewFirstDifference: 'all captured candidates save to /agentmemory/review before long-term memory'
+      }
     },
     reviewQueue: {
       source: 'browser-extension',
@@ -441,11 +452,71 @@ const releaseNotes = `# Agent Memory Lab ${manifest.version} Release Notes
 - 反馈分诊指南：\`docs/external-feedback-triage-cn.md\`
 `;
 
+const githubReleaseDraft = `# Agent Memory Lab ${manifest.version} 外部试用包
+
+> 这是 GitHub Release 草稿，面向小范围外部试用；不是 Chrome Web Store 公开发布说明。
+
+## 本次包
+
+- Extension zip：\`${zipPath}\`
+- SHA256：\`${zipSha256 || 'missing'}\`
+- Branch：\`${branch}\`
+- Commit：\`${commit}\`${dirty ? '（存在未提交的跟踪文件变更，发布前需复查）' : ''}
+- 详细 Release Notes：\`artifacts/release-notes.md\`
+- 外部试用手册：\`artifacts/external-tester-handout.md\`
+
+## 这版解决什么
+
+- 提供一个本地优先的 Agent 记忆插件预览包，让用户在 AI 网页对话中收集候选记忆。
+- 参考 Mem0 / OpenMemory 的浏览器插件结构，把记忆入口放到 AI 输入框附近，而不是只藏在弹窗里。
+- 保留 Agent Memory Lab 的差异点：候选内容先进入 Viewer 待审阅队列，用户确认后再成为长期记忆。
+- 支持本地 demo、插件 popup、side panel、诊断 JSON、真实 AI 站点测试卡和反馈模板。
+
+## 已就绪
+
+- 本地演示页：\`/demo/browser-extension.html\`
+- 插件加载说明：\`browser-extension/LOAD-THIS-FIRST.md\`
+- 多站点配置：\`browser-extension/shared/site-config.js\`
+- Mem0 参考说明：\`docs/browser-extension-mem0-reference-cn.md\`
+- 真实 AI 站点测试卡：\`docs/browser-extension-ai-site-test-cards-cn.md\`
+- 外部反馈模板：\`.github/ISSUE_TEMPLATE/external-tester-feedback-cn.yml\`
+
+## 已知边界
+
+- 公开发布仍是 \`not-ready\`。
+- ChatGPT、Claude、Gemini、Perplexity 的真实页面证据还没有全部通过。
+- AI 网页 DOM 变化频繁，外部试用反馈必须附带 side panel 诊断 JSON。
+- 这版用于小范围加载未打包插件测试，不用于商店上架。
+
+## 发布前检查
+
+\`\`\`bash
+npm run check:delivery
+npm run package:browser-extension
+npm run status:delivery
+npm run check:release-gates
+\`\`\`
+
+公开发布前还必须通过：
+
+\`\`\`bash
+npm run check:release-public
+\`\`\`
+
+当前它预期失败，因为真实 AI 站点证据尚未齐全。
+
+## 给测试者的第一句话
+
+请先按 \`browser-extension/LOAD-THIS-FIRST.md\` 加载插件，再打开 Viewer 的本地 demo 完成一次“生成候选记忆 -> 修改草稿 -> 保存到待审阅队列”的闭环。真实 AI 页面测试请按 \`docs/browser-extension-ai-site-test-cards-cn.md\` 逐站记录。
+`;
+
 writeFileSync('artifacts/delivery-summary.md', summary);
 writeFileSync('artifacts/external-tester-handout.md', externalHandout);
 writeFileSync('artifacts/release-notes.md', releaseNotes);
+writeFileSync('artifacts/github-release-draft.md', githubReleaseDraft);
 writeFileSync('artifacts/delivery-manifest.json', `${JSON.stringify(deliveryManifest, null, 2)}\n`);
 console.log('delivery summary: artifacts/delivery-summary.md');
 console.log('external tester handout: artifacts/external-tester-handout.md');
 console.log('release notes: artifacts/release-notes.md');
+console.log('github release draft: artifacts/github-release-draft.md');
 console.log('delivery manifest: artifacts/delivery-manifest.json');
