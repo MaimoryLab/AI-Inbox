@@ -29,6 +29,7 @@
     const provider = getProviderForHost(location.hostname);
     const turns = collectAiChatTurns(provider);
     const promptDraft = collectPromptDraft(provider);
+    const diagnostics = collectDiagnostics(provider, promptDraft, turns);
     return {
       title,
       url: location.href,
@@ -38,7 +39,8 @@
       headings,
       aiProvider: provider ? provider.label : '',
       promptDraft,
-      turns
+      turns,
+      diagnostics
     };
   }
 
@@ -71,12 +73,31 @@
   }
 
   function findEditor(provider) {
+    const match = findEditorMatch(provider);
+    return match ? match.el : null;
+  }
+
+  function findEditorMatch(provider) {
     if (!provider) return null;
     for (const selector of provider.editorSelectors) {
       const el = document.querySelector(selector);
-      if (el) return el;
+      if (el) return { el, selector };
     }
     return null;
+  }
+
+  function collectDiagnostics(provider, promptDraft, turns) {
+    const match = findEditorMatch(provider);
+    return {
+      supportedAiPage: !!provider,
+      provider: provider ? provider.label : '',
+      editorFound: !!match,
+      editorSelector: match ? match.selector : '',
+      promptLength: String(promptDraft || '').length,
+      turnCount: Array.isArray(turns) ? turns.length : 0,
+      memoryWidgetVisible: !!memoryWidget,
+      checkedAt: new Date().toISOString()
+    };
   }
 
   function createMemoryWidget(provider) {

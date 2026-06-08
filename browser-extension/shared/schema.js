@@ -38,6 +38,7 @@ export function createPageCapture(page = {}) {
       promptDraft: String(page.promptDraft || '').trim().slice(0, 1500),
       turns: Array.isArray(page.turns) ? page.turns.map(normalizeTurn).filter(Boolean).slice(-8) : []
     },
+    diagnostics: normalizeDiagnostics(page.diagnostics),
     candidates: {
       memories: buildMemoryCandidates(page, normalized),
       lessons: buildLessonCandidates(page, normalized)
@@ -46,6 +47,20 @@ export function createPageCapture(page = {}) {
       risk: detectPrivacyRisk(page),
       reasons: detectPrivacyReasons(page)
     }
+  };
+}
+
+function normalizeDiagnostics(value) {
+  const input = value && typeof value === 'object' ? value : {};
+  return {
+    supportedAiPage: !!input.supportedAiPage,
+    provider: String(input.provider || ''),
+    editorFound: !!input.editorFound,
+    editorSelector: String(input.editorSelector || ''),
+    promptLength: Number.isFinite(Number(input.promptLength)) ? Number(input.promptLength) : 0,
+    turnCount: Number.isFinite(Number(input.turnCount)) ? Number(input.turnCount) : 0,
+    memoryWidgetVisible: !!input.memoryWidgetVisible,
+    checkedAt: String(input.checkedAt || '')
   };
 }
 

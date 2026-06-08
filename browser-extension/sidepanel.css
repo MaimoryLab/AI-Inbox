@@ -162,6 +162,27 @@ body {
   background: var(--warn-bg);
 }
 
+.diagnostic-list {
+  display: grid;
+  gap: 7px;
+}
+
+.diagnostic-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.diagnostic-row strong {
+  color: var(--ink);
+  font-weight: 740;
+}
+
+.diagnostic-row.warn strong { color: var(--warn); }
+
 .candidate-list, .recent-list, .turn-list {
   display: grid;
   gap: 8px;

@@ -88,6 +88,7 @@ Skill 页会扫描本机的 Codex、Agents 和插件 Skill 目录，展示每个
 | 连接状态 | 侧栏顶部显示审阅队列是否可用，未连接时提示先启动本地工作台 |
 | 页面类型识别 | 初步识别 AI 对话、GitHub、飞书、Notion、论文 / PDF、插件商店等页面 |
 | 输入框记忆提示 | 在 ChatGPT / Claude / Gemini / Perplexity 等页面输入问题时，提示本地相关记忆，并支持插入/复制 |
+| AI 页面诊断 | 侧栏显示是否识别 AI 产品、是否找到输入框、输入草稿长度和最近对话数量 |
 | 来源细分 | 浏览器写入会保留 AI 产品来源，Viewer 里可筛选 ChatGPT、Claude、Gemini、Perplexity 等来源 |
 | 右键菜单保存 | 从页面右键快速保存到 Agent Memory Lab |
 | 最近保存记录 | popup 中展示最近保存过的网页线索 |

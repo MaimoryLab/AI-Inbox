@@ -70,6 +70,30 @@ function renderTurns(turns) {
   `).join('');
 }
 
+function renderDiagnostics(capture) {
+  const diagnostics = capture && capture.diagnostics ? capture.diagnostics : {};
+  const section = $('aiDiagnostics');
+  if (!diagnostics.supportedAiPage) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+  $('aiProvider').textContent = diagnostics.provider || 'AI 页面';
+  const rows = [
+    { label: '页面识别', value: diagnostics.provider || '已识别', ok: true },
+    { label: '输入框', value: diagnostics.editorFound ? '已找到' : '未找到', ok: !!diagnostics.editorFound },
+    { label: '输入草稿', value: `${diagnostics.promptLength || 0} 字`, ok: true },
+    { label: '最近对话', value: `${diagnostics.turnCount || 0} 条`, ok: true }
+  ];
+  if (diagnostics.editorSelector) rows.push({ label: '命中规则', value: diagnostics.editorSelector, ok: true });
+  $('aiDiagnosticList').innerHTML = rows.map((row) => `
+    <div class="diagnostic-row${row.ok ? '' : ' warn'}">
+      <span>${escapeHtml(row.label)}</span>
+      <strong>${escapeHtml(row.value)}</strong>
+    </div>
+  `).join('');
+}
+
 function renderRecent(items) {
   const node = $('recentList');
   if (!items || !items.length) {
@@ -100,6 +124,7 @@ function renderCapture(capture) {
   $('lessonCount').textContent = String(lessons.length);
   renderCandidateList($('memoryCandidates'), memories, 'memory');
   renderCandidateList($('lessonCandidates'), lessons, 'lesson');
+  renderDiagnostics(capture);
   renderTurns(capture.conversation && capture.conversation.turns ? capture.conversation.turns : []);
 }
 

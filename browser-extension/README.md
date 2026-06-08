@@ -10,6 +10,7 @@
 - 把当前网页加入待审阅记忆队列
 - 把当前网页上的一条观察加入待审阅经验队列
 - 侧边栏查看当前页面类型、候选记忆、候选经验和隐私提示
+- 侧边栏在 AI 页面显示输入框诊断：识别到的产品、输入框状态、输入草稿长度和最近对话数量
 - 初步识别 ChatGPT、Claude、Gemini、Perplexity、Grok 等 AI 对话页面
 - 参考 OpenMemory / Mem0 的 supported-sites 架构，按 AI 产品维护独立站点配置
 - 在 AI 输入框附近召回本地记忆，但长期写入必须先进入本地审阅队列
@@ -29,6 +30,7 @@
 | --- | --- |
 | 弹窗 | 快速保存当前网页、补充一条经验、打开本地工作台 |
 | 同步侧栏 | 边浏览边看页面类型、候选记忆、候选经验和隐私提示 |
+| AI 页面状态 | 检查 ChatGPT / Claude 等页面是否找到了输入框和最近对话，便于逐站验收 |
 | 输入框记忆提示 | 在 ChatGPT / Claude / Gemini / Perplexity 等页面输入问题时，提示本地相关记忆，并可插入当前输入框 |
 
 更推荐日常使用“同步侧栏”，因为它更接近未来的跨 AI 产品记忆同步体验。
@@ -72,6 +74,14 @@ icons/                  插件图标
   conversation: {
     provider: "ChatGPT",
     turns: [{ role: "user", text: "最近可见的一轮对话" }]
+  },
+  diagnostics: {
+    supportedAiPage: true,
+    provider: "ChatGPT",
+    editorFound: true,
+    editorSelector: "#prompt-textarea",
+    promptLength: 24,
+    turnCount: 4
   },
   candidates: {
     memories: ["可保存的记忆候选"],
