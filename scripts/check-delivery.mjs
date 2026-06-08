@@ -38,6 +38,7 @@ const requiredFiles = [
   'browser-extension/README.md',
   'docs/demo-checklist-cn.md',
   'docs/product-delivery-plan-cn.md',
+  'docs/external-tester-guide-cn.md',
   'docs/browser-extension-ai-validation-cn.md',
   'docs/browser-extension-privacy-en.md',
   'docs/browser-extension-store-listing-en.md',
@@ -85,8 +86,13 @@ assert(browserReadme.includes('docs/browser-extension-privacy-cn.md'), 'Browser 
 assert(browserReadme.includes('/demo/browser-extension.html'), 'Browser extension README must mention local demo page.');
 
 const checklist = read('docs/demo-checklist-cn.md');
-for (const marker of ['审阅队列可用', 'AI 页面状态', '本地记忆', 'Skill 管理台']) {
+for (const marker of ['审阅队列可用', 'AI 页面状态', '记忆建议', 'Skill 管理台']) {
   assert(checklist.includes(marker), `Demo checklist missing marker: ${marker}`);
+}
+
+const testerGuide = read('docs/external-tester-guide-cn.md');
+for (const marker of ['外部试用指南', 'npm run preview:browser-extension', '记忆建议', '诊断 JSON', 'browser-extension/']) {
+  assert(testerGuide.includes(marker), `External tester guide missing marker: ${marker}`);
 }
 
 const plan = read('docs/product-delivery-plan-cn.md');
@@ -100,7 +106,7 @@ for (const marker of ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', '复制诊断
 }
 
 const demoPage = read('src/viewer/demo/browser-extension.html');
-for (const marker of ['agentmemory-demo-input', 'Agent Memory Demo', '本地记忆']) {
+for (const marker of ['agentmemory-demo-input', 'Agent Memory Demo', '记忆建议']) {
   assert(demoPage.includes(marker), `Browser extension demo page missing marker: ${marker}`);
 }
 
@@ -121,7 +127,7 @@ const preview = spawn(process.execPath, ['scripts/preview-browser-extension.mjs'
 });
 try {
   const html = await fetchText(`http://127.0.0.1:${previewPort}/demo/browser-extension.html`);
-  for (const marker of ['agentmemory-demo-input', 'Agent Memory Demo', '本地记忆']) {
+  for (const marker of ['agentmemory-demo-input', 'Agent Memory Demo', '记忆建议']) {
     assert(html.includes(marker), `Preview server response missing marker: ${marker}`);
   }
 } finally {

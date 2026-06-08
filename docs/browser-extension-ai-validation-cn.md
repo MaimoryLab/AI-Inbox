@@ -1,6 +1,6 @@
 # 浏览器插件 AI 站点验收记录
 
-这份表用于记录真实 AI 网页的插件验收结果。`npm run check:browser-extension` 里的 fixture 只能证明 selector 规则没有结构性退化；真正对外交付前，还需要在真实网页里确认输入框旁记忆提示、插入、复制和侧栏诊断都可用。
+这份表用于记录浏览器插件的 AI 页面验收结果。`npm run check:browser-extension` 里的 fixture 只能证明 selector 规则没有结构性退化；本地预览页能证明基础交互可跑通；真正对外发布前，还需要在真实网页里确认输入框旁“记忆建议”、插入、复制和侧栏诊断都可用。
 
 ## 验收方法
 
@@ -10,7 +10,7 @@
 4. 打开目标 AI 产品页面并登录。
 5. 在输入框输入一个和本地记忆相关的问题，至少 8 个字。
 6. 打开插件同步侧栏，检查“AI 页面状态”。
-7. 检查输入框附近是否出现“本地记忆”提示。
+7. 检查输入框附近是否出现“记忆建议”提示。
 8. 尝试插入一条记忆到输入框。
 9. 点击“复制诊断”，把 JSON 保存到本表对应记录或 issue。
 10. 记录截图、日期、浏览器版本和结果。
@@ -19,16 +19,24 @@
 
 - Provider 被正确识别。
 - 输入框状态为“已找到”。
-- 输入框附近出现“本地记忆”入口。
+- 输入框附近出现“记忆建议”入口。
 - 本地搜索有结果时，可以插入或复制记忆。
 - 同步侧栏可复制诊断 JSON。
 - 插件没有导致原站点输入框、发送按钮、页面滚动异常。
 
-## 当前验收表
+## 本地可验证项
+
+| 项目 | 命令 / 页面 | 通过标准 | 当前状态 | 证据 |
+| --- | --- | --- | --- | --- |
+| 插件结构检查 | `npm run check:browser-extension` | 内容脚本语法、站点配置、图标、右键 selection/link 保存检查通过 | 已通过 | 最近一次 `npm run package:browser-extension && npm run check:delivery` |
+| 插件包检查 | `npm run package:browser-extension` | 生成 `artifacts/agent-memory-lab-extension.zip`，且包含 manifest、content script、service worker、side panel、popup/options、shared files、PNG 图标 | 已通过 | package check: 25 entries |
+| 交付检查 | `npm run check:delivery` | 构建、README 图片引用、插件预览页、插件包检查均通过 | 已通过 | delivery checks ok |
+| 免登录预览页 | `http://localhost:3113/demo/browser-extension.html` | 页面可访问，并含 `Agent Memory Demo`、演示输入框和演示记忆 | 已通过 | `check:delivery` 会启动预览服务并抓取页面 |
+
+## 真实站点验收表
 
 | 产品 | 目标域名 | Provider | 输入框 | 记忆提示 | 插入 | 复制诊断 | 结果 | 日期 | 证据/备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 本地预览页 | `localhost:3113/demo/browser-extension.html` | Agent Memory Demo | 待验收 | 待验收 | 待验收 | 待验收 | 待验收 | - | 免登录预览，不替代真实站点验收 |
 | ChatGPT | `chatgpt.com` | 待验收 | 待验收 | 待验收 | 待验收 | 待验收 | 待验收 | - | - |
 | Claude | `claude.ai` | 待验收 | 待验收 | 待验收 | 待验收 | 待验收 | 待验收 | - | - |
 | Gemini | `gemini.google.com` | 待验收 | 待验收 | 待验收 | 待验收 | 待验收 | 待验收 | - | - |

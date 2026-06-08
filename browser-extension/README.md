@@ -119,7 +119,7 @@ icons/                  插件图标
 http://localhost:3113/demo/browser-extension.html
 ```
 
-这个页面会模拟一个 AI 对话输入框，并内置几条演示记忆。加载插件后，在输入框输入问题，应能看到“本地记忆”提示、示例记忆、插入/复制按钮，并可在同步侧栏看到 `Agent Memory Demo` 的 AI 页面状态。它用于快速预览插件体验，不能替代真实 ChatGPT / Claude / Gemini / Perplexity 的逐站验收。
+这个页面会模拟一个 AI 对话输入框，并内置几条演示记忆。加载插件后，在输入框输入问题，应能看到“记忆建议”、示例记忆、插入/复制按钮，并可在同步侧栏看到 `Agent Memory Demo` 的 AI 页面状态。它用于快速预览插件体验，不能替代真实 ChatGPT / Claude / Gemini / Perplexity 的逐站验收。
 
 如果要跑完整工作台和待审阅队列，再运行 `npm run build && npm run start`，默认 API 是 `http://localhost:3111`，Viewer 是 `http://localhost:3113`。如果默认端口已被占用，先确认是否已有 Agent Memory Lab 在运行；必要时停止旧进程后再启动。
 
@@ -130,10 +130,10 @@ http://localhost:3113/demo/browser-extension.html
 
 建议试用路线：
 
-1. 打开 `http://localhost:3113/demo/browser-extension.html`，确认本地预览页能显示“本地记忆”入口。
+1. 打开 `http://localhost:3113/demo/browser-extension.html`，确认本地预览页能显示“记忆建议”入口。
 2. 打开 ChatGPT / Claude / Gemini / Perplexity 任一页面。
 3. 在输入框输入一个和本地项目相关的问题。
-4. 查看输入框附近的“本地记忆”提示，尝试插入或复制相关记忆。
+4. 查看输入框附近的“记忆建议”提示，尝试插入或复制相关记忆。
 5. 打开同步侧栏查看“AI 页面状态”。如果显示“输入框：未找到”，点击“复制诊断”，把诊断交给开发者补站点规则。
 6. 用弹窗或同步侧栏把当前网页加入待审阅，再回到 Viewer 记忆库确认保存。
 

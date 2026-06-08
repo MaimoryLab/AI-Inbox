@@ -128,9 +128,11 @@ npm run check:delivery
 
 英文商店发布文案草稿：`docs/browser-extension-store-listing-en.md`
 
+外部试用指南：`docs/external-tester-guide-cn.md`
+
 真实站点验收记录：`docs/browser-extension-ai-validation-cn.md`
 
-本地免登录插件预览页：`http://localhost:3113/demo/browser-extension.html`，内置演示记忆，可预览输入框旁记忆提示、插入和复制。
+本地免登录插件预览页：`http://localhost:3113/demo/browser-extension.html`，内置演示记忆，可预览输入框旁“记忆建议”、插入和复制。
 
 本地预览包输出：`artifacts/agent-memory-lab-extension.zip`
 
