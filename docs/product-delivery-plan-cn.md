@@ -74,6 +74,7 @@
 - 英文商店发布文案草稿：`docs/browser-extension-store-listing-en.md`
 - 外部试用指南：`docs/external-tester-guide-cn.md`
 - 外部试用反馈模板：`docs/external-feedback-template-cn.md`
+- GitHub 外部试用 Issue 模板：`.github/ISSUE_TEMPLATE/external-tester-feedback-cn.yml`
 - 外部反馈分诊指南：`docs/external-feedback-triage-cn.md`
 - 发布门槛：`docs/release-gates-cn.md`
 - 真实站点验收记录：`docs/browser-extension-ai-validation-cn.md`

@@ -41,6 +41,7 @@ const requiredFiles = [
   'docs/external-tester-guide-cn.md',
   'docs/external-feedback-template-cn.md',
   'docs/external-feedback-triage-cn.md',
+  '.github/ISSUE_TEMPLATE/external-tester-feedback-cn.yml',
   'docs/release-gates-cn.md',
   'docs/browser-extension-ai-validation-cn.md',
   'docs/browser-extension-mem0-reference-cn.md',
@@ -85,6 +86,7 @@ assert(readme.includes('npm run check:workbench'), 'README must mention workbenc
 assert(readme.includes('npm run check:release-gates'), 'README must mention release gates check command.');
 assert(readme.includes('npm run check:release-public'), 'README must mention public release check command.');
 assert(readme.includes('npm run status:delivery'), 'README must mention delivery status command.');
+assert(readme.includes('.github/ISSUE_TEMPLATE/external-tester-feedback-cn.yml'), 'README must link external tester issue template.');
 const imageRefs = [...readme.matchAll(/<img\s+src="([^"]+)"/g)].map((match) => match[1]);
 const allowedImages = new Set([
   'assets/banner.png',
@@ -117,8 +119,13 @@ for (const marker of ['审阅队列可用', 'AI 页面状态', '记忆建议', '
 }
 
 const testerGuide = read('docs/external-tester-guide-cn.md');
-for (const marker of ['外部试用指南', 'npm run preview:browser-extension', 'npm run check:workbench', 'npm run check:release-gates', '记忆建议', '诊断 JSON', '从仓库试用', '从 zip 试用', 'browser-extension/', '外部试用反馈模板', '外部反馈分诊指南']) {
+for (const marker of ['外部试用指南', 'npm run preview:browser-extension', 'npm run check:workbench', 'npm run check:release-gates', '记忆建议', '诊断 JSON', '从仓库试用', '从 zip 试用', 'browser-extension/', '外部试用反馈模板', 'external-tester-feedback-cn.yml', '外部反馈分诊指南']) {
   assert(testerGuide.includes(marker), `External tester guide missing marker: ${marker}`);
+}
+
+const issueTemplate = read('.github/ISSUE_TEMPLATE/external-tester-feedback-cn.yml');
+for (const marker of ['外部试用反馈', '试用路径', 'diagnostics', 'manualValidation', 'memoryInsertPassed', 'siteInputStillWorks', '我已确认反馈内容不包含敏感信息']) {
+  assert(issueTemplate.includes(marker), `External tester issue template missing marker: ${marker}`);
 }
 
 const feedbackTemplate = read('docs/external-feedback-template-cn.md');
@@ -132,7 +139,7 @@ for (const marker of ['外部反馈分诊指南', 'docs/external-feedback-templa
 }
 
 const plan = read('docs/product-delivery-plan-cn.md');
-for (const marker of ['本地预览包', '权限与隐私说明', '插件对标说明', '外部反馈分诊指南', 'Skill 草稿', 'AI 页面诊断']) {
+for (const marker of ['本地预览包', '权限与隐私说明', '插件对标说明', '外部反馈分诊指南', 'GitHub 外部试用 Issue 模板', 'Skill 草稿', 'AI 页面诊断']) {
   assert(plan.includes(marker), `Product delivery plan missing marker: ${marker}`);
 }
 
@@ -142,7 +149,7 @@ for (const marker of ['mem0ai/mem0-chrome-extension', 'supported sites', '输入
 }
 
 const releaseGates = read('docs/release-gates-cn.md');
-for (const marker of ['本地可演示', '外部可试用', '公开可发布', '未达到', '真实 AI 站点逐站验收', '外部反馈分诊指南', '入口位置策略', '项目', '标签', '经验候选', 'npm run check:release-public']) {
+for (const marker of ['本地可演示', '外部可试用', '公开可发布', '未达到', '真实 AI 站点逐站验收', 'GitHub 外部试用 Issue 模板', '外部反馈分诊指南', '入口位置策略', '项目', '标签', '经验候选', 'npm run check:release-public']) {
   assert(releaseGates.includes(marker), `Release gates doc missing marker: ${marker}`);
 }
 
