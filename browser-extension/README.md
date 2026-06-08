@@ -137,6 +137,8 @@ npm run package:browser-extension
 
 权限和隐私说明见：[`docs/browser-extension-privacy-cn.md`](../docs/browser-extension-privacy-cn.md)。
 
+真实 AI 站点验收记录见：[`docs/browser-extension-ai-validation-cn.md`](../docs/browser-extension-ai-validation-cn.md)。
+
 默认连接：
 
 ```text

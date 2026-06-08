@@ -19,6 +19,7 @@ const requiredFiles = [
   'browser-extension/README.md',
   'docs/demo-checklist-cn.md',
   'docs/product-delivery-plan-cn.md',
+  'docs/browser-extension-ai-validation-cn.md',
   'docs/feishu/agentmemory-project-intro-cn.md',
   'docs/browser-extension-privacy-cn.md',
   'docs/readme-assets/screenshots/dashboard.jpg',
@@ -59,6 +60,11 @@ for (const marker of ['审阅队列可用', 'AI 页面状态', '本地记忆', '
 const plan = read('docs/product-delivery-plan-cn.md');
 for (const marker of ['本地预览包', '权限与隐私说明', 'Skill 草稿', 'AI 页面诊断']) {
   assert(plan.includes(marker), `Product delivery plan missing marker: ${marker}`);
+}
+
+const aiValidation = read('docs/browser-extension-ai-validation-cn.md');
+for (const marker of ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', '复制诊断', '通过标准']) {
+  assert(aiValidation.includes(marker), `AI validation doc missing marker: ${marker}`);
 }
 
 const feishu = read('docs/feishu/agentmemory-project-intro-cn.md');

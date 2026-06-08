@@ -66,6 +66,7 @@
 ## 插件发布物料
 
 - 权限与隐私说明：`docs/browser-extension-privacy-cn.md`
+- 真实站点验收记录：`docs/browser-extension-ai-validation-cn.md`
 - 本地检查：`npm run check:browser-extension`
 - 一键交付检查：`npm run check:delivery`
 - 本地预览包：`npm run package:browser-extension`，输出 `artifacts/agent-memory-lab-extension.zip`

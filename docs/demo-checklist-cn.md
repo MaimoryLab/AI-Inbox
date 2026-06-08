@@ -8,6 +8,7 @@
 - 本地 Viewer 可访问：`http://localhost:3113/#dashboard`
 - 浏览器插件已加载：Chrome / Edge → `chrome://extensions` → 加载 `browser-extension/`
 - 插件检查已通过：`npm run check:browser-extension`，包括 AI 页面 fixture 的输入框和对话 selector 检查
+- 若要对外展示插件稳定性，更新 `docs/browser-extension-ai-validation-cn.md` 的真实站点验收记录
 - README 截图只展示首页和 Skill 管理台
 - 不展示包含个人敏感资料的记忆卡片截图
 
