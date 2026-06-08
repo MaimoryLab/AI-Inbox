@@ -158,7 +158,9 @@ for (const fixture of fixtures) {
 for (const provider of Object.values(AI_PROVIDERS)) {
   assert(Array.isArray(provider.hosts) && provider.hosts.length > 0, `${provider.id}: missing hosts`);
   assert(Array.isArray(provider.editorSelectors) && provider.editorSelectors.length > 0, `${provider.id}: missing editor selectors`);
+  assert(Array.isArray(provider.anchorSelectors) && provider.anchorSelectors.length > 0, `${provider.id}: missing anchor selectors`);
   assert(Array.isArray(provider.turnSelectors) && provider.turnSelectors.length > 0, `${provider.id}: missing turn selectors`);
+  assert(['input-corner', 'toolbar-end'].includes(provider.placement), `${provider.id}: unsupported placement ${provider.placement}`);
 }
 
 console.log(`browser extension AI fixtures ok (${fixtures.length} providers)`);

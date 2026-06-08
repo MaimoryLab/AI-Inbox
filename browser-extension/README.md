@@ -144,7 +144,7 @@ npm run package:browser-extension
 npm run preview:browser-extension
 ```
 
-第一个命令会确认扩展脚本语法、Manifest V3 content script 配置、`shared/site-config.js` 和运行脚本里的 AI provider 没有分叉，并用本地 fixture 检查 ChatGPT、Claude、Gemini、Perplexity、Grok、DeepSeek 的输入框和对话 selector 至少能命中最小页面模型。第二个命令会生成可分发的本地预览包：`artifacts/agent-memory-lab-extension.zip`。
+第一个命令会确认扩展脚本语法、Manifest V3 content script 配置、图标尺寸、`shared/site-config.js` 和运行脚本里的 AI provider 没有分叉，并用本地 fixture 检查 ChatGPT、Claude、Gemini、Perplexity、Grok、DeepSeek 的输入框和对话 selector 至少能命中最小页面模型。第二个命令会生成可分发的本地预览包：`artifacts/agent-memory-lab-extension.zip`，并检查 zip 里包含 manifest、content script、侧栏、弹窗、设置页、shared 数据结构和 PNG 图标。
 
 本地 fixture 不是正式站点验收的替代品，只是防回归网。真正发布前仍需在真实 AI 页面打开插件，确认输入框旁提示、插入、复制和侧栏诊断都可用。
 
@@ -167,15 +167,17 @@ Viewer: http://localhost:3113
 
 ## 还缺什么
 
-- 更精确的 AI 对话抽取器：不同产品用不同规则，减少误抓
-- 保存前编辑候选内容：让用户能改标题、标签、项目归属
-- 更稳定的跨 Agent 注入：按 ChatGPT / Claude / Perplexity 分别优化插入位置和输入事件
+- 真实站点逐页验收：ChatGPT、Claude、Gemini、Perplexity、Grok、DeepSeek 都需要记录截图、浏览器版本和诊断 JSON。
+- 更精确的 AI 对话抽取器：每个产品用自己的对话节点规则，减少误抓导航、按钮和系统提示。
+- 保存前编辑候选内容：用户可以改标题、标签、项目归属，再送入本地审阅队列。
+- 更稳定的输入框注入：按站点维护 `editorSelectors`、`anchorSelectors`、`placement` 和输入事件。
+- 选中文本快捷送审：参考 Mem0 的 selection / context menu 流程，让网页片段也能进入同一套审阅队列。
 
 ## 参考方向
 
 - Mem0 / OpenMemory：Cross-LLM memory，把记忆带到 ChatGPT、Claude、Perplexity 等产品里。
-- Mem0 的实现启发：每个 AI 产品维护独立 content script / site config，再共享后台、侧栏和类型定义；记忆召回应贴近输入框，而不是藏在单独页面里。
-- Agent Memory Lab 的逐站适配方法：复制侧栏诊断 -> 更新 `shared/site-config.js` 或 `content-script.js` 的 selector -> 运行 `npm run check:browser-extension` -> 在真实页面确认输入框提示和插入行为。
+- Mem0 的实现启发：每个 AI 产品维护站点配置，再共享后台、侧栏和类型定义；记忆召回应贴近输入框，而不是藏在单独页面里。
+- Agent Memory Lab 的逐站适配方法：复制侧栏诊断 -> 更新 `shared/site-config.js` 的 selector / placement -> 同步内容脚本站点表 -> 运行 `npm run check:browser-extension` -> 在真实页面确认输入框提示和插入行为。
 - Agent Memory Lab 的差异：浏览器里只生成候选和召回建议，长期记忆写入必须经过 Viewer 的审阅、编辑、删除和来源筛选。
 - Rethread / Nico / ContextBridge / Personal AI Memory：都在强调跨 AI 产品的上下文延续。
 - Agent Memory Lab 的取向：本地优先、保存前可审阅、和主工作台统一数据，而不是把浏览器里看到的内容直接上传到云端。

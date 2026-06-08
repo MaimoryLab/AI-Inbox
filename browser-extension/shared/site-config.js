@@ -5,6 +5,8 @@ export const AI_PROVIDERS = {
     hosts: ['localhost', '127.0.0.1'],
     pathIncludes: ['/demo/browser-extension.html'],
     editorSelectors: ['#agentmemory-demo-input', '[data-agentmemory-demo-input]', '[contenteditable="true"]'],
+    anchorSelectors: ['#agentmemory-demo-input', 'form', 'main'],
+    placement: 'input-corner',
     turnSelectors: ['[data-message-author-role]', 'main article'],
     sendSelectors: ['button.primary']
   },
@@ -13,6 +15,9 @@ export const AI_PROVIDERS = {
     label: 'ChatGPT',
     hosts: ['chatgpt.com', 'chat.openai.com'],
     editorSelectors: ['#prompt-textarea', '[data-testid="prompt-textarea"]', 'textarea[placeholder]', 'textarea', '[contenteditable="true"]'],
+    anchorSelectors: ['[data-testid="composer-trailing-actions"]', '.composer-trailing-actions', 'form', 'main form'],
+    adjacentSelectors: ['button[aria-label="Dictate button"]', 'button[aria-label*="mic" i]', 'button[aria-label*="voice" i]'],
+    placement: 'toolbar-end',
     turnSelectors: ['[data-message-author-role]', '[data-testid*="conversation-turn"]', 'main article'],
     sendSelectors: ['button[data-testid="send-button"]', 'button[aria-label*="Send"]']
   },
@@ -21,6 +26,8 @@ export const AI_PROVIDERS = {
     label: 'Claude',
     hosts: ['claude.ai'],
     editorSelectors: ['div.ProseMirror[contenteditable="true"]', 'div[contenteditable="true"]', 'textarea', 'p[data-placeholder]'],
+    anchorSelectors: ['form', '[data-testid*="input"]', '[contenteditable="true"]'],
+    placement: 'input-corner',
     turnSelectors: ['[data-testid*="message"]', 'main [class*="font-claude"]', 'main article'],
     sendSelectors: ['button[aria-label*="Send"]', 'button[type="submit"]']
   },
@@ -29,6 +36,8 @@ export const AI_PROVIDERS = {
     label: 'Gemini',
     hosts: ['gemini.google.com'],
     editorSelectors: ['rich-textarea [contenteditable="true"]', 'rich-textarea textarea', '[contenteditable="true"]', 'textarea'],
+    anchorSelectors: ['rich-textarea', '.input-area-container', 'form', '[contenteditable="true"]'],
+    placement: 'input-corner',
     turnSelectors: ['user-query', 'model-response', 'message-content', 'main article'],
     sendSelectors: ['button[aria-label*="Send"]', 'button[aria-label*="提交"]']
   },
@@ -37,6 +46,8 @@ export const AI_PROVIDERS = {
     label: 'Perplexity',
     hosts: ['perplexity.ai', 'www.perplexity.ai'],
     editorSelectors: ['textarea[placeholder]', 'textarea', '[contenteditable="true"]'],
+    anchorSelectors: ['form', 'textarea[placeholder]', '[contenteditable="true"]'],
+    placement: 'input-corner',
     turnSelectors: ['[data-testid*="thread"]', '[class*="prose"]', 'main article'],
     sendSelectors: ['button[aria-label*="Submit"]', 'button[aria-label*="Send"]']
   },
@@ -45,6 +56,8 @@ export const AI_PROVIDERS = {
     label: 'Grok',
     hosts: ['grok.com', 'x.ai'],
     editorSelectors: ['textarea', '[contenteditable="true"]'],
+    anchorSelectors: ['form', 'textarea', '[contenteditable="true"]'],
+    placement: 'input-corner',
     turnSelectors: ['[data-testid*="message"]', 'main article'],
     sendSelectors: ['button[aria-label*="Send"]']
   },
@@ -53,6 +66,8 @@ export const AI_PROVIDERS = {
     label: 'DeepSeek',
     hosts: ['chat.deepseek.com', 'deepseek.com'],
     editorSelectors: ['textarea', '[contenteditable="true"]'],
+    anchorSelectors: ['form', 'textarea', '[contenteditable="true"]'],
+    placement: 'input-corner',
     turnSelectors: ['[class*="message"]', 'main article'],
     sendSelectors: ['button[aria-label*="Send"]']
   }

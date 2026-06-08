@@ -18,6 +18,7 @@
 - 本地免登录插件预览页可打开：`http://localhost:3113/demo/browser-extension.html`
 - 插件保存内容先进入 Viewer 的待审阅队列
 - 插件结构按 OpenMemory / Mem0 的 supported-sites 思路拆出 AI 产品站点配置，并把记忆召回锚定在输入框附近
+- 站点配置必须包含输入框、锚点和位置策略，避免 AI 页面改版后只能靠猜
 - 插件 README 能说明如何预览
 - 有插件权限与隐私说明，能解释为什么需要当前权限
 - 飞书文档和 GitHub README 的产品叙事一致
@@ -32,6 +33,7 @@
 - 在 ChatGPT / Claude / Gemini / Perplexity 的 AI 输入框附近提示可用记忆，并支持插入/复制
 - 同步侧栏能显示 AI 页面诊断，帮助确认输入框和最近对话是否被识别
 - AI 页面诊断支持一键复制，方便像 Mem0 / OpenMemory 那样逐站维护 supported-sites 规则
+- 选中文本和右键菜单进入同一套待审阅队列，不另开一套数据口径
 - 活动页、会话页加载失败时有明确兜底状态：先展示可用数据，再提示失败来源和重试入口
 - 插件有独立交付检查，避免 supported-sites 配置和运行脚本分叉
 - 记忆库有“待审阅”入口，避免自动内容直接混入长期记忆
@@ -75,6 +77,7 @@
 - 一键交付检查：`npm run check:delivery`
 - 免登录插件预览：`npm run preview:browser-extension`
 - 本地预览包：`npm run package:browser-extension`，输出 `artifacts/agent-memory-lab-extension.zip`
+- 预览包内容检查：`check:browser-extension-package` 会确认 zip 内含 manifest、content script、侧栏、弹窗、设置页、shared 文件和 PNG 图标
 - AI fixture 验收：`check:browser-extension` 会用本地最小页面模型检查 ChatGPT、Claude、Gemini、Perplexity、Grok、DeepSeek 的输入框和对话 selector
 - 本地免登录预览：`http://localhost:3113/demo/browser-extension.html`，用于快速展示输入框旁记忆提示、演示记忆、插入/复制
 - 试用者解压后选择包内 `browser-extension/` 文件夹加载

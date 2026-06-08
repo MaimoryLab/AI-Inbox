@@ -1,12 +1,12 @@
 (() => {
   const AI_PROVIDERS = [
-    { id: 'agentmemoryDemo', label: 'Agent Memory Demo', hosts: ['localhost', '127.0.0.1'], pathIncludes: ['/demo/browser-extension.html'], editorSelectors: ['#agentmemory-demo-input', '[data-agentmemory-demo-input]', '[contenteditable="true"]'], turnSelectors: ['[data-message-author-role]', 'main article'] },
-    { id: 'chatgpt', label: 'ChatGPT', hosts: ['chatgpt.com', 'chat.openai.com'], editorSelectors: ['#prompt-textarea', '[data-testid="prompt-textarea"]', 'textarea[placeholder]', 'textarea', '[contenteditable="true"]'], turnSelectors: ['[data-message-author-role]', '[data-testid*="conversation-turn"]', 'main article'] },
-    { id: 'claude', label: 'Claude', hosts: ['claude.ai'], editorSelectors: ['div.ProseMirror[contenteditable="true"]', 'div[contenteditable="true"]', 'textarea', 'p[data-placeholder]'], turnSelectors: ['[data-testid*="message"]', 'main [class*="font-claude"]', 'main article'] },
-    { id: 'gemini', label: 'Gemini', hosts: ['gemini.google.com'], editorSelectors: ['rich-textarea [contenteditable="true"]', 'rich-textarea textarea', '[contenteditable="true"]', 'textarea'], turnSelectors: ['user-query', 'model-response', 'message-content', 'main article'] },
-    { id: 'perplexity', label: 'Perplexity', hosts: ['perplexity.ai', 'www.perplexity.ai'], editorSelectors: ['textarea[placeholder]', 'textarea', '[contenteditable="true"]'], turnSelectors: ['[data-testid*="thread"]', '[class*="prose"]', 'main article'] },
-    { id: 'grok', label: 'Grok', hosts: ['grok.com', 'x.ai'], editorSelectors: ['textarea', '[contenteditable="true"]'], turnSelectors: ['[data-testid*="message"]', 'main article'] },
-    { id: 'deepseek', label: 'DeepSeek', hosts: ['chat.deepseek.com', 'deepseek.com'], editorSelectors: ['textarea', '[contenteditable="true"]'], turnSelectors: ['[class*="message"]', 'main article'] }
+    { id: 'agentmemoryDemo', label: 'Agent Memory Demo', hosts: ['localhost', '127.0.0.1'], pathIncludes: ['/demo/browser-extension.html'], editorSelectors: ['#agentmemory-demo-input', '[data-agentmemory-demo-input]', '[contenteditable="true"]'], anchorSelectors: ['#agentmemory-demo-input', 'form', 'main'], placement: 'input-corner', turnSelectors: ['[data-message-author-role]', 'main article'], sendSelectors: ['button.primary'] },
+    { id: 'chatgpt', label: 'ChatGPT', hosts: ['chatgpt.com', 'chat.openai.com'], editorSelectors: ['#prompt-textarea', '[data-testid="prompt-textarea"]', 'textarea[placeholder]', 'textarea', '[contenteditable="true"]'], anchorSelectors: ['[data-testid="composer-trailing-actions"]', '.composer-trailing-actions', 'form', 'main form'], adjacentSelectors: ['button[aria-label="Dictate button"]', 'button[aria-label*="mic" i]', 'button[aria-label*="voice" i]'], placement: 'toolbar-end', turnSelectors: ['[data-message-author-role]', '[data-testid*="conversation-turn"]', 'main article'], sendSelectors: ['button[data-testid="send-button"]', 'button[aria-label*="Send"]'] },
+    { id: 'claude', label: 'Claude', hosts: ['claude.ai'], editorSelectors: ['div.ProseMirror[contenteditable="true"]', 'div[contenteditable="true"]', 'textarea', 'p[data-placeholder]'], anchorSelectors: ['form', '[data-testid*="input"]', '[contenteditable="true"]'], placement: 'input-corner', turnSelectors: ['[data-testid*="message"]', 'main [class*="font-claude"]', 'main article'], sendSelectors: ['button[aria-label*="Send"]', 'button[type="submit"]'] },
+    { id: 'gemini', label: 'Gemini', hosts: ['gemini.google.com'], editorSelectors: ['rich-textarea [contenteditable="true"]', 'rich-textarea textarea', '[contenteditable="true"]', 'textarea'], anchorSelectors: ['rich-textarea', '.input-area-container', 'form', '[contenteditable="true"]'], placement: 'input-corner', turnSelectors: ['user-query', 'model-response', 'message-content', 'main article'], sendSelectors: ['button[aria-label*="Send"]', 'button[aria-label*="提交"]'] },
+    { id: 'perplexity', label: 'Perplexity', hosts: ['perplexity.ai', 'www.perplexity.ai'], editorSelectors: ['textarea[placeholder]', 'textarea', '[contenteditable="true"]'], anchorSelectors: ['form', 'textarea[placeholder]', '[contenteditable="true"]'], placement: 'input-corner', turnSelectors: ['[data-testid*="thread"]', '[class*="prose"]', 'main article'], sendSelectors: ['button[aria-label*="Submit"]', 'button[aria-label*="Send"]'] },
+    { id: 'grok', label: 'Grok', hosts: ['grok.com', 'x.ai'], editorSelectors: ['textarea', '[contenteditable="true"]'], anchorSelectors: ['form', 'textarea', '[contenteditable="true"]'], placement: 'input-corner', turnSelectors: ['[data-testid*="message"]', 'main article'], sendSelectors: ['button[aria-label*="Send"]'] },
+    { id: 'deepseek', label: 'DeepSeek', hosts: ['chat.deepseek.com', 'deepseek.com'], editorSelectors: ['textarea', '[contenteditable="true"]'], anchorSelectors: ['form', 'textarea', '[contenteditable="true"]'], placement: 'input-corner', turnSelectors: ['[class*="message"]', 'main article'], sendSelectors: ['button[aria-label*="Send"]'] }
   ];
   let memoryWidget = null;
   let searchTimer = null;
@@ -106,6 +106,27 @@
     return null;
   }
 
+  function findAnchor(provider) {
+    if (!provider) return null;
+    const editor = findEditor(provider);
+    const selectors = provider.anchorSelectors || [];
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      if (el) return el;
+    }
+    if (editor) return editor.closest('form') || editor.parentElement || editor;
+    return null;
+  }
+
+  function findAdjacentAnchor(provider) {
+    const selectors = provider && provider.adjacentSelectors ? provider.adjacentSelectors : [];
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      if (el) return el;
+    }
+    return null;
+  }
+
   function collectDiagnostics(provider, promptDraft, turns) {
     const match = findEditorMatch(provider);
     return {
@@ -113,6 +134,8 @@
       provider: provider ? provider.label : '',
       editorFound: !!match,
       editorSelector: match ? match.selector : '',
+      anchorFound: !!findAnchor(provider),
+      placement: provider ? provider.placement || 'input-corner' : '',
       promptLength: String(promptDraft || '').length,
       turnCount: Array.isArray(turns) ? turns.length : 0,
       memoryWidgetVisible: !!memoryWidget,
@@ -129,9 +152,10 @@
     root.innerHTML = `
       <style>
         * { box-sizing: border-box; }
-        .wrap { width: 280px; font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #292521; }
+        .wrap { width: 296px; font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #292521; }
         button { font: inherit; cursor: pointer; }
-        .trigger { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 11px; border: 1px solid #11100f; border-radius: 8px; background: #11100f; color: #fff; font-weight: 750; box-shadow: 0 8px 24px rgba(0,0,0,.16); }
+        .trigger { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 10px; border: 1px solid #11100f; border-radius: 7px; background: #11100f; color: #fff; font-weight: 750; box-shadow: 0 8px 24px rgba(0,0,0,.14); }
+        .trigger svg { width: 15px; height: 15px; }
         .panel { display: none; margin-top: 8px; border: 1px solid #ded7cf; border-radius: 8px; background: #fffefb; box-shadow: 0 16px 44px rgba(0,0,0,.18); overflow: hidden; }
         .panel.open { display: block; }
         .head { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 10px 11px; border-bottom: 1px solid #ded7cf; background: #f7f3ee; }
@@ -146,12 +170,13 @@
         .copy { min-height: 28px; padding: 0 8px; border: 1px solid #ded7cf; border-radius: 7px; background: #fffefb; color: #292521; font-weight: 700; }
         .insert { min-height: 28px; padding: 0 8px; border: 1px solid #11100f; border-radius: 7px; background: #11100f; color: #fff; font-weight: 700; }
         .close { border: 0; background: transparent; color: #72685e; font-size: 18px; line-height: 1; padding: 0; }
+        .status { margin-left: 1px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: #fff; color: #11100f; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; }
       </style>
       <div class="wrap">
-        <button class="trigger" type="button">本地记忆 <span class="count">0</span></button>
+        <button class="trigger" type="button" aria-label="打开本地记忆建议"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.5c-3.6 0-6.5 2.6-6.5 5.9 0 2.1 1.2 3.9 3 5l-.5 3 3-1.6c.3.1.7.1 1 .1 3.6 0 6.5-2.6 6.5-5.9S15.6 3.5 12 3.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9.2 9.7h5.6M9.2 12.2h3.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>记忆建议</span><span class="status count">0</span></button>
         <div class="panel">
-          <div class="head"><div><div class="title">可用记忆</div><div class="provider"></div></div><button class="close" type="button" aria-label="关闭">×</button></div>
-          <div class="body"><div class="empty">输入问题后，会从本地记忆里找相关内容。</div></div>
+          <div class="head"><div><div class="title">可引用的本地记忆</div><div class="provider"></div></div><button class="close" type="button" aria-label="关闭">×</button></div>
+          <div class="body"><div class="empty">继续输入后，会自动找相关记忆。</div></div>
         </div>
       </div>`;
     document.documentElement.appendChild(host);
@@ -184,19 +209,24 @@
   function positionMemoryWidget(provider) {
     if (!memoryWidget) return;
     const editor = findEditor(provider);
-    if (!editor) {
+    const anchor = findAdjacentAnchor(provider) || findAnchor(provider) || editor;
+    if (!anchor) {
       memoryWidget.host.style.right = '18px';
       memoryWidget.host.style.bottom = '88px';
       memoryWidget.host.style.left = 'auto';
       memoryWidget.host.style.top = 'auto';
       return;
     }
-    const rect = editor.getBoundingClientRect();
+    const rect = anchor.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
-    const width = 280;
+    const width = 296;
     const margin = 12;
-    const left = Math.max(margin, Math.min(window.innerWidth - width - margin, rect.right - width));
-    const top = rect.top > 96 ? rect.top - 46 : rect.bottom + 10;
+    const placement = provider && provider.placement ? provider.placement : 'input-corner';
+    const leftBase = placement === 'toolbar-end' ? rect.right - 128 : rect.right - width;
+    const left = Math.max(margin, Math.min(window.innerWidth - width - margin, leftBase));
+    const top = placement === 'toolbar-end'
+      ? Math.max(margin, rect.top - 2)
+      : rect.top > 96 ? rect.top - 44 : rect.bottom + 10;
     memoryWidget.host.style.left = `${left}px`;
     memoryWidget.host.style.top = `${Math.max(margin, top)}px`;
     memoryWidget.host.style.right = 'auto';
