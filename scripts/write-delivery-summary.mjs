@@ -31,11 +31,45 @@ function extractGateTable(markdown) {
   return lines.slice(start, start + 5).join('\n');
 }
 
+function parseValidationRows(markdown) {
+  const lines = markdown.split(/\r?\n/);
+  const headerIndex = lines.findIndex((line) => line.startsWith('| 产品 | 目标域名 | Provider |'));
+  if (headerIndex < 0) return [];
+  const rows = [];
+  for (const line of lines.slice(headerIndex + 2)) {
+    if (!line.startsWith('|')) break;
+    const cells = line.split('|').slice(1, -1).map((cell) => cell.trim());
+    if (cells.length < 10) continue;
+    rows.push({
+      product: cells[0],
+      domain: cells[1],
+      provider: cells[2],
+      editor: cells[3],
+      hint: cells[4],
+      insert: cells[5],
+      diagnostics: cells[6],
+      result: cells[7],
+      date: cells[8],
+      evidence: cells[9]
+    });
+  }
+  return rows;
+}
+
+function validationPassed(row) {
+  const passWords = ['通过', '已通过', 'pass', 'passed', 'ok'];
+  return [row.provider, row.editor, row.hint, row.insert, row.diagnostics, row.result].every((value) => {
+    const lower = String(value || '').toLowerCase();
+    return passWords.some((word) => lower.includes(word));
+  }) && row.date !== '-' && row.evidence !== '-';
+}
+
 mkdirSync('artifacts', { recursive: true });
 
 const pkg = readJson('package.json');
 const manifest = readJson('browser-extension/manifest.json');
 const releaseGates = read('docs/release-gates-cn.md');
+const aiValidation = read('docs/browser-extension-ai-validation-cn.md');
 const zipPath = 'artifacts/agent-memory-lab-extension.zip';
 const generatedAt = new Date().toISOString();
 const branch = git(['branch', '--show-current']) || 'unknown';
@@ -43,6 +77,12 @@ const commit = git(['rev-parse', '--short', 'HEAD']) || 'unknown';
 const dirty = git(['status', '--short']).split(/\r?\n/).filter((line) => line && !line.startsWith('?? .learnings/') && !line.includes('index.html.bak-')).length > 0;
 const zipSize = fileSize(zipPath);
 const zipSha256 = sha256(zipPath);
+const requiredAiProducts = ['ChatGPT', 'Claude', 'Gemini', 'Perplexity'];
+const aiRows = parseValidationRows(aiValidation);
+const requiredAiRows = requiredAiProducts.map((product) => aiRows.find((row) => row.product === product)).filter(Boolean);
+const passedAiRows = requiredAiRows.filter(validationPassed);
+const missingAiProducts = requiredAiProducts.filter((product) => !requiredAiRows.some((row) => row.product === product));
+const notPassedAiProducts = requiredAiRows.filter((row) => !validationPassed(row)).map((row) => row.product);
 const deliveryManifest = {
   product: 'Agent Memory Lab',
   generatedAt,
@@ -84,6 +124,15 @@ const deliveryManifest = {
     localDemo: 'ready',
     externalTesting: 'mostly-ready',
     publicRelease: 'not-ready',
+    realSiteValidation: {
+      requiredProducts: requiredAiProducts,
+      passed: passedAiRows.map((row) => row.product),
+      notPassed: notPassedAiProducts,
+      missingRows: missingAiProducts,
+      passedCount: passedAiRows.length,
+      requiredCount: requiredAiProducts.length,
+      source: 'docs/browser-extension-ai-validation-cn.md'
+    },
     publicReleaseBlockers: [
       'real AI site validation evidence',
       'public privacy policy URL',
@@ -126,6 +175,16 @@ Generated: ${generatedAt}
 ## Release Gates
 
 ${extractGateTable(releaseGates)}
+
+## Real AI Site Validation
+
+| Item | Value |
+| --- | --- |
+| Required products | ${requiredAiProducts.join(', ')} |
+| Passed | ${passedAiRows.length}/${requiredAiProducts.length} |
+| Not passed | ${notPassedAiProducts.length ? notPassedAiProducts.join(', ') : 'none'} |
+| Missing rows | ${missingAiProducts.length ? missingAiProducts.join(', ') : 'none'} |
+| Source | docs/browser-extension-ai-validation-cn.md |
 
 ## Verification Commands
 
