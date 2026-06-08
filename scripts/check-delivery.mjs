@@ -51,6 +51,7 @@ const requiredFiles = [
   'src/viewer/demo/browser-extension.html',
   'dist/viewer/demo/browser-extension.html',
   'browser-extension/manifest.json',
+  'browser-extension/LOAD-THIS-FIRST.md',
   'browser-extension/icons/icon16.png',
   'browser-extension/icons/icon32.png',
   'browser-extension/icons/icon48.png',
@@ -195,6 +196,7 @@ assert(deliveryManifest.coreExperience?.reviewDraft?.popup === true, 'Delivery m
 assert(deliveryManifest.coreExperience?.reviewDraft?.sidePanel === true, 'Delivery manifest must record side panel review draft support.');
 assert(deliveryManifest.coreExperience?.reviewDraft?.savesToReviewQueue === true, 'Delivery manifest must record review queue save behavior.');
 assert(deliveryManifest.artifacts?.extensionZip?.exists, 'Delivery manifest must mark extension zip as existing.');
+assert(deliveryManifest.artifacts?.loadInstructions?.exists, 'Delivery manifest must mark zip load instructions as existing.');
 assert(deliveryManifest.artifacts.extensionZip.bytes > 0, 'Delivery manifest extension zip size must be positive.');
 assert(/^[a-f0-9]{64}$/.test(deliveryManifest.artifacts.extensionZip.sha256 || ''), 'Delivery manifest extension zip sha256 is invalid.');
 assert(deliveryManifest.releaseState?.publicRelease === 'not-ready', 'Delivery manifest must mark public release as not-ready until real site evidence exists.');

@@ -42,7 +42,7 @@ npm run preview:browser-extension
 | 来源 | 应该选择哪个文件夹 |
 | --- | --- |
 | 从仓库试用 | 选择仓库里的 `browser-extension/` |
-| 从 zip 试用 | 先解压 `artifacts/agent-memory-lab-extension.zip`，再选择解压出来的 `browser-extension/` |
+| 从 zip 试用 | 先解压 `artifacts/agent-memory-lab-extension.zip`，阅读 `browser-extension/LOAD-THIS-FIRST.md`，再选择解压出来的 `browser-extension/` |
 
 7. 打开：
 

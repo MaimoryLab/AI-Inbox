@@ -113,6 +113,10 @@ const deliveryManifest = {
       path: 'browser-extension/',
       exists: existsSync('browser-extension/manifest.json')
     },
+    loadInstructions: {
+      path: 'browser-extension/LOAD-THIS-FIRST.md',
+      exists: existsSync('browser-extension/LOAD-THIS-FIRST.md')
+    },
     demoPage: {
       path: 'dist/viewer/demo/browser-extension.html',
       exists: existsSync('dist/viewer/demo/browser-extension.html')
@@ -199,6 +203,7 @@ Generated: ${generatedAt}
 | Extension zip sha256 | ${zipSha256 || 'missing'} |
 | Delivery manifest | artifacts/delivery-manifest.json |
 | Extension source folder | ${existsSync('browser-extension/manifest.json') ? 'browser-extension/' : 'missing'} |
+| Zip load instructions | ${existsSync('browser-extension/LOAD-THIS-FIRST.md') ? 'browser-extension/LOAD-THIS-FIRST.md' : 'missing'} |
 | Demo page | ${existsSync('dist/viewer/demo/browser-extension.html') ? 'dist/viewer/demo/browser-extension.html' : 'missing'} |
 | Dashboard screenshot | ${existsSync('docs/readme-assets/screenshots/dashboard.jpg') ? 'docs/readme-assets/screenshots/dashboard.jpg' : 'missing'} |
 | Skills screenshot | ${existsSync('docs/readme-assets/screenshots/skills.jpg') ? 'docs/readme-assets/screenshots/skills.jpg' : 'missing'} |

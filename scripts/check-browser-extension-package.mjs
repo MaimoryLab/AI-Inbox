@@ -26,7 +26,8 @@ const required = [
   'browser-extension/icons/icon32.png',
   'browser-extension/icons/icon48.png',
   'browser-extension/icons/icon128.png',
-  'browser-extension/README.md'
+  'browser-extension/README.md',
+  'browser-extension/LOAD-THIS-FIRST.md'
 ];
 
 const missing = required.filter((entry) => !entrySet.has(entry));

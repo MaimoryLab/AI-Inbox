@@ -93,6 +93,7 @@
 - AI fixture 验收：`check:browser-extension` 会用本地最小页面模型检查 ChatGPT、Claude、Gemini、Perplexity、Grok、DeepSeek 的输入框和对话 selector
 - 本地免登录预览：`http://localhost:3113/demo/browser-extension.html`，用于快速展示输入框旁“记忆建议”、演示记忆、插入/复制
 - 试用者从仓库加载时选择仓库内 `browser-extension/`；从 zip 试用时先解压，再选择解压出来的 `browser-extension/`
+- zip 内含 `browser-extension/LOAD-THIS-FIRST.md`，试用者解压后能直接看到加载步骤和当前边界
 - AI 站点适配材料：同步侧栏“复制诊断”输出的 JSON，可用于补 selector 和真实网页验收
 - 未来商店发布仍需稳定公开隐私政策 URL、发布截图和逐站真实网页验收
 
