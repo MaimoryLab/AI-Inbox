@@ -103,6 +103,9 @@ assert(browserReadme.includes('npm run preview:browser-extension'), 'Browser ext
 assert(browserReadme.includes('docs/browser-extension-privacy-cn.md'), 'Browser extension README must link privacy doc.');
 assert(browserReadme.includes('docs/browser-extension-mem0-reference-cn.md'), 'Browser extension README must link Mem0 reference doc.');
 assert(browserReadme.includes('保存前编辑'), 'Browser extension README must mention edit-before-save flow.');
+for (const marker of ['项目', '标签', '经验候选']) {
+  assert(browserReadme.includes(marker), `Browser extension README must mention draft ${marker}.`);
+}
 assert(browserReadme.includes('同步侧栏'), 'Browser extension README must mention the side panel flow.');
 assert(browserReadme.includes('/demo/browser-extension.html'), 'Browser extension README must mention local demo page.');
 
@@ -137,7 +140,7 @@ for (const marker of ['mem0ai/mem0-chrome-extension', 'supported sites', '输入
 }
 
 const releaseGates = read('docs/release-gates-cn.md');
-for (const marker of ['本地可演示', '外部可试用', '公开可发布', '未达到', '真实 AI 站点逐站验收', '外部反馈分诊指南', '入口位置策略', 'npm run check:release-public']) {
+for (const marker of ['本地可演示', '外部可试用', '公开可发布', '未达到', '真实 AI 站点逐站验收', '外部反馈分诊指南', '入口位置策略', '项目', '标签', '经验候选', 'npm run check:release-public']) {
   assert(releaseGates.includes(marker), `Release gates doc missing marker: ${marker}`);
 }
 
@@ -206,6 +209,9 @@ assert(deliveryManifest.coreExperience?.externalTestingEntry?.popupLocalTestingS
 assert(String(deliveryManifest.coreExperience?.externalTestingEntry?.testerGuideUrl || '').includes('external-tester-guide-cn.md'), 'Delivery manifest must record tester guide URL.');
 assert(deliveryManifest.coreExperience?.reviewDraft?.popup === true, 'Delivery manifest must record popup review draft support.');
 assert(deliveryManifest.coreExperience?.reviewDraft?.sidePanel === true, 'Delivery manifest must record side panel review draft support.');
+assert(deliveryManifest.coreExperience?.reviewDraft?.editableProject === true, 'Delivery manifest must record editable project support.');
+assert(deliveryManifest.coreExperience?.reviewDraft?.editableTags === true, 'Delivery manifest must record editable tags support.');
+assert(deliveryManifest.coreExperience?.reviewDraft?.editableLessonFlag === true, 'Delivery manifest must record editable lesson flag support.');
 assert(deliveryManifest.coreExperience?.reviewDraft?.savesToReviewQueue === true, 'Delivery manifest must record review queue save behavior.');
 assert(deliveryManifest.artifacts?.extensionZip?.exists, 'Delivery manifest must mark extension zip as existing.');
 assert(deliveryManifest.artifacts?.loadInstructions?.exists, 'Delivery manifest must mark zip load instructions as existing.');

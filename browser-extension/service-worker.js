@@ -72,6 +72,48 @@ async function rememberRecent(capture, kind, result) {
   return next;
 }
 
+function normalizeTags(tags) {
+  const seen = new Set();
+  return String(Array.isArray(tags) ? tags.join(',') : tags || '')
+    .split(/[,，\s]+/)
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+    .filter((tag) => {
+      const key = tag.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function normalizeCandidateMeta(meta = {}, capture = null, kind = 'memory') {
+  const page = capture && capture.page ? capture.page : {};
+  const provider = capture && capture.conversation && capture.conversation.provider ? capture.conversation.provider : '';
+  const projectScope = meta.projectScope === 'page' ? 'page' : 'all';
+  const project = projectScope === 'page' ? String(meta.project || provider || page.host || 'browser') : 'all';
+  const baseTags = ['browser', kind === 'lesson' ? 'lesson' : 'memory'];
+  if (provider) baseTags.push(provider.toLowerCase());
+  if (page.type) baseTags.push(`page:${page.type}`);
+  return {
+    projectScope,
+    project,
+    tags: normalizeTags([...baseTags, ...normalizeTags(meta.tags || [])]),
+    asLesson: !!meta.asLesson || kind === 'lesson'
+  };
+}
+
+function applyCandidateMeta(payload, meta, capture, kind) {
+  const normalized = normalizeCandidateMeta(meta, capture, kind);
+  return {
+    ...payload,
+    project: normalized.project,
+    projectScope: normalized.projectScope,
+    tags: normalized.tags,
+    asLesson: normalized.asLesson,
+    concepts: normalizeTags([...(payload.concepts || []), ...normalized.tags])
+  };
+}
+
 async function savePageMemory() {
   const capture = await collectPage();
   const payload = captureToMemoryPayload(capture);
@@ -108,27 +150,28 @@ async function savePageLesson(note) {
   return { capture, result };
 }
 
-async function saveCandidate(kind, text, title = '') {
+async function saveCandidate(kind, text, title = '', meta = {}) {
   const capture = await collectPage();
   const trimmed = String(text || '').trim();
   const draftTitle = String(title || '').trim() || capture.page.title;
+  const requestedKind = kind === 'lesson' || meta.asLesson ? 'lesson' : 'memory';
   if (!trimmed) throw new Error('没有可保存的候选内容');
-  if (kind === 'lesson') {
-    const payload = captureToLessonPayload(capture, trimmed);
+  if (requestedKind === 'lesson') {
+    const payload = applyCandidateMeta(captureToLessonPayload(capture, trimmed), meta, capture, 'lesson');
     const result = await agentMemoryApi('/agentmemory/review', {
       method: 'POST',
-      body: JSON.stringify({ kind: 'lesson', title: draftTitle, content: trimmed, source: 'browser-extension', page: capture.page, payload })
+      body: JSON.stringify({ kind: 'lesson', title: draftTitle, content: trimmed, source: 'browser-extension', page: capture.page, payload, meta: payload })
     });
     await rememberRecent(capture, 'review', result);
     return { capture, result };
   }
-  const payload = {
+  const payload = applyCandidateMeta({
     ...captureToMemoryPayload(capture),
     content: `浏览器候选记忆：${trimmed}\n来源：${capture.page.title}\nURL：${capture.page.url}`
-  };
+  }, meta, capture, 'memory');
   const result = await agentMemoryApi('/agentmemory/review', {
     method: 'POST',
-    body: JSON.stringify({ kind: 'memory', title: draftTitle, content: payload.content, source: 'browser-extension', page: capture.page, payload })
+    body: JSON.stringify({ kind: 'memory', title: draftTitle, content: payload.content, source: 'browser-extension', page: capture.page, payload, meta: payload })
   });
   await rememberRecent(capture, 'review', result);
   return { capture, result };
@@ -213,7 +256,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === 'RECENT_CAPTURES') return getRecentCaptures();
     if (message.type === 'SAVE_PAGE_MEMORY') return savePageMemory();
     if (message.type === 'SAVE_PAGE_LESSON') return savePageLesson(message.note || '');
-    if (message.type === 'SAVE_CANDIDATE') return saveCandidate(message.kind || 'memory', message.text || '', message.title || '');
+    if (message.type === 'SAVE_CANDIDATE') return saveCandidate(message.kind || 'memory', message.text || '', message.title || '', message.meta || {});
     if (message.type === 'SEARCH_MEMORIES') return searchMemories(message.query || '');
     if (message.type === 'OPEN_SIDE_PANEL') return chrome.sidePanel.open({ windowId: message.windowId });
     if (message.type === 'OPEN_VIEWER') return openViewer(message.tab || 'dashboard');

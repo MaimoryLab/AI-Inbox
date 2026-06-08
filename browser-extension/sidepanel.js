@@ -1,6 +1,6 @@
 const $ = (id) => document.getElementById(id);
 let latestCapture = null;
-let defaultDraft = { kind: 'memory', title: '', content: '' };
+let defaultDraft = { kind: 'memory', title: '', content: '', meta: {} };
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>'"]/g, (char) => ({
@@ -115,6 +115,51 @@ function renderCandidateList(node, items, kind) {
   `).join('');
 }
 
+function normalizeTags(tags) {
+  const seen = new Set();
+  return String(Array.isArray(tags) ? tags.join(',') : tags || '')
+    .split(/[,，\s]+/)
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+    .filter((tag) => {
+      const key = tag.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function buildDraftMetaFields(capture, kind = 'memory') {
+  const page = capture && capture.page ? capture.page : {};
+  const provider = capture && capture.conversation && capture.conversation.provider ? capture.conversation.provider : '';
+  const typeLabel = String(page.typeLabel || '').trim();
+  const tags = ['browser', provider ? provider.toLowerCase() : '', typeLabel ? typeLabel.toLowerCase() : '', kind === 'lesson' ? 'lesson' : 'memory'];
+  return {
+    projectScope: provider ? 'page' : 'all',
+    project: provider || page.host || 'browser',
+    tags: normalizeTags(tags.join(', ')),
+    asLesson: kind === 'lesson'
+  };
+}
+
+function setDraftMetaFields(meta = {}) {
+  $('draftProject').value = meta.projectScope === 'page' ? 'page' : 'all';
+  $('draftTags').value = normalizeTags(meta.tags || '').join(', ');
+  $('draftAsLesson').checked = !!meta.asLesson;
+}
+
+function getDraftMetaFields() {
+  const page = latestCapture && latestCapture.page ? latestCapture.page : {};
+  const provider = latestCapture && latestCapture.conversation && latestCapture.conversation.provider ? latestCapture.conversation.provider : '';
+  const projectScope = $('draftProject').value === 'page' ? 'page' : 'all';
+  return {
+    projectScope,
+    project: projectScope === 'page' ? (provider || page.host || 'browser') : 'all',
+    tags: normalizeTags($('draftTags').value),
+    asLesson: $('draftAsLesson').checked
+  };
+}
+
 function buildDefaultDraft(capture) {
   const page = capture && capture.page ? capture.page : {};
   const memories = capture && capture.candidates && Array.isArray(capture.candidates.memories) ? capture.candidates.memories : [];
@@ -128,7 +173,8 @@ function buildDefaultDraft(capture) {
   return {
     kind: 'memory',
     title: page.title || '浏览器记忆候选',
-    content: parts.join('\n')
+    content: parts.join('\n'),
+    meta: buildDraftMetaFields(capture, 'memory')
   };
 }
 
@@ -136,9 +182,12 @@ function draftMetaText(capture, kind) {
   const page = capture && capture.page ? capture.page : {};
   const provider = capture && capture.conversation && capture.conversation.provider ? capture.conversation.provider : '';
   const source = provider || page.typeLabel || page.host || '浏览器';
-  const type = kind === 'lesson' ? '经验候选' : '记忆候选';
+  const meta = getDraftMetaFields();
+  const type = meta.asLesson || kind === 'lesson' ? '经验候选' : '记忆候选';
+  const project = meta.projectScope === 'all' ? '全部项目' : `项目：${meta.project}`;
+  const tags = meta.tags.length ? `标签：${meta.tags.join(', ')}` : '未加标签';
   const privacy = capture && capture.privacy && capture.privacy.risk === 'medium' ? '可能含敏感信息，建议先删改' : '保存后仍需在工作台确认';
-  return `${source} · ${type} · ${privacy}`;
+  return `${source} · ${project} · ${tags} · ${type} · ${privacy}`;
 }
 
 function setDraft(draft, options = {}) {
@@ -146,6 +195,7 @@ function setDraft(draft, options = {}) {
   $('draftTitle').value = draft.title || '';
   $('draftContent').value = draft.content || '';
   $('draftContent').dataset.kind = draft.kind || 'memory';
+  setDraftMetaFields(draft.meta || buildDraftMetaFields(latestCapture, draft.kind || 'memory'));
   $('draftMeta').textContent = draftMetaText(latestCapture, draft.kind || 'memory');
 }
 
@@ -261,7 +311,8 @@ document.addEventListener('click', async (event) => {
   setDraft({
     kind,
     title: page.title || (kind === 'lesson' ? '经验候选' : '记忆候选'),
-    content: target.dataset.draftText || ''
+    content: target.dataset.draftText || '',
+    meta: buildDraftMetaFields(latestCapture, kind)
   });
   setMessage('已填入审阅草稿');
 });
@@ -282,9 +333,10 @@ $('savePage').addEventListener('click', async () => {
   try {
     const title = $('draftTitle').value.trim();
     const text = $('draftContent').value.trim();
-    const kind = $('draftContent').dataset.kind || 'memory';
+    const meta = getDraftMetaFields();
+    const kind = meta.asLesson ? 'lesson' : ($('draftContent').dataset.kind || 'memory');
     if (!text) throw new Error('先确认一条要送审的内容');
-    await send('SAVE_CANDIDATE', { kind, title, text });
+    await send('SAVE_CANDIDATE', { kind, title, text, meta });
     setMessage('页面已加入待审阅', 'ok');
     await refresh();
   } catch (err) {
@@ -296,6 +348,15 @@ $('savePage').addEventListener('click', async () => {
 $('resetDraft').addEventListener('click', () => {
   setDraft(defaultDraft);
   setMessage('已恢复为自动生成草稿');
+});
+$('draftProject').addEventListener('change', () => {
+  $('draftMeta').textContent = draftMetaText(latestCapture, $('draftContent').dataset.kind || 'memory');
+});
+$('draftTags').addEventListener('input', () => {
+  $('draftMeta').textContent = draftMetaText(latestCapture, $('draftContent').dataset.kind || 'memory');
+});
+$('draftAsLesson').addEventListener('change', () => {
+  $('draftMeta').textContent = draftMetaText(latestCapture, $('draftContent').dataset.kind || 'memory');
 });
 $('openWorkbench').addEventListener('click', () => send('OPEN_VIEWER', { tab: 'dashboard' }).catch(() => {}));
 $('openSkills').addEventListener('click', () => send('OPEN_VIEWER', { tab: 'lessons' }).catch(() => {}));

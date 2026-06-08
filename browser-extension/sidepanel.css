@@ -229,7 +229,9 @@ body {
 }
 
 .draft-input,
-.review-draft textarea {
+.review-draft textarea,
+.draft-fields select,
+.draft-fields input {
   width: 100%;
   margin: 0 0 8px;
   padding: 9px;
@@ -248,6 +250,48 @@ body {
   resize: vertical;
   line-height: 1.45;
 }
+
+.draft-fields {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 8px;
+}
+
+.draft-fields label { min-width: 0; }
+
+.draft-fields span,
+.draft-check span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.draft-fields select,
+.draft-fields input {
+  height: 34px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.draft-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.draft-check input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--black);
+}
+
+.draft-check span { margin: 0; color: var(--muted); }
 
 .draft-meta {
   color: var(--faint);

@@ -61,7 +61,7 @@
 | P0 | 待审阅记忆队列 | 解决自动保存的信任问题 |
 | P1 | AI 对话专用抽取器 | 让跨 Agent 记忆方向成立 |
 | P1 | 输入框附近的记忆提示 | 已有第一版本地搜索提示和插入能力，下一步要精调不同站点的位置与输入事件 |
-| P1 | 保存前编辑候选内容 | 已能在插件弹窗和同步侧栏改标题和正文；下一步补标签、项目归属 |
+| P1 | 保存前编辑候选内容 | 已能在插件弹窗和同步侧栏改标题、正文、项目、标签，并可标记为经验候选 |
 | P1 | 记忆来源筛选 | 已有浏览器 / 会话 / 手动筛选，并支持 ChatGPT、Claude、Gemini、Perplexity 等 AI 来源细分 |
 | P1 | 经验到 Skill 草稿 | 已能从经验分组生成可复制的 SKILL.md 草稿，暂不自动写入本地目录 |
 | P2 | Chrome Web Store 打包 | 更正式的分发 |
@@ -81,7 +81,7 @@
 - 插件 PNG 图标资产：`browser-extension/icons/icon16.png`、`icon32.png`、`icon48.png`、`icon128.png`
 - 本地检查：`npm run check:browser-extension`
 - 试用入口检查：`check:browser-extension` 会确认弹窗显示扩展版本、本地试用状态和外部试用指南入口
-- 保存前审阅草稿检查：`check:browser-extension` 会确认弹窗和同步侧栏都能编辑标题、正文，并通过 `SAVE_CANDIDATE` 进入 Viewer 待审阅队列
+- 保存前审阅草稿检查：`check:browser-extension` 会确认弹窗和同步侧栏都能编辑标题、正文、项目、标签和经验候选状态，并通过 `SAVE_CANDIDATE` 进入 Viewer 待审阅队列
 - 一键交付检查：`npm run check:delivery`
 - 交付状态总览：`npm run status:delivery`
 - 发布门槛检查：`npm run check:release-gates`；公开发布前必须通过 `npm run check:release-public`

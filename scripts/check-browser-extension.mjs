@@ -72,8 +72,14 @@ if (!menuContexts.includes("contexts: ['page', 'selection', 'link']")) {
 if (!popupHtml.includes('待审阅草稿') || !popupHtml.includes('draftContent') || !popupHtml.includes('resetDraft')) {
   throw new Error('Popup must expose an editable review draft before saving.');
 }
+for (const field of ['draftProject', 'draftTags', 'draftAsLesson']) {
+  if (!popupHtml.includes(field)) throw new Error(`Popup review draft missing ${field}.`);
+}
 if (!popupJs.includes('buildDraft') || !popupJs.includes('SAVE_CANDIDATE') || !popupJs.includes('resetDraft')) {
   throw new Error('Popup must save the edited review draft via SAVE_CANDIDATE.');
+}
+if (!popupJs.includes('getDraftMetaFields') || !serviceWorker.includes('message.meta')) {
+  throw new Error('Popup draft metadata must be sent with review candidates.');
 }
 if (!popupHtml.includes('本地试用版') || !popupHtml.includes('versionInfo') || !popupHtml.includes('openGuide')) {
   throw new Error('Popup must expose external testing status, version, and guide entry.');
@@ -84,8 +90,14 @@ if (!popupJs.includes('getManifest') || !popupJs.includes('external-tester-guide
 if (!sidepanelHtml.includes('审阅草稿') || !sidepanelHtml.includes('draftContent') || !sidepanelHtml.includes('resetDraft')) {
   throw new Error('Side panel must expose an editable review draft before saving.');
 }
+for (const field of ['draftProject', 'draftTags', 'draftAsLesson']) {
+  if (!sidepanelHtml.includes(field)) throw new Error(`Side panel review draft missing ${field}.`);
+}
 if (!sidepanel.includes('buildDefaultDraft') || !sidepanel.includes('data-draft-kind') || !sidepanel.includes('SAVE_CANDIDATE')) {
   throw new Error('Side panel must route candidates through the editable review draft.');
+}
+if (!sidepanel.includes('getDraftMetaFields') || !serviceWorker.includes('normalizeCandidateMeta')) {
+  throw new Error('Side panel draft metadata must reach the review queue payload.');
 }
 
 for (const field of ['anchorFound', 'placement', 'memoryWidgetVisible', 'checkedAt']) {

@@ -53,6 +53,23 @@
       </div>
       <input id="draftTitle" class="draft-input" type="text" placeholder="记忆标题" />
       <textarea id="draftContent" rows="5" placeholder="选择一个候选，或直接改写要送审的记忆。"></textarea>
+      <div class="draft-fields">
+        <label>
+          <span>项目</span>
+          <select id="draftProject">
+            <option value="all">全部项目</option>
+            <option value="page">当前网页来源</option>
+          </select>
+        </label>
+        <label>
+          <span>标签</span>
+          <input id="draftTags" type="text" placeholder="browser, ai" />
+        </label>
+      </div>
+      <label class="draft-check">
+        <input id="draftAsLesson" type="checkbox" />
+        <span>同时标记为可沉淀经验</span>
+      </label>
       <div id="draftMeta" class="draft-meta">保存后仍需在工作台确认。</div>
     </section>
 

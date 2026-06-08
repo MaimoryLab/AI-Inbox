@@ -137,6 +137,9 @@ const deliveryManifest = {
       sidePanel: true,
       editableTitle: true,
       editableContent: true,
+      editableProject: true,
+      editableTags: true,
+      editableLessonFlag: true,
       candidateToDraft: true,
       savesToReviewQueue: true
     },
@@ -215,6 +218,7 @@ Generated: ${generatedAt}
 | Popup version and tester guide entry | ready |
 | Popup editable review draft | ready |
 | Side panel editable review draft | ready |
+| Draft project / tags / lesson flag | ready |
 | Candidate-to-draft flow | ready |
 | Save to Viewer review queue | ready |
 | Local AI input memory hint demo | ready |
