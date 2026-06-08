@@ -38,14 +38,15 @@
 下次 Agent 协作时继续使用
 ```
 
-## 4 步试用路线
+## 5 步试用路线
 
 第一次打开项目时，可以先按这条路线跑通核心体验：
 
 1. 启动本地 Viewer：`npm run dev`，打开 `http://localhost:3113/#dashboard`。
 2. 加载浏览器插件：Chrome / Edge → `chrome://extensions` → 开发者模式 → 加载 `browser-extension/`。
-3. 在 ChatGPT / Claude / Gemini / Perplexity 页面输入一个问题，查看输入框附近的“本地记忆”提示，并尝试插入相关记忆。
-4. 用插件把当前网页加入待审阅，回到 Viewer 的记忆库，在顶部审阅后保存，再用“浏览器”来源筛选找到它。
+3. 打开免登录插件预览页 `http://localhost:3113/demo/browser-extension.html`，查看输入框附近的“本地记忆”提示。
+4. 在 ChatGPT / Claude / Gemini / Perplexity 页面输入一个问题，检查真实站点是否识别输入框，并尝试插入相关记忆。
+5. 用插件把当前网页加入待审阅，回到 Viewer 的记忆库，在顶部审阅后保存，再用“浏览器”来源筛选找到它。
 
 演示前可以按 [演示检查清单](docs/demo-checklist-cn.md) 自查。
 
@@ -95,6 +96,7 @@ Agent Memory Lab 更像“工作记忆层”：它关心这段内容以后怎么
 
 ```text
 Chrome / Edge -> chrome://extensions -> 开发者模式 -> 加载已解压的扩展程序 -> 选择 browser-extension/
+http://localhost:3113/demo/browser-extension.html
 ```
 
 插件权限与隐私说明见 [docs/browser-extension-privacy-cn.md](docs/browser-extension-privacy-cn.md)。英文隐私政策草稿和商店发布文案见 [docs/browser-extension-privacy-en.md](docs/browser-extension-privacy-en.md) 与 [docs/browser-extension-store-listing-en.md](docs/browser-extension-store-listing-en.md)。如果需要打包给别人本地预览，可以运行 `npm run package:browser-extension`。

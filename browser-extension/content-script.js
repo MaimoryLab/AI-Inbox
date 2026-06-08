@@ -1,5 +1,6 @@
 (() => {
   const AI_PROVIDERS = [
+    { id: 'agentmemoryDemo', label: 'Agent Memory Demo', hosts: ['localhost', '127.0.0.1'], pathIncludes: ['/demo/browser-extension.html'], editorSelectors: ['#agentmemory-demo-input', '[data-agentmemory-demo-input]', '[contenteditable="true"]'], turnSelectors: ['[data-message-author-role]', 'main article'] },
     { id: 'chatgpt', label: 'ChatGPT', hosts: ['chatgpt.com', 'chat.openai.com'], editorSelectors: ['#prompt-textarea', '[data-testid="prompt-textarea"]', 'textarea[placeholder]', 'textarea', '[contenteditable="true"]'], turnSelectors: ['[data-message-author-role]', '[data-testid*="conversation-turn"]', 'main article'] },
     { id: 'claude', label: 'Claude', hosts: ['claude.ai'], editorSelectors: ['div.ProseMirror[contenteditable="true"]', 'div[contenteditable="true"]', 'textarea', 'p[data-placeholder]'], turnSelectors: ['[data-testid*="message"]', 'main [class*="font-claude"]', 'main article'] },
     { id: 'gemini', label: 'Gemini', hosts: ['gemini.google.com'], editorSelectors: ['rich-textarea [contenteditable="true"]', 'rich-textarea textarea', '[contenteditable="true"]', 'textarea'], turnSelectors: ['user-query', 'model-response', 'message-content', 'main article'] },
@@ -13,7 +14,12 @@
 
   function getProviderForHost(hostname) {
     const host = String(hostname || '').toLowerCase();
-    return AI_PROVIDERS.find((provider) => provider.hosts.some((item) => host === item || host.endsWith(`.${item}`))) || null;
+    const path = String(location.pathname || '');
+    return AI_PROVIDERS.find((provider) => {
+      const hostMatches = provider.hosts.some((item) => host === item || host.endsWith(`.${item}`));
+      if (!hostMatches) return false;
+      return !provider.pathIncludes || provider.pathIncludes.some((item) => path.includes(item));
+    }) || null;
   }
 
   function textFromMeta(name) {

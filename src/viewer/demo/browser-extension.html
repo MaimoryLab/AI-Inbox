@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Memory Lab 插件预览</title>
+  <meta name="description" content="Agent Memory Lab browser extension demo page for local memory hints.">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #161411;
+      --muted: #6f675f;
+      --faint: #9b9288;
+      --line: #ded8cf;
+      --paper: #fffefb;
+      --wash: #f6f2ec;
+      --black: #11100f;
+      --green: #516f58;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--wash);
+      font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main {
+      width: min(980px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0 42px;
+    }
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 27px;
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+    .subtle {
+      max-width: 620px;
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 760;
+      white-space: nowrap;
+    }
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 280px;
+      gap: 14px;
+      align-items: start;
+    }
+    section, aside {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+    }
+    .chat {
+      min-height: 560px;
+      overflow: hidden;
+    }
+    .chat-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .chat-head strong { font-size: 14px; }
+    .chat-head span { color: var(--faint); font-size: 12px; }
+    .messages {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+    }
+    article {
+      max-width: 82%;
+      padding: 10px 11px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+    article[data-message-author-role="user"] {
+      justify-self: end;
+      background: #f7f4ef;
+    }
+    article[data-message-author-role="assistant"] {
+      justify-self: start;
+    }
+    article b {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--faint);
+      font-size: 11px;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+    article p { margin: 0; }
+    form {
+      display: grid;
+      gap: 10px;
+      margin: 12px 14px 14px;
+      padding-top: 13px;
+      border-top: 1px solid var(--line);
+    }
+    #agentmemory-demo-input {
+      min-height: 92px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      outline: none;
+      font: inherit;
+    }
+    #agentmemory-demo-input:focus {
+      border-color: var(--black);
+      box-shadow: 0 0 0 2px rgba(17,16,15,.08);
+    }
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    button {
+      min-height: 34px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 720;
+    }
+    button.primary {
+      border-color: var(--black);
+      background: var(--black);
+      color: #fff;
+    }
+    aside {
+      padding: 12px;
+    }
+    aside h2 {
+      margin: 0 0 8px;
+      font-size: 14px;
+    }
+    .checklist {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .checklist li {
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .checklist strong {
+      display: block;
+      color: var(--ink);
+      font-size: 12px;
+    }
+    @media (max-width: 760px) {
+      header { align-items: flex-start; flex-direction: column; }
+      .workspace { grid-template-columns: 1fr; }
+      article { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>插件预览对话</h1>
+        <p class="subtle">这是本地演示页面，用来预览浏览器插件在 AI 输入框旁召回本地记忆的体验。加载插件后，在下方输入框输入问题，观察“本地记忆”提示。</p>
+      </div>
+      <div class="status">Agent Memory Lab Demo</div>
+    </header>
+
+    <div class="workspace">
+      <section class="chat" aria-label="Demo AI conversation">
+        <div class="chat-head">
+          <strong>Local AI Assistant</strong>
+          <span>provider: Agent Memory Demo</span>
+        </div>
+        <div class="messages">
+          <article data-message-author-role="user">
+            <b>User</b>
+            <p>我们要把 Agent Memory Lab 做成能对外交差的产品，不只是一个本地工具。</p>
+          </article>
+          <article data-message-author-role="assistant">
+            <b>Assistant</b>
+            <p>重点应该是核心体验、浏览器插件预览、文档闭环、交付检查，以及真实站点验收记录。</p>
+          </article>
+          <article data-message-author-role="user">
+            <b>User</b>
+            <p>插件要参考 Mem0 / OpenMemory，把记忆入口放在 AI 输入框附近，但长期记忆必须先审阅。</p>
+          </article>
+        </div>
+        <form>
+          <div id="agentmemory-demo-input" contenteditable="true" role="textbox" aria-label="Demo prompt input">如何继续优化浏览器插件，让它更适合外部用户试用？</div>
+          <div class="form-actions">
+            <button type="button">Attach</button>
+            <button type="button" class="primary">Send</button>
+          </div>
+        </form>
+      </section>
+
+      <aside>
+        <h2>验收点</h2>
+        <ul class="checklist">
+          <li><strong>输入框识别</strong>侧栏“AI 页面状态”应显示输入框已找到。</li>
+          <li><strong>记忆提示</strong>输入框附近应出现“本地记忆”入口。</li>
+          <li><strong>插入 / 复制</strong>本地搜索有结果时，可以插入或复制记忆。</li>
+          <li><strong>复制诊断</strong>侧栏可复制 provider、selector、草稿长度等诊断。</li>
+        </ul>
+      </aside>
+    </div>
+  </main>
+</body>
+</html>

@@ -26,6 +26,8 @@ const requiredFiles = [
   'docs/browser-extension-privacy-cn.md',
   'docs/readme-assets/screenshots/dashboard.jpg',
   'docs/readme-assets/screenshots/skills.jpg',
+  'src/viewer/demo/browser-extension.html',
+  'dist/viewer/demo/browser-extension.html',
   'browser-extension/manifest.json',
   'scripts/check-browser-extension.mjs',
   'scripts/check-browser-extension-fixtures.mjs',
@@ -53,6 +55,7 @@ assert(imageRefs.includes('docs/readme-assets/screenshots/skills.jpg'), 'README 
 const browserReadme = read('browser-extension/README.md');
 assert(browserReadme.includes('npm run package:browser-extension'), 'Browser extension README must mention packaging command.');
 assert(browserReadme.includes('docs/browser-extension-privacy-cn.md'), 'Browser extension README must link privacy doc.');
+assert(browserReadme.includes('/demo/browser-extension.html'), 'Browser extension README must mention local demo page.');
 
 const checklist = read('docs/demo-checklist-cn.md');
 for (const marker of ['审阅队列可用', 'AI 页面状态', '本地记忆', 'Skill 管理台']) {
@@ -67,6 +70,11 @@ for (const marker of ['本地预览包', '权限与隐私说明', 'Skill 草稿'
 const aiValidation = read('docs/browser-extension-ai-validation-cn.md');
 for (const marker of ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', '复制诊断', '通过标准']) {
   assert(aiValidation.includes(marker), `AI validation doc missing marker: ${marker}`);
+}
+
+const demoPage = read('src/viewer/demo/browser-extension.html');
+for (const marker of ['agentmemory-demo-input', 'Agent Memory Demo', '本地记忆']) {
+  assert(demoPage.includes(marker), `Browser extension demo page missing marker: ${marker}`);
 }
 
 const privacyEn = read('docs/browser-extension-privacy-en.md');

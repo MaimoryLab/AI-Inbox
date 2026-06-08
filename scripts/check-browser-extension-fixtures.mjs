@@ -2,6 +2,18 @@ import { AI_PROVIDERS, getProviderForHost } from '../browser-extension/shared/si
 
 const fixtures = [
   {
+    id: 'agentmemoryDemo',
+    host: 'localhost',
+    path: '/demo/browser-extension.html',
+    html: `
+      <main>
+        <article data-message-author-role="user">We need a local preview for external testers.</article>
+        <article data-message-author-role="assistant">The demo should show the memory hint near the prompt.</article>
+        <form><div id="agentmemory-demo-input" contenteditable="true">How should we improve the extension demo?</div></form>
+      </main>
+    `
+  },
+  {
     id: 'chatgpt',
     host: 'chatgpt.com',
     html: `
@@ -135,6 +147,7 @@ function escapeRegExp(value) {
 }
 
 for (const fixture of fixtures) {
+  globalThis.location = { pathname: fixture.path || '/' };
   const provider = getProviderForHost(fixture.host);
   assert(provider, `${fixture.id}: provider not found for ${fixture.host}`);
   assert(provider.id === fixture.id, `${fixture.id}: expected provider ${fixture.id}, got ${provider.id}`);

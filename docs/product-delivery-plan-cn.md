@@ -15,6 +15,7 @@
 - 插件弹窗可以打开同步侧栏
 - 同步侧栏有本地连接状态，能说明审阅队列是否可用
 - 同步侧栏能展示当前页面类型、候选记忆、候选经验、隐私提示
+- 本地免登录插件预览页可打开：`http://localhost:3113/demo/browser-extension.html`
 - 插件保存内容先进入 Viewer 的待审阅队列
 - 插件结构按 OpenMemory / Mem0 的 supported-sites 思路拆出 AI 产品站点配置，并把记忆召回锚定在输入框附近
 - 插件 README 能说明如何预览
@@ -73,6 +74,7 @@
 - 一键交付检查：`npm run check:delivery`
 - 本地预览包：`npm run package:browser-extension`，输出 `artifacts/agent-memory-lab-extension.zip`
 - AI fixture 验收：`check:browser-extension` 会用本地最小页面模型检查 ChatGPT、Claude、Gemini、Perplexity、Grok、DeepSeek 的输入框和对话 selector
+- 本地免登录预览：`http://localhost:3113/demo/browser-extension.html`，用于快速展示输入框旁记忆提示
 - 试用者解压后选择包内 `browser-extension/` 文件夹加载
 - AI 站点适配材料：同步侧栏“复制诊断”输出的 JSON，可用于补 selector 和真实网页验收
 - 未来商店发布仍需稳定公开隐私政策 URL、发布截图和逐站真实网页验收

@@ -564,6 +564,21 @@ export function startViewerServer(
       return;
     }
 
+    if (method === "GET" && pathname === "/demo/browser-extension.html") {
+      const demo = readViewerAsset(join("demo", "browser-extension.html"));
+      if (demo) {
+        res.writeHead(200, {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-cache",
+        });
+        res.end(demo);
+        return;
+      }
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("demo not found");
+      return;
+    }
+
     if (method === "GET" && pathname.startsWith("/agent-avatars/")) {
       const assetName = basename(decodeURIComponent(pathname));
       if (!/^[a-z0-9._-]+\.png$/i.test(assetName)) {

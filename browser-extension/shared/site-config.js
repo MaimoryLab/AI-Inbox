@@ -1,4 +1,13 @@
 export const AI_PROVIDERS = {
+  agentmemory_demo: {
+    id: 'agentmemoryDemo',
+    label: 'Agent Memory Demo',
+    hosts: ['localhost', '127.0.0.1'],
+    pathIncludes: ['/demo/browser-extension.html'],
+    editorSelectors: ['#agentmemory-demo-input', '[data-agentmemory-demo-input]', '[contenteditable="true"]'],
+    turnSelectors: ['[data-message-author-role]', 'main article'],
+    sendSelectors: ['button.primary']
+  },
   chatgpt: {
     id: 'chatgpt',
     label: 'ChatGPT',
@@ -51,7 +60,12 @@ export const AI_PROVIDERS = {
 
 export function getProviderForHost(hostname) {
   const host = String(hostname || '').toLowerCase();
-  return Object.values(AI_PROVIDERS).find((provider) => provider.hosts.some((item) => host === item || host.endsWith(`.${item}`))) || null;
+  const path = typeof location !== 'undefined' && location && location.pathname ? String(location.pathname) : '';
+  return Object.values(AI_PROVIDERS).find((provider) => {
+    const hostMatches = provider.hosts.some((item) => host === item || host.endsWith(`.${item}`));
+    if (!hostMatches) return false;
+    return !provider.pathIncludes || provider.pathIncludes.some((item) => path.includes(item));
+  }) || null;
 }
 
 export function isSupportedAiHost(hostname) {
