@@ -238,6 +238,11 @@ for (const marker of ['view-dashboard', 'agentmemory-demo-input', 'start:local-m
   assert(workbenchStatusScript.includes(marker), `Workbench status script missing runtime marker: ${marker}`);
 }
 
+const cliSource = read('src/cli.ts');
+for (const marker of ['workerRecoveryNote', 'stop --force', 'npm run start:local-memory', 'portInUseDiagnostic(port)']) {
+  assert(cliSource.includes(marker), `CLI missing worker recovery marker: ${marker}`);
+}
+
 const privacyEn = read('docs/browser-extension-privacy-en.md');
 for (const marker of ['Privacy Policy', 'local-first', 'Data We Process', 'Where Data Goes', 'AI Diagnostics', 'External testers may redact', 'matchedSelectors.editor/anchor/send/turn']) {
   assert(privacyEn.includes(marker), `English privacy policy missing marker: ${marker}`);

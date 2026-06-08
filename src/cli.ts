@@ -955,6 +955,27 @@ function portInUseDiagnostic(port: number): string {
     : `  lsof -i :${port}   # or: ss -tlnp | grep :${port}`;
 }
 
+function workerRecoveryNote(port: number): string {
+  const stopCmd = isInvokedViaNpx()
+    ? "npx @agentmemory/agentmemory stop --force"
+    : "agentmemory stop --force";
+  return [
+    `Port ${port} is occupied, but the Agent Memory API is not answering /agentmemory/livez.`,
+    "This usually means an iii-engine process is still bound to the port after the worker exited.",
+    "",
+    "Recover with:",
+    `  ${stopCmd}`,
+    `  ${isInvokedViaNpx() ? "npx @agentmemory/agentmemory" : "agentmemory"}`,
+    "",
+    "If you are developing this local repo, use:",
+    "  cd /Users/szn/agentmemory",
+    "  npm run start:local-memory",
+    "",
+    "Inspect the occupied port:",
+    portInUseDiagnostic(port),
+  ].join("\n");
+}
+
 async function waitForAgentmemoryReady(timeoutMs: number): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -1952,7 +1973,7 @@ async function runDemo() {
     p.log.error(
       `agentmemory worker not reachable on port ${port} (livez probe failed). Something may be on the port but it isn't serving /agentmemory/*.`,
     );
-    p.log.info("Start it with: npx @agentmemory/agentmemory");
+    p.note(workerRecoveryNote(port), "How to recover");
     process.exit(1);
   }
 
@@ -2415,8 +2436,9 @@ async function runImportJsonl(): Promise<void> {
   }
   if (!probeOk) {
     p.log.error(
-      `agentmemory livez probe failed on port ${port}: ${probeDetail}. Start it with \`npx @agentmemory/agentmemory\` in another terminal, then re-run this command.`,
+      `agentmemory livez probe failed on port ${port}: ${probeDetail}.`,
     );
+    p.note(workerRecoveryNote(port), "How to recover");
     process.exit(1);
   }
 

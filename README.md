@@ -124,6 +124,14 @@ npm run build && npm run start:local-memory
 
 这个命令会使用 `/Users/szn/记忆/data`，也就是之前积累本地记忆的那套数据目录。直接运行 `npm run start` 会使用当前仓库里的 `data/`，可能只看到一套新的空白记忆库。
 
+如果 `npx @agentmemory/agentmemory demo` 报 `worker not reachable on port 3111`，说明端口可能被残留的 iii-engine 占着，但 Agent Memory worker 没有挂上。先清理再启动：
+
+```bash
+npx @agentmemory/agentmemory stop --force
+cd /Users/szn/agentmemory
+npm run start:local-memory
+```
+
 `npm run preview:browser-extension` 只用于自检插件注入和“记忆建议”入口；日常使用应直接在真实网页和 AI 页面里打开插件。
 
 插件权限与隐私说明见 [docs/browser-extension-privacy-cn.md](docs/browser-extension-privacy-cn.md)。试用指南见 [docs/external-tester-guide-cn.md](docs/external-tester-guide-cn.md)，反馈模板见 [docs/external-feedback-template-cn.md](docs/external-feedback-template-cn.md)，GitHub 结构化反馈入口见 [.github/ISSUE_TEMPLATE/external-tester-feedback-cn.yml](.github/ISSUE_TEMPLATE/external-tester-feedback-cn.yml)，发布门槛见 [docs/release-gates-cn.md](docs/release-gates-cn.md)。英文隐私政策草稿和商店发布文案见 [docs/browser-extension-privacy-en.md](docs/browser-extension-privacy-en.md) 与 [docs/browser-extension-store-listing-en.md](docs/browser-extension-store-listing-en.md)。如果需要生成本地插件包，可以运行 `npm run package:browser-extension`，产物包括 `artifacts/agent-memory-lab-extension.zip`、`artifacts/delivery-summary.md` 和 `artifacts/delivery-manifest.json`。
