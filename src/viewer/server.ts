@@ -98,6 +98,37 @@ function readDeliveryStatus(): Record<string, unknown> {
   }
   const release = (manifest.releaseState || {}) as Record<string, unknown>;
   const realSite = (release.realSiteValidation || {}) as Record<string, unknown>;
+  const requiredProducts = Array.isArray(evidence?.requiredProducts)
+    ? evidence.requiredProducts.map(String)
+    : Array.isArray(realSite.requiredProducts)
+      ? realSite.requiredProducts.map(String)
+      : ["ChatGPT", "Claude", "Gemini", "Perplexity"];
+  const evidenceFiles = Array.isArray(evidence?.files) ? evidence.files as Record<string, unknown>[] : [];
+  const sites = requiredProducts.map((product) => {
+    const item = evidenceFiles.find((entry) => String(entry.provider || "") === product) || null;
+    const missing: string[] = [];
+    if (!item) {
+      missing.push("未录入真实页面证据");
+    } else {
+      if (!item.editorFound) missing.push("输入框");
+      if (!item.anchorFound) missing.push("入口锚点");
+      if (!item.memoryWidgetVisible) missing.push("记忆提示");
+      if (!item.memoryInsertPassed) missing.push("插入");
+      if (!item.diagnosticsCopied) missing.push("诊断复制");
+      if (!item.siteInputStillWorks) missing.push("原站输入");
+      if (!item.editorSelector) missing.push("输入 selector");
+      if (!item.anchorSelector) missing.push("锚点 selector");
+      if (!item.sendSelector) missing.push("发送 selector");
+      if (!item.turnSelector) missing.push("会话 selector");
+    }
+    return {
+      product,
+      status: item ? (item.passed ? "passed" : "needs-fix") : "missing",
+      file: item?.file || "",
+      checkedAt: item?.checkedAt || "",
+      missing,
+    };
+  });
   return {
     available: true,
     generatedAt: manifest.generatedAt || "",
@@ -114,6 +145,7 @@ function readDeliveryStatus(): Record<string, unknown> {
       requiredCount: evidence?.requiredCount ?? realSite.requiredCount ?? 4,
       notPassed: evidence?.notPassedRequired || realSite.notPassed || [],
       source: realSite.source || "docs/browser-extension-ai-validation-cn.md",
+      sites,
     },
     next: "collect real AI page diagnostics, then sync the validation table",
   };

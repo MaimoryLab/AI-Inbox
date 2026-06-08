@@ -192,12 +192,12 @@ const viewer = read('src/viewer/index.html');
 for (const marker of ['function reviewProject', 'function reviewTags', 'function reviewSourceLabel', 'payload.asLesson', '经验候选']) {
   assert(viewer.includes(marker), `Viewer review queue missing browser draft metadata marker: ${marker}`);
 }
-for (const marker of ['delivery-status', 'renderDeliveryStatusCard', '外部试用状态', '真实 AI 证据', '/docs/browser-extension-ai-site-test-cards-cn.md']) {
+for (const marker of ['delivery-status', 'renderDeliveryStatusCard', '外部试用状态', '真实 AI 证据', '待验收', '待修复', '/docs/browser-extension-ai-site-test-cards-cn.md']) {
   assert(viewer.includes(marker), `Viewer dashboard missing delivery status marker: ${marker}`);
 }
 
 const viewerServer = read('src/viewer/server.ts');
-for (const marker of ['deliveryArtifactRoot', 'process.cwd()', 'readProjectDoc', '/docs/browser-extension-ai-site-test-cards-cn.md', 'text/markdown', 'readDeliveryStatus', '/agentmemory/delivery-status', 'delivery-manifest.json', 'ai-validation-evidence-summary.json']) {
+for (const marker of ['deliveryArtifactRoot', 'process.cwd()', 'readProjectDoc', '/docs/browser-extension-ai-site-test-cards-cn.md', 'text/markdown', 'readDeliveryStatus', '/agentmemory/delivery-status', 'delivery-manifest.json', 'ai-validation-evidence-summary.json', 'requiredProducts', 'sites', '未录入真实页面证据']) {
   assert(viewerServer.includes(marker), `Viewer server missing delivery status marker: ${marker}`);
 }
 

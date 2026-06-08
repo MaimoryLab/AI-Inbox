@@ -38,6 +38,11 @@ try {
   assert(data.externalTesting === 'mostly-ready', 'Delivery status endpoint must expose external testing state.');
   assert(data.publicRelease === 'not-ready', 'Delivery status endpoint must not mark public release ready without real site evidence.');
   assert(data.realSiteValidation && data.realSiteValidation.requiredCount === 4, 'Delivery status endpoint must expose required AI site count.');
+  assert(Array.isArray(data.realSiteValidation.sites), 'Delivery status endpoint must expose per-site validation status.');
+  assert(data.realSiteValidation.sites.length === 4, 'Delivery status endpoint must expose four required AI site statuses.');
+  for (const product of ['ChatGPT', 'Claude', 'Gemini', 'Perplexity']) {
+    assert(data.realSiteValidation.sites.some((site) => site.product === product), `Delivery status endpoint missing ${product} site status.`);
+  }
 
   const cards = await fetchText(base, '/docs/browser-extension-ai-site-test-cards-cn.md');
   assert((cards.res.headers.get('content-type') || '').includes('text/markdown'), 'AI site test cards must be served as markdown.');

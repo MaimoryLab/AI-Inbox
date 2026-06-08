@@ -4345,6 +4345,7 @@
       var external = delivery.externalTesting || 'not-ready';
       var publicState = delivery.publicRelease || 'not-ready';
       var notPassed = Array.isArray(real.notPassed) ? real.notPassed : [];
+      var sites = Array.isArray(real.sites) ? real.sites : [];
       var zip = delivery.artifacts && delivery.artifacts.extensionZip ? delivery.artifacts.extensionZip : null;
       var zipLabel = zip && zip.exists ? '插件包已生成' : '插件包未生成';
       var version = delivery.extension && delivery.extension.version ? delivery.extension.version : '0.1.0';
@@ -4360,6 +4361,21 @@
       html += '<div class="stat-card"><div class="label">公开发布</div><div class="value" style="font-size:22px;">' + esc(publicState) + '</div><div class="sub">需真实站点通过</div></div>';
       html += '</div>';
       html += '<div class="gauge" style="margin-bottom:10px;"><span class="gauge-label">AI 页面</span><div class="gauge-bar"><div class="gauge-fill" style="width:' + pct + '%;background:' + (pct >= 100 ? 'var(--green)' : 'var(--yellow)') + '"></div></div><span class="gauge-value">' + pct + '%</span></div>';
+      if (sites.length) {
+        html += '<div class="memory-card-grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-bottom:12px;">';
+        sites.forEach(function(site) {
+          var status = site.status || 'missing';
+          var badge = status === 'passed' ? 'badge-green' : status === 'needs-fix' ? 'badge-yellow' : 'badge-muted';
+          var label = status === 'passed' ? '已通过' : status === 'needs-fix' ? '待修复' : '待验收';
+          var missing = Array.isArray(site.missing) && site.missing.length ? site.missing.join('、') : (status === 'passed' ? '证据完整' : '缺真实页面证据');
+          html += '<div class="stat-card" style="padding:10px;">';
+          html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;"><div class="label">' + esc(site.product || 'AI') + '</div><span class="badge ' + badge + '">' + label + '</span></div>';
+          html += '<div class="sub" style="line-height:1.35;">' + esc(missing) + '</div>';
+          if (site.file) html += '<div class="sub" style="margin-top:6px;overflow-wrap:anywhere;">' + esc(site.file) + '</div>';
+          html += '</div>';
+        });
+        html += '</div>';
+      }
       html += '<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;">';
       html += '<div style="font-size:12px;color:var(--ink-muted);">下一步验收：' + esc(next) + '</div>';
       html += '<div style="display:flex;gap:8px;flex-wrap:wrap;"><a class="btn" href="/demo/browser-extension.html" target="_blank" rel="noopener">预览插件</a><a class="btn" href="/docs/browser-extension-ai-site-test-cards-cn.md" target="_blank" rel="noopener">测试卡</a></div>';
