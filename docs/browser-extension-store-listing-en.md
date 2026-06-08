@@ -67,6 +67,7 @@ Long-term memory creation requires review in the local Agent Memory Lab workbenc
 
 ## Screenshots Needed Before Public Submission
 
+- Extension icons are prepared in PNG sizes 16, 32, 48, and 128 under `browser-extension/icons/`.
 - Dashboard / home page of the local workbench.
 - Skill management page.
 - Browser extension side panel on a supported AI page.

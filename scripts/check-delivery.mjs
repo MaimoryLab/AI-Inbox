@@ -48,6 +48,10 @@ const requiredFiles = [
   'src/viewer/demo/browser-extension.html',
   'dist/viewer/demo/browser-extension.html',
   'browser-extension/manifest.json',
+  'browser-extension/icons/icon16.png',
+  'browser-extension/icons/icon32.png',
+  'browser-extension/icons/icon48.png',
+  'browser-extension/icons/icon128.png',
   'scripts/check-browser-extension.mjs',
   'scripts/check-browser-extension-fixtures.mjs',
   'scripts/package-browser-extension.mjs'

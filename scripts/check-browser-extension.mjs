@@ -23,6 +23,22 @@ for (const file of files) {
   if (result.status !== 0) throw new Error(`${file} failed syntax check.`);
 }
 
+function readPngSize(file) {
+  const buf = readFileSync(file);
+  const signature = '89504e470d0a1a0a';
+  if (buf.subarray(0, 8).toString('hex') !== signature) throw new Error(`${file} is not a PNG.`);
+  return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+}
+
+for (const size of [16, 32, 48, 128]) {
+  const iconPath = manifest.icons && manifest.icons[String(size)];
+  if (iconPath !== `icons/icon${size}.png`) throw new Error(`Manifest icon ${size} must point to icons/icon${size}.png.`);
+  const actual = readPngSize(`browser-extension/${iconPath}`);
+  if (actual.width !== size || actual.height !== size) {
+    throw new Error(`${iconPath} must be ${size}x${size}, got ${actual.width}x${actual.height}.`);
+  }
+}
+
 const contentScript = readFileSync('browser-extension/content-script.js', 'utf8');
 const siteConfig = readFileSync('browser-extension/shared/site-config.js', 'utf8');
 const contentProviders = [...contentScript.matchAll(/id:\s*'([^']+)'/g)].map((match) => match[1]);

@@ -70,6 +70,7 @@
 - 英文隐私政策草稿：`docs/browser-extension-privacy-en.md`
 - 英文商店发布文案草稿：`docs/browser-extension-store-listing-en.md`
 - 真实站点验收记录：`docs/browser-extension-ai-validation-cn.md`
+- 插件 PNG 图标资产：`browser-extension/icons/icon16.png`、`icon32.png`、`icon48.png`、`icon128.png`
 - 本地检查：`npm run check:browser-extension`
 - 一键交付检查：`npm run check:delivery`
 - 免登录插件预览：`npm run preview:browser-extension`

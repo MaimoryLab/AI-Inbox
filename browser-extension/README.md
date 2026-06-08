@@ -52,6 +52,8 @@ shared/api.js           统一本地 Agent Memory Lab API 调用
 icons/                  插件图标
 ```
 
+`icons/icon.svg` 是源图，发布和 Manifest 使用 `icon16.png`、`icon32.png`、`icon48.png`、`icon128.png`。
+
 ## 数据结构
 
 浏览器插件采集的数据统一成 `PageCapture`：
