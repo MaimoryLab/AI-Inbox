@@ -122,6 +122,8 @@ Agent Memory Lab 的定位和 Mem0 不一样，所以有几件事要反着做。
 5. 更新 `docs/external-feedback-triage-cn.md`、真实站点验收表或 README 中受影响的说明。
 6. 运行 `npm run check:browser-extension`、`npm run check:delivery` 和 `npm run status:delivery`。
 
+其中 `npm run check:browser-extension` 会调用 `check-browser-extension-site-config-sync`，确认 `browser-extension/shared/site-config.js` 和实际注入页面的 content script 站点配置没有漂移。只要 provider、host、selector、placement、turn 或 send 配置不一致，就不能进入交付包。
+
 这条流程对应用户说的“产品更新要遵循工作流”：先用证据分诊，再改产品，再更新文档和交付检查。
 
 ## 下一步插件差距
