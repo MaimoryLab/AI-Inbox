@@ -73,6 +73,7 @@
 - 英文隐私政策草稿：`docs/browser-extension-privacy-en.md`
 - 英文商店发布文案草稿：`docs/browser-extension-store-listing-en.md`
 - 外部试用指南：`docs/external-tester-guide-cn.md`
+- 外部测试闭环：`docs/external-test-loop-cn.md`，把本地 demo、插件加载、真实 AI 页面和反馈回收串成同一条流程
 - 外部试用反馈模板：`docs/external-feedback-template-cn.md`
 - GitHub 外部试用 Issue 模板：`.github/ISSUE_TEMPLATE/external-tester-feedback-cn.yml`
 - 外部反馈分诊指南：`docs/external-feedback-triage-cn.md`

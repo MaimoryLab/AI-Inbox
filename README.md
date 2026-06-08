@@ -51,17 +51,7 @@ Agent 复用层
 4. 启动完整工作台：`npm run build && npm run start`，打开 `http://localhost:3113/#dashboard`。如果不确定服务是否正常，另开终端执行 `npm run check:workbench`。
 5. 在 ChatGPT / Claude / Gemini / Perplexity 页面输入一个问题，检查真实站点是否识别输入框；再用插件把当前网页加入待审阅，回到 Viewer 的记忆库确认保存。
 
-演示前可以按 [演示检查清单](docs/demo-checklist-cn.md) 自查。
-
-如果是发给外部测试者，建议只给三样东西：
-
-| 先看什么 | 对应入口 |
-| --- | --- |
-| 免登录看插件效果 | `http://localhost:3113/demo/browser-extension.html` |
-| 按步骤加载浏览器插件 | [外部试用指南](docs/external-tester-guide-cn.md) |
-| 反馈真实 AI 页面是否可用 | [真实页面验收清单](docs/browser-extension-ai-site-test-cards-cn.md) |
-
-这样对方先看到产品体验，再补真实页面反馈，不需要一开始理解全部交付脚本。
+也可以按 [演示检查清单](docs/demo-checklist-cn.md) 自查核心体验是否完整。
 
 查看当前交付状态：
 
@@ -123,7 +113,7 @@ npm run preview:browser-extension
 http://localhost:3113/demo/browser-extension.html
 ```
 
-插件权限与隐私说明见 [docs/browser-extension-privacy-cn.md](docs/browser-extension-privacy-cn.md)。外部试用指南见 [docs/external-tester-guide-cn.md](docs/external-tester-guide-cn.md)，反馈模板见 [docs/external-feedback-template-cn.md](docs/external-feedback-template-cn.md)，GitHub 结构化反馈入口见 [.github/ISSUE_TEMPLATE/external-tester-feedback-cn.yml](.github/ISSUE_TEMPLATE/external-tester-feedback-cn.yml)，发布门槛见 [docs/release-gates-cn.md](docs/release-gates-cn.md)。英文隐私政策草稿和商店发布文案见 [docs/browser-extension-privacy-en.md](docs/browser-extension-privacy-en.md) 与 [docs/browser-extension-store-listing-en.md](docs/browser-extension-store-listing-en.md)。如果需要打包给别人本地预览，可以运行 `npm run package:browser-extension`，产物包括 `artifacts/agent-memory-lab-extension.zip`、`artifacts/delivery-summary.md` 和 `artifacts/delivery-manifest.json`。
+插件权限与隐私说明见 [docs/browser-extension-privacy-cn.md](docs/browser-extension-privacy-cn.md)。试用指南见 [docs/external-tester-guide-cn.md](docs/external-tester-guide-cn.md)，反馈模板见 [docs/external-feedback-template-cn.md](docs/external-feedback-template-cn.md)，GitHub 结构化反馈入口见 [.github/ISSUE_TEMPLATE/external-tester-feedback-cn.yml](.github/ISSUE_TEMPLATE/external-tester-feedback-cn.yml)，发布门槛见 [docs/release-gates-cn.md](docs/release-gates-cn.md)。英文隐私政策草稿和商店发布文案见 [docs/browser-extension-privacy-en.md](docs/browser-extension-privacy-en.md) 与 [docs/browser-extension-store-listing-en.md](docs/browser-extension-store-listing-en.md)。如果需要生成本地插件包，可以运行 `npm run package:browser-extension`，产物包括 `artifacts/agent-memory-lab-extension.zip`、`artifacts/delivery-summary.md` 和 `artifacts/delivery-manifest.json`。
 
 然后点击工具栏里的 Agent Memory Lab 图标，打开“同步侧栏”。
 

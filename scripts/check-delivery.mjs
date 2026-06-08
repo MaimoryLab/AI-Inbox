@@ -91,8 +91,8 @@ assert(readme.includes('npm run check:release-gates'), 'README must mention rele
 assert(readme.includes('npm run check:release-public'), 'README must mention public release check command.');
 assert(readme.includes('npm run status:delivery'), 'README must mention delivery status command.');
 assert(readme.includes('.github/ISSUE_TEMPLATE/external-tester-feedback-cn.yml'), 'README must link external tester issue template.');
-for (const marker of ['外部测试者', '免登录看插件效果', '外部试用指南', '真实页面验收清单']) {
-  assert(readme.includes(marker), `README missing external tester marker: ${marker}`);
+for (const marker of ['演示检查清单', '试用指南', '反馈模板', '发布门槛']) {
+  assert(readme.includes(marker), `README missing product doc marker: ${marker}`);
 }
 const imageRefs = [...readme.matchAll(/<img\s+src="([^"]+)"/g)].map((match) => match[1]);
 const allowedImages = new Set([
@@ -124,7 +124,7 @@ assert(browserReadme.includes('同步侧栏'), 'Browser extension README must me
 assert(browserReadme.includes('/demo/browser-extension.html'), 'Browser extension README must mention local demo page.');
 
 const loadGuide = read('browser-extension/LOAD-THIS-FIRST.md');
-for (const marker of ['五步验收', '项目、标签', '经验候选', 'AI-SITE-TEST-CARDS.md', 'npm run record:ai-validation-evidence', 'external-tester-feedback-cn.yml']) {
+for (const marker of ['五步验收', '项目、标签', '经验候选', 'AI-SITE-TEST-CARDS.md', 'npm run record:ai-validation-evidence', 'external-test-loop-cn.md', 'external-tester-feedback-cn.yml']) {
   assert(loadGuide.includes(marker), `Zip loading guide missing marker: ${marker}`);
 }
 
@@ -143,8 +143,13 @@ for (const marker of ['审阅队列可用', 'AI 页面状态', '记忆建议', '
 }
 
 const testerGuide = read('docs/external-tester-guide-cn.md');
-for (const marker of ['外部试用指南', 'npm run preview:browser-extension', 'npm run check:workbench', 'npm run check:release-gates', '记忆建议', '诊断 JSON', '复制命令', '从仓库试用', '从 zip 试用', 'browser-extension/', '外部试用反馈模板', 'external-tester-feedback-cn.yml', '外部反馈分诊指南', 'browser-extension-ai-site-test-cards-cn.md']) {
+for (const marker of ['外部试用指南', '外部测试闭环', 'npm run preview:browser-extension', 'npm run check:workbench', 'npm run check:release-gates', '记忆建议', '诊断 JSON', '复制命令', '从仓库试用', '从 zip 试用', 'browser-extension/', '外部试用反馈模板', 'external-tester-feedback-cn.yml', '外部反馈分诊指南', 'browser-extension-ai-site-test-cards-cn.md']) {
   assert(testerGuide.includes(marker), `External tester guide missing marker: ${marker}`);
+}
+
+const testLoop = read('docs/external-test-loop-cn.md');
+for (const marker of ['外部测试闭环', '四步闭环', '先看效果', '加载插件', '测真实页面', '提交反馈', '最少要回收的信息', '交付判断', 'npm run check:ai-validation-evidence']) {
+  assert(testLoop.includes(marker), `External test loop missing marker: ${marker}`);
 }
 
 const issueTemplate = read('.github/ISSUE_TEMPLATE/external-tester-feedback-cn.yml');
@@ -163,7 +168,7 @@ for (const marker of ['外部反馈分诊指南', 'docs/external-feedback-templa
 }
 
 const plan = read('docs/product-delivery-plan-cn.md');
-for (const marker of ['本地预览包', '权限与隐私说明', '插件对标说明', '外部反馈分诊指南', 'GitHub 外部试用 Issue 模板', 'Skill 草稿', 'AI 页面诊断', '真实站点测试卡', 'AI-SITE-TEST-CARDS.md']) {
+for (const marker of ['本地预览包', '权限与隐私说明', '插件对标说明', '外部测试闭环', '外部反馈分诊指南', 'GitHub 外部试用 Issue 模板', 'Skill 草稿', 'AI 页面诊断', '真实站点测试卡', 'AI-SITE-TEST-CARDS.md']) {
   assert(plan.includes(marker), `Product delivery plan missing marker: ${marker}`);
 }
 
