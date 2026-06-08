@@ -104,6 +104,27 @@ export interface Memory {
   project?: string;
 }
 
+export interface ReviewQueueItem {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  status: "pending" | "approved" | "dismissed";
+  kind: "memory" | "lesson";
+  title: string;
+  content: string;
+  source: "browser-extension" | "viewer" | "api";
+  page?: {
+    type?: string;
+    typeLabel?: string;
+    title?: string;
+    url?: string;
+    host?: string;
+  };
+  payload?: Record<string, unknown>;
+  resultId?: string;
+  reviewedAt?: string;
+}
+
 export interface SessionSummary {
   sessionId: string;
   project: string;

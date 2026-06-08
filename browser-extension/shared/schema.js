@@ -120,6 +120,7 @@ export function captureToLessonPayload(capture, note) {
 }
 
 export function createCaptureRecord(capture, kind, result) {
+  const item = result && result.item ? result.item : null;
   return {
     id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     kind,
@@ -129,6 +130,6 @@ export function createCaptureRecord(capture, kind, result) {
     type: capture.page.type,
     typeLabel: capture.page.typeLabel,
     savedAt: new Date().toISOString(),
-    resultId: result && (result.id || result.memoryId || result.lessonId || result.actionId || '')
+    resultId: result && (result.id || result.memoryId || result.lessonId || result.actionId || (item && item.id) || '')
   };
 }

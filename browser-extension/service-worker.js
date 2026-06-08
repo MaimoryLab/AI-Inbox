@@ -34,21 +34,37 @@ async function rememberRecent(capture, kind, result) {
 
 async function savePageMemory() {
   const capture = await collectPage();
-  const result = await agentMemoryApi('/agentmemory/remember', {
+  const payload = captureToMemoryPayload(capture);
+  const result = await agentMemoryApi('/agentmemory/review', {
     method: 'POST',
-    body: JSON.stringify(captureToMemoryPayload(capture))
+    body: JSON.stringify({
+      kind: 'memory',
+      title: capture.page.title,
+      content: payload.content,
+      source: 'browser-extension',
+      page: capture.page,
+      payload
+    })
   });
-  await rememberRecent(capture, 'memory', result);
+  await rememberRecent(capture, 'review', result);
   return { capture, result };
 }
 
 async function savePageLesson(note) {
   const capture = await collectPage();
-  const result = await agentMemoryApi('/agentmemory/lessons', {
+  const payload = captureToLessonPayload(capture, note);
+  const result = await agentMemoryApi('/agentmemory/review', {
     method: 'POST',
-    body: JSON.stringify(captureToLessonPayload(capture, note))
+    body: JSON.stringify({
+      kind: 'lesson',
+      title: capture.page.title,
+      content: payload.content,
+      source: 'browser-extension',
+      page: capture.page,
+      payload
+    })
   });
-  await rememberRecent(capture, 'lesson', result);
+  await rememberRecent(capture, 'review', result);
   return { capture, result };
 }
 
@@ -57,21 +73,23 @@ async function saveCandidate(kind, text) {
   const trimmed = String(text || '').trim();
   if (!trimmed) throw new Error('没有可保存的候选内容');
   if (kind === 'lesson') {
-    const result = await agentMemoryApi('/agentmemory/lessons', {
+    const payload = captureToLessonPayload(capture, trimmed);
+    const result = await agentMemoryApi('/agentmemory/review', {
       method: 'POST',
-      body: JSON.stringify(captureToLessonPayload(capture, trimmed))
+      body: JSON.stringify({ kind: 'lesson', title: capture.page.title, content: trimmed, source: 'browser-extension', page: capture.page, payload })
     });
-    await rememberRecent(capture, 'lesson', result);
+    await rememberRecent(capture, 'review', result);
     return { capture, result };
   }
-  const result = await agentMemoryApi('/agentmemory/remember', {
+  const payload = {
+    ...captureToMemoryPayload(capture),
+    content: `浏览器候选记忆：${trimmed}\n来源：${capture.page.title}\nURL：${capture.page.url}`
+  };
+  const result = await agentMemoryApi('/agentmemory/review', {
     method: 'POST',
-    body: JSON.stringify({
-      ...captureToMemoryPayload(capture),
-      content: `浏览器候选记忆：${trimmed}\n来源：${capture.page.title}\nURL：${capture.page.url}`
-    })
+    body: JSON.stringify({ kind: 'memory', title: capture.page.title, content: payload.content, source: 'browser-extension', page: capture.page, payload })
   });
-  await rememberRecent(capture, 'memory', result);
+  await rememberRecent(capture, 'review', result);
   return { capture, result };
 }
 

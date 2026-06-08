@@ -27,7 +27,7 @@ function renderCandidateList(node, items, kind) {
   node.innerHTML = items.map((text) => `
     <article class="candidate">
       <p>${escapeHtml(text)}</p>
-      <button data-save-kind="${kind}" data-save-text="${escapeHtml(text)}">保存${kind === 'lesson' ? '经验' : '记忆'}</button>
+      <button data-save-kind="${kind}" data-save-text="${escapeHtml(text)}">送去审阅</button>
     </article>
   `).join('');
 }
@@ -58,7 +58,7 @@ function renderRecent(items) {
   node.className = 'recent-list';
   node.innerHTML = items.slice(0, 6).map((item) => `
     <article class="recent-item">
-      <div class="recent-meta">${escapeHtml(item.typeLabel || item.host || '')} · ${item.kind === 'lesson' ? '经验' : '记忆'}</div>
+      <div class="recent-meta">${escapeHtml(item.typeLabel || item.host || '')} · ${item.kind === 'review' ? '待审阅' : item.kind === 'lesson' ? '经验' : '记忆'}</div>
       <div class="recent-title">${escapeHtml(item.title || '未命名页面')}</div>
     </article>
   `).join('');
@@ -109,7 +109,7 @@ document.addEventListener('click', async (event) => {
   setMessage('正在同步...');
   try {
     await send('SAVE_CANDIDATE', { kind: target.dataset.saveKind, text: target.dataset.saveText });
-    setMessage('已同步到本地工作台', 'ok');
+    setMessage('已加入待审阅队列', 'ok');
     await refresh();
   } catch (err) {
     setMessage(err.message || '同步失败', 'error');
@@ -121,10 +121,10 @@ document.addEventListener('click', async (event) => {
 $('refresh').addEventListener('click', refresh);
 $('savePage').addEventListener('click', async () => {
   $('savePage').disabled = true;
-  setMessage('正在保存页面...');
+  setMessage('正在加入待审阅...');
   try {
     await send('SAVE_PAGE_MEMORY');
-    setMessage('页面已保存', 'ok');
+    setMessage('页面已加入待审阅', 'ok');
     await refresh();
   } catch (err) {
     setMessage(err.message || '保存失败', 'error');

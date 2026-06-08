@@ -28,7 +28,7 @@ function renderRecent(items) {
   $('recentList').innerHTML = items.slice(0, 4).map((item) => `
     <div class="recent-item">
       <div class="recent-title">${escapeHtml(item.title || '未命名页面')}</div>
-      <div class="recent-meta">${item.kind === 'lesson' ? '经验' : '记忆'} · ${escapeHtml(item.host || '')}</div>
+      <div class="recent-meta">${item.kind === 'review' ? '待审阅' : item.kind === 'lesson' ? '经验' : '记忆'} · ${escapeHtml(item.host || '')}</div>
     </div>
   `).join('');
 }
@@ -67,11 +67,11 @@ async function refresh() {
 
 $('saveMemory').addEventListener('click', async () => {
   $('saveMemory').disabled = true;
-  setMessage('正在保存网页线索...');
+  setMessage('正在加入待审阅...');
   try {
     await send('SAVE_PAGE_MEMORY');
     await refreshRecent();
-    setMessage('已保存为记忆线索', 'ok');
+    setMessage('已加入待审阅队列', 'ok');
   } catch (err) {
     setMessage(err.message || '保存失败', 'error');
   } finally {
@@ -83,12 +83,12 @@ $('saveLesson').addEventListener('click', async () => {
   const note = $('lessonNote').value.trim();
   if (!note) return setMessage('先写一条经验再保存', 'error');
   $('saveLesson').disabled = true;
-  setMessage('正在保存经验...');
+  setMessage('正在加入待审阅...');
   try {
     await send('SAVE_PAGE_LESSON', { note });
     $('lessonNote').value = '';
     await refreshRecent();
-    setMessage('经验已保存', 'ok');
+    setMessage('经验候选已加入待审阅', 'ok');
   } catch (err) {
     setMessage(err.message || '保存失败', 'error');
   } finally {

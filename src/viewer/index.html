@@ -3261,7 +3261,7 @@
       dashboard: { loaded: false, health: null, sessions: [], memories: [], graphStats: null, recentAudit: [], lessons: [], crystals: [] },
       dashboardRefresh: { enabled: true, intervalMs: 30000 },
       graph: { loaded: false, nodes: [], edges: [], stats: null, filters: {}, selectedNode: null },
-      memories: { loaded: false, items: [], search: '', typeFilter: '' },
+      memories: { loaded: false, items: [], reviewItems: [], search: '', typeFilter: '' },
 	      timeline: { loaded: false, observations: [], sessionId: '', projectKey: '', sessions: [], minImportance: 0, page: 0, pageSize: 50, mode: 'episodes', episodeFilter: 'all', expandedEpisodes: {} },
       sessions: { loaded: false, items: [], selectedId: null },
       audit: { loaded: false, entries: [], opFilter: '' },
@@ -5197,6 +5197,7 @@
       // corpora. Older endpoints returned the full unbounded list which
       // hit the iii invocation timeout and the UI fell through to 0.
       var result = await apiGet('memories?latest=true&limit=2000');
+      var reviewResult = await apiGet('review?status=pending&limit=50');
       var items = (result && result.memories) || [];
       // Newest first — server returns KV-insertion order.
       items.sort(function(a, b) {
@@ -5205,6 +5206,7 @@
         return bc.localeCompare(ac);
       });
       state.memories.items = items;
+      state.memories.reviewItems = (reviewResult && reviewResult.items) || [];
       state.memories.total = (result && typeof result.total === 'number') ? result.total : items.length;
       state.memories.loaded = true;
       renderMemories();
@@ -5276,6 +5278,8 @@
       html += '<div><div class="memory-summary-title">自动整理中</div><div class="memory-summary-sub">新的聊天记录会作为记忆线索；你可以在这里审阅、编辑或删除。</div></div>';
       html += '</div>';
 
+      html += renderReviewQueue(state.memories.reviewItems || []);
+
       if (filtered.length === 0) {
         html += '<div class="empty-state">' +
           '<div class="empty-icon icon icon-book"></div>' +
@@ -5323,6 +5327,26 @@
         });
       }
       restoreSearchFocus(__focus);
+    }
+
+    function renderReviewQueue(items) {
+      if (!items.length) return '';
+      var html = '<section class="card memory-section" style="padding:14px 16px;margin-bottom:14px;background:#ffffff;">';
+      html += '<div class="memory-section-head"><div><div class="memory-section-title">待审阅</div><div class="memory-summary-sub" style="margin-top:3px;">浏览器插件送来的候选内容，确认后才会进入长期记忆或经验。</div></div><span class="memory-section-count">' + items.length + ' 条</span></div>';
+      html += '<div class="memory-card-grid">';
+      items.forEach(function(item) {
+        var page = item.page || {};
+        var meta = [item.kind === 'lesson' ? '经验候选' : '记忆候选', page.typeLabel || page.host || '', page.url || ''].filter(Boolean).join(' · ');
+        html += '<article class="memory-display-card" style="border-radius:8px;">';
+        html += '<div class="memory-card-topline"><span class="memory-card-type">待审阅</span><span class="memory-card-strength">' + esc(item.kind === 'lesson' ? '经验' : '记忆') + '</span></div>';
+        html += '<h3>' + esc(item.title || '未命名候选') + '</h3>';
+        html += '<p>' + esc(item.content || '').replace(/\n/g, '<br>') + '</p>';
+        html += '<div class="memory-card-source">' + esc(meta) + '</div>';
+        html += '<div class="memory-card-actions"><button class="btn btn-primary" data-action="approve-review" data-review-id="' + esc(item.id) + '">确认保存</button><button class="btn" data-action="dismiss-review" data-review-id="' + esc(item.id) + '">忽略</button></div>';
+        html += '</article>';
+      });
+      html += '</div></section>';
+      return html;
     }
 
     function deleteMemory(id, title) {
@@ -5448,6 +5472,20 @@
       await apiDelete('governance/memories', { memoryIds: [id], reason: 'Deleted via viewer' });
       state.memories.loaded = false;
       loadMemories();
+    }
+
+    async function approveReviewItem(id) {
+      var item = (state.memories.reviewItems || []).find(function(x) { return x.id === id; });
+      if (!item) return;
+      await apiPost('review/approve', { id: id });
+      state.memories.loaded = false;
+      await loadMemories();
+    }
+
+    async function dismissReviewItem(id) {
+      await apiPost('review/dismiss', { id: id });
+      state.memories.reviewItems = (state.memories.reviewItems || []).filter(function(x) { return x.id !== id; });
+      renderMemories();
     }
 
     function closeModal() {
@@ -7364,6 +7402,16 @@
       if (action === 'confirm-delete-memory') {
         var memoryId = target.getAttribute('data-memory-id');
         if (memoryId) confirmDeleteMemory(memoryId);
+        return;
+      }
+      if (action === 'approve-review') {
+        var approveId = target.getAttribute('data-review-id');
+        if (approveId) approveReviewItem(approveId);
+        return;
+      }
+      if (action === 'dismiss-review') {
+        var dismissId = target.getAttribute('data-review-id');
+        if (dismissId) dismissReviewItem(dismissId);
         return;
       }
 	      if (action === 'timeline-filter') {

@@ -1,5 +1,5 @@
 import type { ISdk, ApiRequest } from "iii-sdk";
-import type { Session, CompressedObservation, HookPayload, CommitLink } from "../types.js";
+import type { Session, CompressedObservation, HookPayload, CommitLink, ReviewQueueItem } from "../types.js";
 import { withKeyedLock } from "../state/keyed-mutex.js";
 import { KV } from "../state/schema.js";
 import { StateKV } from "../state/kv.js";
@@ -971,6 +971,147 @@ export function registerApiTriggers(
     type: "http",
     function_id: "api::remember",
     config: { api_path: "/agentmemory/remember", http_method: "POST" },
+  });
+
+  sdk.registerFunction("api::review-create",
+    async (req: ApiRequest): Promise<Response> => {
+      const authErr = checkAuth(req, secret);
+      if (authErr) return authErr;
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const rawKind = body.kind === "lesson" ? "lesson" : "memory";
+      const rawContent = asNonEmptyString(body.content);
+      if (!rawContent) {
+        return { status_code: 400, body: { error: "content is required" } };
+      }
+      const now = new Date().toISOString();
+      const page = body.page && typeof body.page === "object" ? body.page as Record<string, unknown> : {};
+      const title = asNonEmptyString(body.title) || asNonEmptyString(page.title) || (rawKind === "lesson" ? "待审阅经验" : "待审阅记忆");
+      const item: ReviewQueueItem = {
+        id: `review_${Date.now().toString(36)}_${crypto.randomUUID().replace(/-/g, "").slice(0, 10)}`,
+        createdAt: now,
+        updatedAt: now,
+        status: "pending",
+        kind: rawKind,
+        title,
+        content: rawContent,
+        source: body.source === "viewer" || body.source === "api" ? body.source : "browser-extension",
+        page: {
+          type: typeof page.type === "string" ? page.type : undefined,
+          typeLabel: typeof page.typeLabel === "string" ? page.typeLabel : undefined,
+          title: typeof page.title === "string" ? page.title : undefined,
+          url: typeof page.url === "string" ? page.url : undefined,
+          host: typeof page.host === "string" ? page.host : undefined,
+        },
+        payload: body.payload && typeof body.payload === "object" ? body.payload as Record<string, unknown> : {},
+      };
+      await kv.set(KV.reviewQueue, item.id, item);
+      return { status_code: 201, body: { success: true, item } };
+    },
+  );
+  sdk.registerTrigger({
+    type: "http",
+    function_id: "api::review-create",
+    config: { api_path: "/agentmemory/review", http_method: "POST" },
+  });
+
+  sdk.registerFunction("api::review-list",
+    async (req: ApiRequest): Promise<Response> => {
+      const authErr = checkAuth(req, secret);
+      if (authErr) return authErr;
+      const status = asNonEmptyString(req.query_params?.["status"]);
+      const rawLimit = parseOptionalInt(req.query_params?.["limit"]);
+      const limit = Math.max(1, Math.min(200, rawLimit ?? 50));
+      const items = (await kv.list<ReviewQueueItem>(KV.reviewQueue))
+        .filter((item) => !status || item.status === status)
+        .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
+        .slice(0, limit);
+      return { status_code: 200, body: { items } };
+    },
+  );
+  sdk.registerTrigger({
+    type: "http",
+    function_id: "api::review-list",
+    config: { api_path: "/agentmemory/review", http_method: "GET" },
+  });
+
+  sdk.registerFunction("api::review-approve",
+    async (req: ApiRequest): Promise<Response> => {
+      const authErr = checkAuth(req, secret);
+      if (authErr) return authErr;
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const id = asNonEmptyString(body.id);
+      if (!id) return { status_code: 400, body: { error: "id is required" } };
+      const item = await kv.get<ReviewQueueItem>(KV.reviewQueue, id);
+      if (!item) return { status_code: 404, body: { error: "review item not found" } };
+      if (item.status !== "pending") return { status_code: 409, body: { error: "review item is not pending" } };
+      const content = asNonEmptyString(body.content) || item.content;
+      const now = new Date().toISOString();
+      let result: unknown;
+      if (item.kind === "lesson") {
+        const payload = (item.payload || {}) as Record<string, unknown>;
+        result = await sdk.trigger({
+          function_id: "mem::lesson-save",
+          payload: {
+            content,
+            context: typeof payload.context === "string" ? payload.context : [item.page?.title, item.page?.url].filter(Boolean).join("\n"),
+            confidence: typeof payload.confidence === "number" ? payload.confidence : 0.75,
+            project: typeof payload.project === "string" ? payload.project : "browser",
+            tags: Array.isArray(payload.tags) ? payload.tags : ["browser", "reviewed"],
+            source: "manual",
+          },
+        });
+      } else {
+        const payload = (item.payload || {}) as Record<string, unknown>;
+        result = await sdk.trigger({
+          function_id: "mem::remember",
+          payload: {
+            content,
+            type: typeof payload.type === "string" ? payload.type : "fact",
+            concepts: Array.isArray(payload.concepts) ? payload.concepts : ["browser-context", item.page?.host].filter(Boolean),
+            files: Array.isArray(payload.files) ? payload.files : [],
+            project: typeof payload.project === "string" ? payload.project : "browser",
+          },
+        });
+      }
+      const resultObj = result && typeof result === "object" ? result as Record<string, unknown> : {};
+      const resultMemory = resultObj.memory && typeof resultObj.memory === "object" ? resultObj.memory as Record<string, unknown> : null;
+      const resultLesson = resultObj.lesson && typeof resultObj.lesson === "object" ? resultObj.lesson as Record<string, unknown> : null;
+      item.status = "approved";
+      item.content = content;
+      item.updatedAt = now;
+      item.reviewedAt = now;
+      item.resultId = String(resultMemory?.id || resultLesson?.id || "");
+      await kv.set(KV.reviewQueue, item.id, item);
+      return { status_code: 200, body: { success: true, item, result } };
+    },
+  );
+  sdk.registerTrigger({
+    type: "http",
+    function_id: "api::review-approve",
+    config: { api_path: "/agentmemory/review/approve", http_method: "POST" },
+  });
+
+  sdk.registerFunction("api::review-dismiss",
+    async (req: ApiRequest): Promise<Response> => {
+      const authErr = checkAuth(req, secret);
+      if (authErr) return authErr;
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const id = asNonEmptyString(body.id);
+      if (!id) return { status_code: 400, body: { error: "id is required" } };
+      const item = await kv.get<ReviewQueueItem>(KV.reviewQueue, id);
+      if (!item) return { status_code: 404, body: { error: "review item not found" } };
+      const now = new Date().toISOString();
+      item.status = "dismissed";
+      item.updatedAt = now;
+      item.reviewedAt = now;
+      await kv.set(KV.reviewQueue, item.id, item);
+      return { status_code: 200, body: { success: true, item } };
+    },
+  );
+  sdk.registerTrigger({
+    type: "http",
+    function_id: "api::review-dismiss",
+    config: { api_path: "/agentmemory/review/dismiss", http_method: "POST" },
   });
 
   sdk.registerFunction("api::forget", 

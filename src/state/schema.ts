@@ -35,6 +35,7 @@ export const KV = {
   sentinels: "mem:sentinels",
   crystals: "mem:crystals",
   lessons: "mem:lessons",
+  reviewQueue: "mem:review-queue",
   insights: "mem:insights",
   graphEdgeHistory: "mem:graph:edge-history",
   enrichedChunks: (sessionId: string) => `mem:enriched:${sessionId}`,
