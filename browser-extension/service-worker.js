@@ -259,7 +259,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === 'SAVE_CANDIDATE') return saveCandidate(message.kind || 'memory', message.text || '', message.title || '', message.meta || {});
     if (message.type === 'SEARCH_MEMORIES') return searchMemories(message.query || '');
     if (message.type === 'OPEN_SIDE_PANEL') return chrome.sidePanel.open({ windowId: message.windowId });
-    if (message.type === 'OPEN_VIEWER') return openViewer(message.tab || 'dashboard');
+    if (message.type === 'OPEN_VIEWER') return openViewer(message.tab || 'dashboard', message.path || '');
     throw new Error('未知操作');
   })().then((data) => sendResponse({ ok: true, data })).catch((err) => sendResponse({ ok: false, error: err.message || String(err) }));
   return true;

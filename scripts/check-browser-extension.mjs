@@ -47,6 +47,7 @@ const sidepanelHtml = readFileSync('browser-extension/sidepanel.html', 'utf8');
 const sidepanel = readFileSync('browser-extension/sidepanel.js', 'utf8');
 const schema = readFileSync('browser-extension/shared/schema.js', 'utf8');
 const siteConfig = readFileSync('browser-extension/shared/site-config.js', 'utf8');
+const sharedApi = readFileSync('browser-extension/shared/api.js', 'utf8');
 if (!contentScript.includes('DEMO_MEMORIES') || !contentScript.includes("provider.id === 'agentmemoryDemo'")) {
   throw new Error('Content script must provide local demo memories for the Agent Memory Demo page.');
 }
@@ -99,6 +100,12 @@ if (!sidepanel.includes('buildDefaultDraft') || !sidepanel.includes('data-draft-
 if (!sidepanel.includes('getDraftMetaFields') || !serviceWorker.includes('normalizeCandidateMeta')) {
   throw new Error('Side panel draft metadata must reach the review queue payload.');
 }
+if (!sidepanelHtml.includes('openTestCards') || !sidepanel.includes('AI_SITE_TEST_CARDS_PATH')) {
+  throw new Error('Side panel must expose the local AI site test cards entry.');
+}
+if (!sharedApi.includes('path =') || !serviceWorker.includes('message.path')) {
+  throw new Error('OPEN_VIEWER must support local viewer document paths.');
+}
 
 for (const field of ['anchorFound', 'placement', 'memoryWidgetVisible', 'checkedAt']) {
   if (!contentScript.includes(field)) throw new Error(`Content script diagnostics missing ${field}.`);
@@ -110,6 +117,9 @@ for (const field of ['getManifest', 'manifestVersion', 'version']) {
 }
 for (const field of ['manualValidation', 'memoryInsertPassed', 'diagnosticsCopied', 'siteInputStillWorks']) {
   if (!sidepanel.includes(field)) throw new Error(`Diagnostic report must include manual validation template field ${field}.`);
+}
+for (const field of ['validationGuide', 'requiredProducts', 'ChatGPT', 'Claude', 'Gemini', 'Perplexity', '/docs/browser-extension-ai-site-test-cards-cn.md']) {
+  if (!sidepanel.includes(field)) throw new Error(`Diagnostic report must include validation guide field ${field}.`);
 }
 
 console.log('browser extension checks ok');

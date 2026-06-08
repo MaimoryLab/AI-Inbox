@@ -1,4 +1,5 @@
 const $ = (id) => document.getElementById(id);
+const AI_SITE_TEST_CARDS_PATH = '/docs/browser-extension-ai-site-test-cards-cn.md';
 let latestCapture = null;
 let defaultDraft = { kind: 'memory', title: '', content: '', meta: {} };
 
@@ -48,6 +49,11 @@ function buildDiagnosticReport(capture) {
       manifestVersion: manifest.manifest_version || 3
     },
     generatedAt: new Date().toISOString(),
+    validationGuide: {
+      title: '浏览器插件真实 AI 站点测试卡',
+      path: AI_SITE_TEST_CARDS_PATH,
+      requiredProducts: ['ChatGPT', 'Claude', 'Gemini', 'Perplexity']
+    },
     page: {
       title: page.title || '',
       url: page.url || '',
@@ -360,5 +366,6 @@ $('draftAsLesson').addEventListener('change', () => {
 });
 $('openWorkbench').addEventListener('click', () => send('OPEN_VIEWER', { tab: 'dashboard' }).catch(() => {}));
 $('openSkills').addEventListener('click', () => send('OPEN_VIEWER', { tab: 'lessons' }).catch(() => {}));
+$('openTestCards').addEventListener('click', () => send('OPEN_VIEWER', { path: AI_SITE_TEST_CARDS_PATH }).catch(() => {}));
 
 refresh();

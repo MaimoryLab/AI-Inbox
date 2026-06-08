@@ -13,7 +13,8 @@ export async function agentMemoryApi(path, options = {}) {
   return data;
 }
 
-export async function openViewer(tab = 'dashboard') {
+export async function openViewer(tab = 'dashboard', path = '') {
   const settings = await getSettings();
+  if (path) return chrome.tabs.create({ url: `${settings.viewerBase}${path.startsWith('/') ? path : `/${path}`}` });
   return chrome.tabs.create({ url: `${settings.viewerBase}/#${tab}` });
 }
