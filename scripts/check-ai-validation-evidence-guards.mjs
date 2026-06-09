@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
@@ -97,5 +97,13 @@ writeEvidence(wrongHostDir, '2026-06-09-chatgpt.json', baseEvidence({
 const wrongHost = runCheck(wrongHostDir);
 assert(wrongHost.status !== 0, 'Evidence whose host does not match its provider must fail.');
 assert((wrongHost.stderr + wrongHost.stdout).includes('page host does not match provider'), 'Wrong-host failure should explain the provider/domain issue.');
+
+const noTurnsDir = path.join(tmpRoot, 'no-turns');
+writeEvidence(noTurnsDir, '2026-06-09-chatgpt.json', baseEvidence({ ai: { ...baseEvidence().ai, turnCount: 0 } }));
+const noTurns = runCheck(noTurnsDir);
+assert(noTurns.status === 0, 'No-turn evidence should be summarized without crashing the evidence scanner.');
+const noTurnsSummary = JSON.parse(readFileSync(path.join(tmpRoot, 'no-turns-summary.json'), 'utf8'));
+assert(noTurnsSummary.passedCount === 0, 'Evidence without captured conversation turns must not count as passed.');
+assert(Array.isArray(noTurnsSummary.notPassedRequired) && noTurnsSummary.notPassedRequired.includes('ChatGPT'), 'No-turn evidence should keep ChatGPT in the not-passed list.');
 
 console.log('AI validation evidence guard checks ok');

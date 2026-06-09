@@ -212,7 +212,7 @@ for (const marker of ['本地可演示', '外部可试用', '公开可发布', '
 }
 
 const aiValidation = read('docs/browser-extension-ai-validation-cn.md');
-for (const marker of ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', '复制问题信息', '通过标准', 'npm run wizard:ai-validation-evidence', 'anchorFound', 'placement', 'memoryWidgetVisible', 'matchedSelectors', 'browser-extension-ai-site-test-cards-cn.md']) {
+for (const marker of ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', '复制问题信息', '通过标准', 'npm run wizard:ai-validation-evidence', 'anchorFound', 'placement', 'memoryWidgetVisible', 'matchedSelectors', 'turnCount', '具体对话', '输入框草稿', 'browser-extension-ai-site-test-cards-cn.md']) {
   assert(aiValidation.includes(marker), `AI validation doc missing marker: ${marker}`);
 }
 
@@ -400,11 +400,11 @@ for (const marker of ['Agent Memory Lab 外部试用说明', 'agent-memory-lab-e
 }
 
 const testerPack = read('artifacts/ai-validation-run/tester-pack-cn.md');
-for (const marker of ['真实 AI 站点外测包', 'ChatGPT', 'Claude', 'Gemini', 'Perplexity', '不能替代', 'prompt 草稿', 'npm run wizard:ai-validation-evidence', 'manualValidation']) {
+for (const marker of ['真实 AI 站点外测包', 'ChatGPT', 'Claude', 'Gemini', 'Perplexity', '不能替代', 'prompt 草稿', '具体对话', '输入框草稿', '真实对话计数', 'npm run wizard:ai-validation-evidence', 'manualValidation']) {
   assert(testerPack.includes(marker), `AI validation tester pack missing marker: ${marker}`);
 }
 const quickstart = read('artifacts/ai-validation-run/quickstart-cn.md');
-for (const marker of ['真实 AI 站点验收一页纸', 'ChatGPT', 'Claude', 'Gemini', 'Perplexity', '复制问题信息', 'npm run wizard:ai-validation-evidence', '隐私边界']) {
+for (const marker of ['真实 AI 站点验收一页纸', 'ChatGPT', 'Claude', 'Gemini', 'Perplexity', '复制问题信息', '具体对话', '输入框草稿', 'turnCount', 'npm run wizard:ai-validation-evidence', '隐私边界']) {
   assert(quickstart.includes(marker), `AI validation quickstart missing marker: ${marker}`);
 }
 

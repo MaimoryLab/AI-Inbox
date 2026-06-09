@@ -78,6 +78,7 @@ function evidencePassed(item) {
     ai.placement &&
     matched.send &&
     matched.turn &&
+    Number(ai.turnCount || 0) > 0 &&
     ai.checkedAt &&
     hasPass(manual.memoryInsertPassed) &&
     hasPass(manual.diagnosticsCopied) &&
@@ -109,6 +110,7 @@ const evidence = files.map((file) => {
     anchorSelector: data.ai?.matchedSelectors?.anchor || data.ai?.anchorSelector || '',
     sendSelector: data.ai?.matchedSelectors?.send || data.ai?.sendSelector || '',
     turnSelector: data.ai?.matchedSelectors?.turn || data.ai?.turnSelector || '',
+    turnCount: Number(data.ai?.turnCount || 0),
     memoryWidgetVisible: !!(data.ai && data.ai.memoryWidgetVisible),
     memoryInsertPassed: hasPass(data.manualValidation && data.manualValidation.memoryInsertPassed),
     diagnosticsCopied: hasPass(data.manualValidation && data.manualValidation.diagnosticsCopied),

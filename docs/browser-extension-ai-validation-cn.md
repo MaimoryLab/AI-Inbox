@@ -32,6 +32,8 @@ npm run wizard:ai-validation-evidence -- --clipboard
 - 输入框状态为“已找到”。
 - 输入框附近出现“记忆建议”入口。
 - 侧栏显示入口锚点已找到，并记录入口位置策略。
+- 侧栏能读到真实对话，诊断里的 `turnCount` 大于 0；如果没有读到对话，空状态要提示展开真实对话或选中具体内容。
+- 记忆候选来自具体对话或选中文本，不是网页介绍、链接或输入框草稿。
 - 本地搜索有结果时，可以插入或复制记忆。
 - 同步侧栏可复制问题信息 JSON。
 - 插件没有导致原站点输入框、发送按钮、页面滚动异常。
@@ -66,7 +68,7 @@ npm run check:ai-validation-evidence
 npm run sync:ai-validation-table
 ```
 
-第一条命令会把诊断 JSON 保存成标准证据文件。第二条命令会生成 `artifacts/ai-validation-evidence-summary.json`。第三条命令会用证据目录更新本页真实站点验收表。它们不会把待验收状态误判为通过；`memoryInsertPassed`、`diagnosticsCopied`、`siteInputStillWorks` 都为通过，并且 `matchedSelectors` 保留输入框、锚点、发送按钮和会话区域的命中规则时，才会计入真实证据通过数。公开发布仍需 ChatGPT、Claude、Gemini、Perplexity 都有通过证据。
+第一条命令会把诊断 JSON 保存成标准证据文件。第二条命令会生成 `artifacts/ai-validation-evidence-summary.json`。第三条命令会用证据目录更新本页真实站点验收表。它们不会把待验收状态误判为通过；`memoryInsertPassed`、`diagnosticsCopied`、`siteInputStillWorks` 都为通过，`turnCount` 大于 0，并且 `matchedSelectors` 保留输入框、锚点、发送按钮和会话区域的命中规则时，才会计入真实证据通过数。公开发布仍需 ChatGPT、Claude、Gemini、Perplexity 都有通过证据。
 
 ## 本地可验证项
 
