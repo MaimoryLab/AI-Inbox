@@ -3891,6 +3891,15 @@
       var map = { active: '历史会话', completed: '历史会话', archived: '历史会话', failed: '历史会话' };
       return map[status] || '历史会话';
     }
+    function sessionSourceSummary(s, obsCount) {
+      var source = String((s && s.source) || '').indexOf('browser') >= 0 ? '浏览器对话' : String((s && s.source) || '').indexOf('local-') === 0 ? '本地 Agent 会话' : '工作台会话';
+      return [
+        { label: '来源', value: source },
+        { label: '项目', value: projectDisplayName(sessionProjectKey(s)) },
+        { label: '记录', value: (obsCount || 0) + ' 条' },
+        { label: '时间', value: shortDateTime(sessionRecordTime(s)) || '-' }
+      ];
+    }
     function statusIconMarkup(status, label) {
       var s = String(status || '').toLowerCase();
       var title = esc(label || sessionStatusLabel(s));
@@ -6552,7 +6561,7 @@
       var topTools = Object.keys(toolCounts).sort(function(a, b) { return toolCounts[b] - toolCounts[a]; }).slice(0, 10);
       if (topTools.length > 0) {
         var maxC = toolCounts[topTools[0]] || 1;
-        html += '<div class="card" style="margin-bottom:12px;"><div class="card-title">操作概览</div>';
+        html += '<div class="card" style="margin-bottom:12px;"><div class="card-title">工具使用</div>';
         html += '<div class="bar-chart" style="margin-top:8px;">';
         topTools.forEach(function(t) {
           var pct = Math.round((toolCounts[t] / maxC) * 100);
@@ -6563,10 +6572,10 @@
 
       var typeKeys = Object.keys(typeCounts).sort(function(a, b) { return typeCounts[b] - typeCounts[a]; });
       if (typeKeys.length > 0) {
-        html += '<div class="card" style="margin-bottom:12px;"><div class="card-title">活动拆解</div>';
+        html += '<div class="card" style="margin-bottom:12px;"><div class="card-title">记录类型</div>';
         html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">';
         typeKeys.forEach(function(t) {
-          html += '<span class="badge badge-muted" style="font-family:var(--font-mono);">' + esc(t.replace(/_/g, ' ')) + ' · ' + typeCounts[t] + '</span>';
+          html += '<span class="badge badge-muted">' + esc(typeDisplayLabel(t)) + ' · ' + typeCounts[t] + '</span>';
         });
         html += '</div></div>';
       }
@@ -6580,16 +6589,22 @@
         html += '</div></div>';
       }
 
-      html += '<div class="card" style="margin-bottom:12px;"><div class="card-title">来源信息</div>';
-      html += '<div style="font-size:12px;font-family:var(--font-mono);margin-top:8px;line-height:1.7;">';
       var detailId = sessionId(s);
+      html += '<div class="card" style="margin-bottom:12px;"><div class="card-title">记录来源</div>';
+      html += '<div class="memory-card-grid" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:10px;">';
+      sessionSourceSummary(s, obs.length).forEach(function(item) {
+        html += '<div class="action-overview-card" style="padding:10px;"><div class="action-overview-label">' + esc(item.label) + '</div><div style="font-size:13px;color:var(--ink);line-height:1.35;margin-top:4px;overflow-wrap:anywhere;">' + esc(item.value || '-') + '</div></div>';
+      });
+      html += '</div>';
+      html += '<details style="margin-top:10px;font-size:12px;color:var(--ink-muted);"><summary style="cursor:pointer;">查看技术细节</summary>';
+      html += '<div style="font-family:var(--font-mono);margin-top:8px;line-height:1.7;">';
       html += '<div><span style="color:var(--ink-muted);">id:</span> ' + esc(detailId || '无记录 ID') + '</div>';
-      html += '<div><span style="color:var(--ink-muted);">cwd:</span> ' + esc(s.cwd || '-') + '</div>';
+      html += '<div><span style="color:var(--ink-muted);">path:</span> ' + esc(s.cwd || '-') + '</div>';
       html += '<div><span style="color:var(--ink-muted);">started:</span> ' + esc(formatTime(s.startedAt)) + '</div>';
       if (s.endedAt) html += '<div><span style="color:var(--ink-muted);">ended:</span> ' + esc(formatTime(s.endedAt)) + '</div>';
       if (s.model) html += '<div><span style="color:var(--ink-muted);">model:</span> ' + esc(s.model) + '</div>';
       if (s.tags && s.tags.length) html += '<div><span style="color:var(--ink-muted);">tags:</span> ' + s.tags.map(esc).join(', ') + '</div>';
-      html += '</div></div>';
+      html += '</div></details></div>';
 
       html += '<div style="display:flex;gap:8px;">';
       if (detailId) {

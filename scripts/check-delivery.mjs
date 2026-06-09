@@ -248,6 +248,10 @@ for (const marker of ['function reviewProject', 'function reviewTags', 'function
 for (const marker of ['browserReviewSessions', 'browserSessionObservations', 'embeddedObservations', '浏览器对话']) {
   assert(viewer.includes(marker), `Viewer sessions must include browser conversations: ${marker}`);
 }
+for (const marker of ['function sessionSourceSummary', '记录来源', '查看技术细节', '工具使用', '记录类型', '浏览器对话', '本地 Agent 会话']) {
+  assert(viewer.includes(marker), `Viewer sessions page missing readable session marker: ${marker}`);
+}
+assert(!viewer.includes('<div class="card" style="margin-bottom:12px;"><div class="card-title">来源信息</div>'), 'Viewer sessions page must not expose source internals by default.');
 const apiSource = read('src/triggers/api.ts');
 for (const marker of ['recordBrowserSessionFromReview', 'browserSessionId', 'browser_conversation', 'browser_memory_candidate']) {
   assert(apiSource.includes(marker), `Browser reviews must be recorded as real sessions first: ${marker}`);
