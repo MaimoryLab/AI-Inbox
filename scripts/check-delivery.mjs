@@ -91,6 +91,8 @@ for (const file of requiredFiles) {
 }
 
 const readme = read('README.md');
+const packageJson = JSON.parse(read('package.json'));
+assert(String(packageJson.scripts?.['package:browser-extension'] || '').includes('make:ai-validation-tester-pack'), 'package:browser-extension must refresh the AI validation tester pack.');
 assert(readme.includes('npm run preview:browser-extension'), 'README must mention browser extension self-check command.');
 assert(readme.includes('npm run build && npm run start:local-memory'), 'README must mention local memory workbench start command.');
 assert(readme.includes('npm run check:workbench'), 'README must mention workbench status check command.');
