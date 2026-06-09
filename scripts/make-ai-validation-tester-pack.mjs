@@ -63,6 +63,64 @@ const rows = requiredProducts.map((item) => ({
 
 mkdirSync(outDir, { recursive: true });
 
+const pendingRows = rows.filter((item) => !item.passed);
+const nextTargets = (pendingRows.length ? pendingRows : rows).map((item) => item.product).join('、');
+
+const quickstart = `# 真实 AI 站点验收一页纸
+
+这张一页纸给外测者先看。目标很简单：把 ChatGPT、Claude、Gemini、Perplexity 四个真实网页都跑一遍，留下可复现证据。当前真实证据：${evidence.passedCount || 0}/${evidence.requiredCount || requiredProducts.length}。
+
+## 先确认
+
+- 本地工作台已经启动，Viewer 可以打开。
+- Chrome / Edge 已加载插件目录或解压后的插件包。
+- 插件侧栏显示本地已连接，并能看到“复制问题信息”和“复制检查步骤”。
+- 本地预览页只用来自查插件是否注入成功，不能替代真实 AI 页面证据。
+
+## 每个站点只做 6 步
+
+1. 打开真实 AI 页面并登录。
+2. 输入测试 prompt，先不要发送。
+3. 看输入框附近是否出现“记忆建议”。
+4. 尝试把一条本地记忆插入或复制到输入框。
+5. 确认原站输入、发送、滚动、附件和模型选择都正常。
+6. 在侧栏复制问题信息，再复制检查步骤，把证据保存进仓库。
+
+## 必测站点
+
+| 产品 | 目标域名 | 状态 | 建议 prompt |
+| --- | --- | --- | --- |
+${rows.map((item) => `| ${item.product} | ${item.domains} | ${item.passed ? '已有通过证据' : '待验收'} | ${item.prompt} |`).join('\n')}
+
+## 通过才可以勾选
+
+- Provider 识别正确。
+- 输入框已找到。
+- 输入框旁出现“记忆建议”。
+- 记忆可以插入或复制。
+- 原站输入和发送没有被破坏。
+- 证据里三项人工确认都为通过：插入成功、诊断已复制、原站仍正常。
+
+## 保存证据
+
+侧栏“复制检查步骤”会给出更精确命令。通用命令是：
+
+\`\`\`bash
+npm run wizard:ai-validation-evidence -- --clipboard --provider "ChatGPT"
+npm run check:ai-validation-evidence
+npm run sync:ai-validation-table
+npm run status:delivery
+\`\`\`
+
+测 Claude、Gemini、Perplexity 时，把 provider 改成对应产品名。只有真实确认通过时，才在向导里选择通过；不要为了凑数手动改证据。
+
+## 隐私边界
+
+可以提交结构字段、selector、计数、浏览器版本和无敏感备注。不要提交 prompt 草稿、完整聊天正文、账号信息、Cookie、Token、私人文件或页面截图里的隐私内容。
+
+下一批优先测：${nextTargets}。
+`;
+
 const testerPack = `# Agent Memory Lab 真实 AI 站点外测包
 
 这份文档给测试者使用。它只覆盖真实 AI 网页验收，不用本地 demo 冒充通过证据。
@@ -148,9 +206,11 @@ const json = {
   targets: rows
 };
 
+writeFileSync(`${outDir}/quickstart-cn.md`, quickstart);
 writeFileSync(`${outDir}/tester-pack-cn.md`, testerPack);
 writeFileSync(`${outDir}/tester-pack.json`, `${JSON.stringify(json, null, 2)}\n`);
 
 console.log('AI validation tester pack written');
+console.log(`${outDir}/quickstart-cn.md`);
 console.log(`${outDir}/tester-pack-cn.md`);
 console.log(`${outDir}/tester-pack.json`);

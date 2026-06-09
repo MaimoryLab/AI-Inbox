@@ -368,6 +368,8 @@ assert(deliveryManifest.artifacts?.extensionZip?.exists, 'Delivery manifest must
 assert(deliveryManifest.artifacts?.loadInstructions?.exists, 'Delivery manifest must mark zip load instructions as existing.');
 assert(deliveryManifest.artifacts?.externalTesterHandout?.exists === true, 'Delivery manifest must mark external tester handout as existing.');
 assert(deliveryManifest.artifacts?.aiValidationTesterPack?.path === 'artifacts/ai-validation-run/tester-pack-cn.md', 'Delivery manifest must mark AI validation tester pack artifact.');
+assert(deliveryManifest.artifacts?.aiValidationQuickstart?.path === 'artifacts/ai-validation-run/quickstart-cn.md', 'Delivery manifest must mark AI validation quickstart artifact.');
+assert(deliveryManifest.externalTesting?.aiValidationQuickstart?.exists === true, 'Delivery manifest must record AI validation quickstart support.');
 assert(deliveryManifest.artifacts?.releaseNotes?.exists === true, 'Delivery manifest must mark release notes as existing.');
 assert(deliveryManifest.artifacts?.githubReleaseDraft?.exists === true, 'Delivery manifest must mark GitHub release draft as existing.');
 assert(deliveryManifest.coreExperience?.aiInputMemoryHint?.mem0Reference?.documentedIn === 'docs/browser-extension-mem0-reference-cn.md', 'Delivery manifest must record Mem0 reference documentation.');
@@ -389,6 +391,10 @@ for (const marker of ['Agent Memory Lab 外部试用说明', 'agent-memory-lab-e
 const testerPack = read('artifacts/ai-validation-run/tester-pack-cn.md');
 for (const marker of ['真实 AI 站点外测包', 'ChatGPT', 'Claude', 'Gemini', 'Perplexity', '不能替代', 'prompt 草稿', 'npm run wizard:ai-validation-evidence', 'manualValidation']) {
   assert(testerPack.includes(marker), `AI validation tester pack missing marker: ${marker}`);
+}
+const quickstart = read('artifacts/ai-validation-run/quickstart-cn.md');
+for (const marker of ['真实 AI 站点验收一页纸', 'ChatGPT', 'Claude', 'Gemini', 'Perplexity', '复制问题信息', 'npm run wizard:ai-validation-evidence', '隐私边界']) {
+  assert(quickstart.includes(marker), `AI validation quickstart missing marker: ${marker}`);
 }
 
 const releaseNotes = read('artifacts/release-notes.md');

@@ -61,6 +61,10 @@ try {
   const handout = await fetchText(base, '/artifacts/external-tester-handout.md');
   assert(handout.text.includes('外部试用说明'), 'External tester handout artifact must be served.');
 
+  const quickstart = await fetchText(base, '/artifacts/ai-validation-run/quickstart-cn.md');
+  assert(quickstart.text.includes('真实 AI 站点验收一页纸'), 'AI validation quickstart artifact must be served.');
+  assert(quickstart.text.includes('ChatGPT') && quickstart.text.includes('Perplexity'), 'AI validation quickstart must include required AI products.');
+
   const feedbackTemplate = await fetchText(base, '/artifacts/external-feedback-template-cn.md');
   assert(feedbackTemplate.text.includes('外部试用反馈模板'), 'External feedback template artifact must be served.');
 

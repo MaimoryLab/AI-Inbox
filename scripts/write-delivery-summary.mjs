@@ -72,6 +72,7 @@ const releaseGates = read('docs/release-gates-cn.md');
 const aiValidation = read('docs/browser-extension-ai-validation-cn.md');
 const zipPath = 'artifacts/agent-memory-lab-extension.zip';
 const aiTesterPackPath = 'artifacts/ai-validation-run/tester-pack-cn.md';
+const aiQuickstartPath = 'artifacts/ai-validation-run/quickstart-cn.md';
 const generatedAt = new Date().toISOString();
 const branch = git(['branch', '--show-current']) || 'unknown';
 const commit = git(['rev-parse', '--short', 'HEAD']) || 'unknown';
@@ -130,6 +131,11 @@ const deliveryManifest = {
       path: aiTesterPackPath,
       command: 'npm run make:ai-validation-tester-pack',
       exists: existsSync(aiTesterPackPath)
+    },
+    aiValidationQuickstart: {
+      path: aiQuickstartPath,
+      command: 'npm run make:ai-validation-tester-pack',
+      exists: existsSync(aiQuickstartPath)
     },
     releaseNotes: {
       path: 'artifacts/release-notes.md',
@@ -210,6 +216,11 @@ const deliveryManifest = {
       command: 'npm run make:ai-validation-tester-pack',
       exists: existsSync('scripts/make-ai-validation-tester-pack.mjs')
     },
+    aiValidationQuickstart: {
+      path: aiQuickstartPath,
+      command: 'npm run make:ai-validation-tester-pack',
+      exists: existsSync(aiQuickstartPath)
+    },
     aiSiteTestCards: {
       path: 'docs/browser-extension-ai-site-test-cards-cn.md',
       viewerPath: '/docs/browser-extension-ai-site-test-cards-cn.md',
@@ -275,6 +286,7 @@ Generated: ${generatedAt}
 | Extension source folder | ${existsSync('browser-extension/manifest.json') ? 'browser-extension/' : 'missing'} |
 | Zip load instructions | ${existsSync('browser-extension/LOAD-THIS-FIRST.md') ? 'browser-extension/LOAD-THIS-FIRST.md' : 'missing'} |
 | AI validation tester pack | ${existsSync(aiTesterPackPath) ? aiTesterPackPath : 'run npm run make:ai-validation-tester-pack'} |
+| AI validation quickstart | ${existsSync(aiQuickstartPath) ? aiQuickstartPath : 'run npm run make:ai-validation-tester-pack'} |
 | Demo page | ${existsSync('dist/viewer/demo/browser-extension.html') ? 'dist/viewer/demo/browser-extension.html' : 'missing'} |
 | Dashboard screenshot | ${existsSync('docs/readme-assets/screenshots/dashboard.jpg') ? 'docs/readme-assets/screenshots/dashboard.jpg' : 'missing'} |
 | Skills screenshot | ${existsSync('docs/readme-assets/screenshots/skills.jpg') ? 'docs/readme-assets/screenshots/skills.jpg' : 'missing'} |
@@ -303,6 +315,7 @@ Generated: ${generatedAt}
 | Feedback triage guide | ${existsSync('docs/external-feedback-triage-cn.md') ? 'ready' : 'missing'} |
 | AI evidence recorder | ${existsSync('scripts/record-ai-validation-evidence.mjs') ? 'ready' : 'missing'} |
 | AI validation tester pack | ${existsSync('scripts/make-ai-validation-tester-pack.mjs') ? 'ready' : 'missing'} |
+| AI validation quickstart | ${existsSync(aiQuickstartPath) ? 'ready' : 'missing'} |
 
 ## Release Gates
 
@@ -347,6 +360,7 @@ ${extractGateTable(releaseGates)}
 - External feedback triage: \`docs/external-feedback-triage-cn.md\`
 - AI validation log: \`docs/browser-extension-ai-validation-cn.md\`
 - AI validation tester pack: \`artifacts/ai-validation-run/tester-pack-cn.md\`
+- AI validation quickstart: \`artifacts/ai-validation-run/quickstart-cn.md\`
 - Release gates: \`docs/release-gates-cn.md\`
 - Feishu source: \`docs/feishu/agentmemory-project-intro-cn.md\`
 `;

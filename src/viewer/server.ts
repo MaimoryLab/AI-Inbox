@@ -159,6 +159,7 @@ function readDeliveryArtifact(relativePath: string): { body: Buffer; contentType
     ["external-feedback-template-cn.md", "text/markdown; charset=utf-8"],
     ["external-feedback-triage-cn.md", "text/markdown; charset=utf-8"],
     ["delivery-manifest.json", "application/json; charset=utf-8"],
+    ["ai-validation-run/quickstart-cn.md", "text/markdown; charset=utf-8"],
     ["ai-validation-run/tester-pack-cn.md", "text/markdown; charset=utf-8"],
   ]);
   const normalized = relativePath.replace(/^\/+/, "");
