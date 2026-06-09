@@ -133,10 +133,29 @@ function setConnectionState(state, text) {
   $('connectionAction').textContent = '重试';
 }
 
+function candidateEmptyState(kind) {
+  const capture = latestCapture || {};
+  const page = capture.page || {};
+  const conversation = capture.conversation || {};
+  const turns = Array.isArray(conversation.turns) ? conversation.turns : [];
+  const provider = conversation.provider || '';
+  if (provider && !turns.length) {
+    return {
+      title: kind === 'lesson' ? '还不能沉淀经验' : '还不能生成记忆',
+      body: '插件还没有读到这页的具体对话。为了避免把网页介绍、链接或输入框草稿误存成记忆，请先展开真实对话，或选中一段具体内容后再保存。'
+    };
+  }
+  return {
+    title: kind === 'lesson' ? '暂时没有经验建议' : '暂时没有记忆建议',
+    body: page.selection ? '选中的内容还不够具体，可以手动改写后加入待确认。' : '当前页面还没有足够具体的信息，可以选中一段内容，或在准备保存区手动补充。'
+  };
+}
+
 function renderCandidateList(node, items, kind) {
   if (!items || !items.length) {
     node.className = 'candidate-list empty';
-    node.textContent = '暂时没有建议';
+    const empty = candidateEmptyState(kind);
+    node.innerHTML = `<div class="empty-card"><strong>${escapeHtml(empty.title)}</strong><span>${escapeHtml(empty.body)}</span></div>`;
     return;
   }
   node.className = 'candidate-list';

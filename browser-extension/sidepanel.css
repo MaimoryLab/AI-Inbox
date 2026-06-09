@@ -280,6 +280,26 @@ body {
   font-size: 13px;
 }
 
+.empty-card {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--subtle);
+}
+
+.empty-card strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.empty-card span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .candidate, .recent-item, .turn {
   min-width: 0;
   padding: 9px;

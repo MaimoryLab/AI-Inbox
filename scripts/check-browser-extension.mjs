@@ -107,6 +107,9 @@ if (schema.includes('从当前页面提炼具体事实') || sidepanel.includes('
 if (!schema.includes('hasConcreteMemoryEvidence') || !schema.includes('需要具体对话后再保存') || !sidepanel.includes('emptyReason')) {
   throw new Error('Browser extension must show a clear empty state instead of saving vague memory candidates.');
 }
+for (const marker of ['还不能生成记忆', '还不能沉淀经验', '没有读到这页的具体对话', '展开真实对话', '选中一段具体内容']) {
+  if (!sidepanel.includes(marker)) throw new Error(`Side panel empty state missing concrete conversation guidance: ${marker}.`);
+}
 if (!schema.includes('刘欣（Liu Xin）') || !schema.includes('UI\\/?UX')) {
   throw new Error('Browser memory extraction must handle concrete identity/background facts from AI conversations.');
 }
