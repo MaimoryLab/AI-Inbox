@@ -122,6 +122,7 @@ npm run sync:ai-validation-table
 - 产品交付计划：`docs/product-delivery-plan-cn.md`
 - 发布门槛：`docs/release-gates-cn.md`
 - Mem0 / OpenMemory 参考：`docs/browser-extension-mem0-reference-cn.md`
+- 飞书文档：<https://my.feishu.cn/docx/Ys7qdCP3mo1KOtxpVZuc8nPCnZI>
 - 飞书文档源稿：`docs/feishu/agentmemory-project-intro-cn.md`
 
 ## 接手建议
