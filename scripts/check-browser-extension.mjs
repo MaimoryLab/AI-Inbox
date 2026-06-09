@@ -46,6 +46,7 @@ const popupJs = readFileSync('browser-extension/popup.js', 'utf8');
 const sidepanelHtml = readFileSync('browser-extension/sidepanel.html', 'utf8');
 const sidepanel = readFileSync('browser-extension/sidepanel.js', 'utf8');
 const schema = readFileSync('browser-extension/shared/schema.js', 'utf8');
+const manifestText = readFileSync('browser-extension/manifest.json', 'utf8');
 const siteConfig = readFileSync('browser-extension/shared/site-config.js', 'utf8');
 const sharedApi = readFileSync('browser-extension/shared/api.js', 'utf8');
 if (!contentScript.includes('DEMO_MEMORIES') || !contentScript.includes("provider.id === 'agentmemoryDemo'")) {
@@ -100,6 +101,12 @@ if (!schema.includes('buildBrowserLessonDraft') || !serviceWorker.includes('buil
 if (!schema.includes('conversationSummaryFacts') || !sidepanel.includes('conversationSummaryFacts')) {
   throw new Error('Browser extension must extract memory candidates from conversation summaries.');
 }
+if (schema.includes('从当前页面提炼具体事实') || sidepanel.includes('请从这个页面提炼一条具体事实')) {
+  throw new Error('Browser extension must not create vague page-title memory fallbacks when no concrete conversation was captured.');
+}
+if (!schema.includes('hasConcreteMemoryEvidence') || !schema.includes('需要具体对话后再保存') || !sidepanel.includes('emptyReason')) {
+  throw new Error('Browser extension must show a clear empty state instead of saving vague memory candidates.');
+}
 if (!schema.includes('刘欣（Liu Xin）') || !schema.includes('UI\\/?UX')) {
   throw new Error('Browser memory extraction must handle concrete identity/background facts from AI conversations.');
 }
@@ -126,6 +133,9 @@ if (!sidepanelHtml.includes('copyEvidenceCommand') || !sidepanelHtml.includes('�
 }
 if (!sharedApi.includes('path =') || !serviceWorker.includes('message.path')) {
   throw new Error('OPEN_VIEWER must support local viewer document paths.');
+}
+if (!sharedApi.includes('resolveViewerBase') || !manifestText.includes('localhost:3114')) {
+  throw new Error('Extension must discover the active Viewer port and allow the 3114 fallback viewer.');
 }
 
 for (const field of ['anchorFound', 'placement', 'memoryWidgetVisible', 'checkedAt', 'anchorSelector', 'anchorSource', 'adjacentSelector', 'sendFound', 'sendSelector', 'turnSelector', 'turnSelectorCount', 'matchedSelectors']) {

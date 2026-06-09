@@ -53,7 +53,7 @@ Use it to verify:
 
 1. Read \`LOAD-THIS-FIRST.md\`.
 2. Load this \`browser-extension/\` folder from \`chrome://extensions\`.
-3. Open \`http://localhost:3113/demo/browser-extension.html\`.
+3. Open \`启动输出里的 Viewer 地址 + /demo/browser-extension.html\`.
 4. Try the side panel and confirm the review draft can be edited.
 5. For real AI sites, follow \`AI-SITE-TEST-CARDS.md\`.
 
@@ -70,8 +70,8 @@ Public release remains blocked until all required products have reproducible rea
 On each real AI page:
 
 1. Open the extension side panel.
-2. Click \`复制诊断\`.
-3. Click \`复制向导\`.
+2. Click \`复制问题信息\`.
+3. Click \`复制检查步骤\`.
 4. Paste and run the copied wizard command from the repository root.
 5. Mark the three manual checks as passed only after memory insertion/copy, diagnostics copy, and original site input all work.
 

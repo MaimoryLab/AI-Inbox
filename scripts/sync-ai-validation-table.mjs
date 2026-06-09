@@ -108,13 +108,13 @@ const products = [
 
 const evidence = latestEvidenceByProvider();
 const rows = [
-  '| 产品 | 目标域名 | Provider | 输入框 | 记忆提示 | 插入 | 复制诊断 | 结果 | 日期 | 证据/备注 |',
+  '| 产品 | 目标域名 | Provider | 输入框 | 记忆提示 | 插入 | 复制问题信息 | 结果 | 日期 | 证据/备注 |',
   '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
   ...products.map(([product, domain]) => evidenceRow(product, domain, evidence.get(product)))
 ].join('\n');
 
 const markdown = read(validationPath);
-const pattern = /\| 产品 \| 目标域名 \| Provider \| 输入框 \| 记忆提示 \| 插入 \| 复制诊断 \| 结果 \| 日期 \| 证据\/备注 \|\n\| --- \| --- \| --- \| --- \| --- \| --- \| --- \| --- \| --- \| --- \|\n(?:\|.*\|\n?)+?(?=\n## 诊断 JSON 示例)/;
+const pattern = /\| 产品 \| 目标域名 \| Provider \| 输入框 \| 记忆提示 \| 插入 \| 复制问题信息 \| 结果 \| 日期 \| 证据\/备注 \|\n\| --- \| --- \| --- \| --- \| --- \| --- \| --- \| --- \| --- \| --- \|\n(?:\|.*\|\n?)+?(?=\n## 诊断 JSON 示例)/;
 if (!pattern.test(markdown)) throw new Error('Could not locate AI validation table.');
 const next = markdown.replace(pattern, rows);
 

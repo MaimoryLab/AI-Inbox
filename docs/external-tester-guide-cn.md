@@ -17,7 +17,7 @@
 | --- | --- | --- |
 | 中文 README | `README.md` | 快速理解产品定位和启动路径 |
 | 插件目录 | `browser-extension/` | Chrome / Edge 开发者模式加载 |
-| 插件自检页 | `http://localhost:3113/demo/browser-extension.html` | 排查输入框旁记忆建议是否能注入 |
+| 插件自检页 | `启动输出里的 Viewer 地址 + /demo/browser-extension.html` | 排查输入框旁记忆建议是否能注入 |
 | 插件压缩包 | `artifacts/agent-memory-lab-extension.zip` | 给别人本地加载或归档 |
 | 交付摘要 | `artifacts/delivery-summary.md` | 查看当前版本、产物、发布门槛和检查命令 |
 | 交付清单 | `artifacts/delivery-manifest.json` | 机器可读的版本、提交、zip 大小、sha256 和真实 AI 站点验收计数 |
@@ -34,7 +34,7 @@
 2. 进入项目目录并启动完整工作台：
 
 ```bash
-cd /Users/szn/agentmemory
+cd agentmemory-lab
 npm run build && npm run start:local-memory
 ```
 
@@ -54,7 +54,7 @@ npm run build && npm run start:local-memory
 10. 如果输入框旁没有“记忆建议”或侧栏识别异常，再打开自检页：
 
 ```text
-http://localhost:3113/demo/browser-extension.html
+启动输出里的 Viewer 地址 + /demo/browser-extension.html
 ```
 
 ## 完整工作台试用路线
@@ -62,14 +62,14 @@ http://localhost:3113/demo/browser-extension.html
 如果还没有启动待审阅队列和记忆库，需要启动完整工作台：
 
 ```bash
-cd /Users/szn/agentmemory
+cd agentmemory-lab
 npm run build && npm run start:local-memory
 ```
 
 默认地址：
 
 ```text
-Viewer: http://localhost:3113/#dashboard
+Viewer: 启动输出里的 Viewer 地址，例如 http://localhost:3114/#dashboard
 API: http://localhost:3111
 ```
 
@@ -78,13 +78,13 @@ API: http://localhost:3111
 - 插件保存当前网页。
 - 右键保存选中文本或链接。
 - 在弹窗或同步侧栏里先改标题或正文，再加入待审阅。
-- 回到 Viewer 的记忆库，查看待审阅队列，并确认项目、标签、来源和经验候选状态没有丢失。
+- 回到 Viewer 的记忆库，查看待审阅队列，并确认保存范围、分类备注、来源和经验候选状态没有丢失。
 - 编辑标题、内容、标签和项目后再保存。
 
 如果不确定完整工作台是否已经正常运行，可以另开终端检查：
 
 ```bash
-cd /Users/szn/agentmemory
+cd agentmemory-lab
 npm run check:workbench
 ```
 
@@ -93,7 +93,7 @@ npm run check:workbench
 也可以检查当前发布门槛：
 
 ```bash
-cd /Users/szn/agentmemory
+cd agentmemory-lab
 npm run status:delivery
 ```
 
@@ -102,14 +102,14 @@ npm run status:delivery
 也可以继续看发布门槛：
 
 ```bash
-cd /Users/szn/agentmemory
+cd agentmemory-lab
 npm run check:release-gates
 ```
 
 如果准备公开发布，再运行：
 
 ```bash
-cd /Users/szn/agentmemory
+cd agentmemory-lab
 npm run check:release-public
 ```
 
@@ -134,7 +134,7 @@ npm run check:release-public
 - 输入框状态是“已找到”。
 - 输入框附近出现“记忆建议”。
 - 记忆可以插入或复制。
-- 同步侧栏可以复制诊断 JSON，也可以复制保存证据的终端命令。
+- 同步侧栏可以复制问题信息 JSON，也可以复制保存证据的终端命令。
 - 原站点输入、发送、滚动没有异常。
 
 验收结果写入：
@@ -152,8 +152,8 @@ docs/validation/browser-extension-ai-sites/
 保存后运行：
 
 ```bash
-cd /Users/szn/agentmemory
-npm run record:ai-validation-evidence -- --file diagnostics.json
+cd agentmemory-lab
+npm run wizard:ai-validation-evidence -- --file diagnostics.json
 npm run check:ai-validation-evidence
 npm run sync:ai-validation-table
 ```
@@ -171,9 +171,9 @@ npm run sync:ai-validation-table
 - 操作系统。
 - 目标站点。
 - 截图或录屏。
-- 同步侧栏复制出来的诊断 JSON，以及侧栏“复制向导”生成的保存命令执行结果。
+- 同步侧栏复制出来的诊断 JSON，以及侧栏“复制检查步骤”生成的保存命令执行结果。
 - 如果可以，直接提供 `docs/validation/browser-extension-ai-sites/` 下的证据 JSON 文件。
-- 复制诊断里的 `manualValidation` 字段需要按真实结果改成 `true` / `false`，不要默认当作通过。
+- 复制问题信息里的 `manualValidation` 字段需要按真实结果改成 `true` / `false`，不要默认当作通过。
 - 诊断 JSON 里 `editorFound`、`anchorFound`、`placement`、`memoryWidgetVisible` 的状态。
 - 哪一步不符合预期。
 

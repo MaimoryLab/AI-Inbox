@@ -18,13 +18,13 @@
 
 ```text
 API: http://localhost:3111
-Viewer: http://localhost:3113
+Viewer: 启动输出里的 Viewer 地址
 ```
 
 如果插件弹窗显示“未连接本地工作台”，请先进入项目目录再启动：
 
 ```bash
-cd /Users/szn/agentmemory
+cd agentmemory-lab
 npm run build && npm run start:local-memory
 ```
 
@@ -35,45 +35,45 @@ npm run build && npm run start:local-memory
 - 插件弹窗能显示当前页面。
 - 同步侧栏能打开。
 - 可以把当前网页或选中文本加入待审阅。
-- 回到 `http://localhost:3113/#memories` 后，能看到刚才的待审阅内容。
+- 回到 `启动输出里的 Viewer 地址 + #memories` 后，能看到刚才的待审阅内容。
 
 ## 4. 排错自检
 
 先进入项目目录再运行：
 
 ```bash
-cd /Users/szn/agentmemory
+cd agentmemory-lab
 npm run preview:browser-extension
 ```
 
 打开页面后，插件会在输入框附近显示“记忆建议”。
 
-这个启动方式会读取 `/Users/szn/记忆/data` 里的本地记忆。这个自检页只用于确认插件注入和“记忆建议”入口是否正常；真实使用仍以真实网页和 AI 页面为准。
+这个启动方式会读取 `你的本地记忆数据目录` 里的本地记忆。这个自检页只用于确认插件注入和“记忆建议”入口是否正常；真实使用仍以真实网页和 AI 页面为准。
 
 ## 5. 试用重点
 
 - 弹窗和同步侧栏都会显示保存前审阅草稿。
-- 保存前可以编辑标题、正文、项目、标签，并标记是否可沉淀为经验候选。
+- 保存前可以编辑标题、正文、保存范围、分类备注，并标记是否可沉淀为经验候选。
 - 保存后内容先进入 Viewer 待审阅队列，不会直接写长期记忆。
-- 回到 Viewer 的记忆库，确认待审阅卡片能看到项目、标签、来源和经验候选状态。
+- 回到 Viewer 的记忆库，确认待审阅卡片能看到保存范围、分类备注、来源和经验候选状态。
 - ChatGPT、Claude、Gemini、Perplexity 真实网页还需要逐站验收。
 
 ## 6. 五步验收
 
 1. 启动本地工作台并加载插件。
 2. 打开真实网页或 AI 页面。
-3. 打开插件弹窗或同步侧栏，把草稿的项目、标签和经验候选状态改一下，再加入待审阅。
-4. 回到 `http://localhost:3113/#memories`，确认待审阅卡片出现，并保留刚才的项目和标签。
-5. 如果输入框旁没有“记忆建议”，再打开 `http://localhost:3113/demo/browser-extension.html` 做自检。
+3. 打开插件弹窗或同步侧栏，把草稿的保存范围、分类备注和经验候选状态改一下，再加入待审阅。
+4. 回到 `启动输出里的 Viewer 地址 + #memories`，确认待审阅卡片出现，并保留刚才的保存范围和分类备注。
+5. 如果输入框旁没有“记忆建议”，再打开 `启动输出里的 Viewer 地址 + /demo/browser-extension.html` 做自检。
 
 ## 7. 真实 AI 页面证据
 
-如果你在 ChatGPT、Claude、Gemini 或 Perplexity 上试用，请先打开本目录里的 `AI-SITE-TEST-CARDS.md`，按每个站点的测试卡确认输入框、记忆建议、插入、复制诊断和原站输入都正常。
+如果你在 ChatGPT、Claude、Gemini 或 Perplexity 上试用，请先打开本目录里的 `AI-SITE-TEST-CARDS.md`，按每个站点的测试卡确认输入框、记忆建议、插入、复制问题信息和原站输入都正常。
 
-验收时打开同步侧栏并点击“复制诊断”。复制后可以用命令保存证据：
+验收时打开同步侧栏并点击“复制问题信息”。复制后可以用命令保存证据：
 
 ```bash
-cd /Users/szn/agentmemory
+cd agentmemory-lab
 npm run wizard:ai-validation-evidence
 ```
 
@@ -84,7 +84,7 @@ npm run wizard:ai-validation-evidence
 先进入项目目录再运行：
 
 ```bash
-cd /Users/szn/agentmemory
+cd agentmemory-lab
 npm run status:delivery
 ```
 
@@ -99,4 +99,4 @@ docs/external-feedback-template-cn.md
 .github/ISSUE_TEMPLATE/external-tester-feedback-cn.yml
 ```
 
-优先附上同步侧栏“复制诊断”的 JSON，并确认截图或录屏不包含敏感信息。
+优先附上同步侧栏“复制问题信息”的 JSON，并确认截图或录屏不包含敏感信息。

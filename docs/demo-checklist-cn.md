@@ -5,10 +5,10 @@
 ## 演示前准备
 
 - GitHub 分支打开：`szn-viewer-ui-iteration`
-- 插件免登录预览可启动：`cd /Users/szn/agentmemory && npm run preview:browser-extension`
-- 本地插件预览页可访问：`http://localhost:3113/demo/browser-extension.html`
-- 完整工作台可启动：`cd /Users/szn/agentmemory && npm run build && npm run start:local-memory`，Viewer 默认 `http://localhost:3113/#dashboard`，并读取 `/Users/szn/记忆/data` 本地记忆库
-- 完整工作台状态检查可运行：`cd /Users/szn/agentmemory && npm run check:workbench`
+- 插件免登录预览可启动：`cd agentmemory-lab && npm run preview:browser-extension`
+- 本地插件预览页可访问：`启动输出里的 Viewer 地址 + /demo/browser-extension.html`
+- 完整工作台可启动：`cd agentmemory-lab && npm run build && npm run start:local-memory`，Viewer 默认 `启动输出里的 Viewer 地址，例如 http://localhost:3114/#dashboard`，并读取 `你的本地记忆数据目录` 本地记忆库
+- 完整工作台状态检查可运行：`cd agentmemory-lab && npm run check:workbench`
 - 如果刚运行过 `npm run build`、`npm run package:browser-extension` 或 `npm run check:delivery`，先重启 `npm run start:local-memory`，再做工作台状态检查
 - 如果 `npx @agentmemory/agentmemory demo` 提示 `worker not reachable on port 3111`，通常是端口上只剩 iii-engine 壳、Agent Memory worker 没挂上。先运行 `npx @agentmemory/agentmemory stop --force` 清理，再从项目目录运行 `npm run start:local-memory`。
 - 浏览器插件已加载：Chrome / Edge → `chrome://extensions` → 加载 `browser-extension/`
@@ -60,7 +60,7 @@
 
 - 从插件加入待审阅
 - 回到记忆库顶部看到“待审阅”
-- 点“审阅保存”可以编辑标题、内容、类型、项目、标签
+- 点“审阅保存”可以编辑标题、内容、类型、保存范围、分类备注
 - 确认后进入长期记忆或经验
 - 在记忆库用“浏览器”来源筛选找到刚保存的内容
 
@@ -70,13 +70,13 @@
 
 检查点：
 
-- 先打开 `http://localhost:3113/demo/browser-extension.html` 做免登录预览
+- 先打开 `启动输出里的 Viewer 地址 + /demo/browser-extension.html` 做免登录预览
 - 同步侧栏识别为 `Agent Memory Demo`，并且输入框为“已找到”
 - 输入框附近出现“记忆建议”入口，面板里能看到演示记忆，并可插入 / 复制
 - 打开 ChatGPT 或 Claude 页面
 - 在输入框输入一个和本地记忆相关的问题
 - 同步侧栏的“AI 页面状态”显示已识别产品，并且输入框为“已找到”
-- 如果输入框为“未找到”，点击“复制诊断”，把 JSON 留作下一轮站点适配材料
+- 如果输入框为“未找到”，点击“复制问题信息”，把 JSON 留作下一轮站点适配材料
 - 输入框附近出现“记忆建议”按钮
 - 面板里能看到相关记忆
 - 能插入或复制到当前输入框

@@ -13,7 +13,7 @@
   },
   "options_page": "options.html",
   "permissions": ["activeTab", "contextMenus", "sidePanel", "scripting", "storage", "tabs"],
-  "host_permissions": ["http://localhost:3111/*", "http://127.0.0.1:3111/*", "http://localhost:3113/*", "http://127.0.0.1:3113/*"],
+  "host_permissions": ["http://localhost:3111/*", "http://127.0.0.1:3111/*", "http://localhost:3113/*", "http://127.0.0.1:3113/*", "http://localhost:3114/*", "http://127.0.0.1:3114/*"],
   "background": {
     "service_worker": "service-worker.js",
     "type": "module"

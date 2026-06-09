@@ -175,6 +175,18 @@ function memoryEvidenceFromPage(page = {}) {
   ]).slice(0, 4);
 }
 
+export function hasConcreteMemoryEvidence(capture) {
+  const page = capture && capture.page ? capture.page : {};
+  const conversation = capture && capture.conversation ? capture.conversation : {};
+  const candidates = capture && capture.candidates && Array.isArray(capture.candidates.memories) ? capture.candidates.memories : [];
+  const evidence = memoryEvidenceFromPage({
+    ...page,
+    turns: Array.isArray(conversation.turns) ? conversation.turns : [],
+    promptDraft: conversation.promptDraft || page.promptDraft || ''
+  });
+  return evidence.some((item) => isUsefulFact(item)) || candidates.some((item) => isUsefulFact(item));
+}
+
 function conversationSummaryFacts(turns = []) {
   const text = turns.map((turn) => cleanCandidateText(turn && turn.text ? turn.text : '')).filter(Boolean).join('。');
   const facts = [];
@@ -227,7 +239,16 @@ export function buildBrowserMemoryDraft(capture) {
     promptDraft: conversation.promptDraft || page.promptDraft || ''
   });
   const first = evidence.find((item) => String(item || '').trim()) || candidates.find((item) => isUsefulFact(item)) || '';
-  const fact = cleanCandidateText(first) || `请从这个页面提炼一条具体事实：${page.title || '当前页面'}`;
+  const fact = cleanCandidateText(first);
+  if (!fact) {
+    return {
+      title: '需要具体对话后再保存',
+      content: '',
+      fact: '',
+      source: buildSourceNote(page),
+      emptyReason: '这页还没有读到足够的具体对话，暂时不会生成记忆候选。请在 AI 页面展开真实对话，或选中一段具体内容后再保存。'
+    };
+  }
   const provider = conversation.provider || page.typeLabel || page.host || '浏览器';
   return {
     title: fact.length > 42 ? `${fact.slice(0, 42)}...` : fact,
@@ -275,6 +296,7 @@ function buildMemoryCandidates(page, normalized) {
   const userTurns = turns.filter((turn) => turn && turn.role === 'user').map((turn) => turn.text);
   const assistantTurns = turns.filter((turn) => turn && turn.role === 'assistant').map((turn) => turn.text);
   const candidates = uniqueCandidates([
+    ...conversationSummaryFacts(turns),
     ...splitFactSentences(page.selection),
     ...userTurns.flatMap(splitFactSentences),
     ...assistantTurns.flatMap(splitFactSentences),
@@ -286,7 +308,6 @@ function buildMemoryCandidates(page, normalized) {
   if (page.selection && !candidates.length) candidates.push(cleanCandidateText(page.selection).slice(0, 180));
   if (type === 'github') candidates.push(`GitHub 项目线索：${String(page.title || '').trim()}`);
   if (type === 'paper') candidates.push(`论文 / PDF 阅读线索：${String(page.title || '').trim()}`);
-  if (!candidates.length) candidates.push(`从当前页面提炼具体事实：${String(page.title || '当前页面').trim()}`);
   return candidates.slice(0, 4);
 }
 
@@ -325,6 +346,7 @@ export function captureToMemoryPayload(capture) {
   const provider = capture.conversation && capture.conversation.provider ? capture.conversation.provider : '';
   const sourceKind = provider || page.typeLabel || page.host || '浏览器';
   const draft = buildBrowserMemoryDraft(capture);
+  if (!draft.content) throw new Error(draft.emptyReason || '没有可保存的具体记忆');
   return {
     content: draft.content,
     concepts: ['browser-context', page.host, `browser-page:${page.type}`, provider ? `browser-source:${provider.toLowerCase()}` : ''].filter(Boolean),

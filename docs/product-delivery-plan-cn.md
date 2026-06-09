@@ -15,7 +15,7 @@
 - 插件弹窗可以打开同步侧栏
 - 同步侧栏有本地连接状态，能说明审阅队列是否可用
 - 同步侧栏能展示当前页面类型、候选记忆、候选经验、隐私提示
-- 本地免登录插件预览页可打开：`http://localhost:3113/demo/browser-extension.html`
+- 本地免登录插件预览页可打开：`启动输出里的 Viewer 地址 + /demo/browser-extension.html`
 - 插件保存内容先进入 Viewer 的待审阅队列
 - 插件结构按 OpenMemory / Mem0 的 supported-sites 思路拆出 AI 产品站点配置，并把记忆召回锚定在输入框附近
 - 站点配置必须包含输入框、锚点和位置策略，避免 AI 页面改版后只能靠猜
@@ -61,7 +61,7 @@
 | P0 | 待审阅记忆队列 | 解决自动保存的信任问题 |
 | P1 | AI 对话专用抽取器 | 让跨 Agent 记忆方向成立 |
 | P1 | 输入框附近的记忆提示 | 已有第一版本地搜索提示和插入能力，下一步要精调不同站点的位置与输入事件 |
-| P1 | 保存前编辑候选内容 | 已能在插件弹窗和同步侧栏改标题、正文、项目、标签，并可标记为经验候选 |
+| P1 | 保存前编辑候选内容 | 已能在插件弹窗和同步侧栏改标题、正文、保存范围、分类备注，并可标记为经验候选 |
 | P1 | 记忆来源筛选 | 已有浏览器 / 会话 / 手动筛选，并支持 ChatGPT、Claude、Gemini、Perplexity 等 AI 来源细分 |
 | P1 | 经验到 Skill 草稿 | 已能从经验分组生成可复制的 SKILL.md 草稿，暂不自动写入本地目录 |
 | P2 | Chrome Web Store 打包 | 更正式的分发 |
@@ -85,8 +85,8 @@
 - 插件 PNG 图标资产：`browser-extension/icons/icon16.png`、`icon32.png`、`icon48.png`、`icon128.png`
 - 本地检查：`npm run check:browser-extension`
 - 试用入口检查：`check:browser-extension` 会确认弹窗显示扩展版本、本地工作台状态和使用指南入口
-- 保存前审阅草稿检查：`check:browser-extension` 会确认弹窗和同步侧栏都能编辑标题、正文、项目、标签和经验候选状态，并通过 `SAVE_CANDIDATE` 进入 Viewer 待审阅队列
-- Viewer 待审阅检查：`check:delivery` 会确认插件送来的项目、标签、来源和经验候选状态在待审阅卡片与审阅弹窗里可见
+- 保存前审阅草稿检查：`check:browser-extension` 会确认弹窗和同步侧栏都能编辑标题、正文、保存范围、分类备注和经验候选状态，并通过 `SAVE_CANDIDATE` 进入 Viewer 待审阅队列
+- Viewer 待审阅检查：`check:delivery` 会确认插件送来的保存范围、分类备注、来源和经验候选状态在待审阅卡片与审阅弹窗里可见
 - 一键交付检查：`npm run check:delivery`
 - 交付状态总览：`npm run status:delivery`
 - 发布门槛检查：`npm run check:release-gates`；公开发布前必须通过 `npm run check:release-public`
@@ -100,10 +100,10 @@
 - 运行态复核：`npm run build` 或 `npm run package:browser-extension` 之后，如果本地工作台正在运行，需要重启 `npm run start:local-memory`，再用 `npm run check:workbench` 确认 API、Viewer 和插件 demo 页都可访问
 - 预览包内容检查：`check:browser-extension-package` 会确认 zip 内含 manifest、content script、侧栏、弹窗、设置页、shared 文件和 PNG 图标
 - AI fixture 验收：`check:browser-extension` 会用本地最小页面模型检查 ChatGPT、Claude、Gemini、Perplexity、Grok、DeepSeek 的输入框和对话 selector
-- 本地免登录预览：`http://localhost:3113/demo/browser-extension.html`，用于快速展示输入框旁“记忆建议”、演示记忆、插入/复制
+- 本地免登录预览：`启动输出里的 Viewer 地址 + /demo/browser-extension.html`，用于快速展示输入框旁“记忆建议”、演示记忆、插入/复制
 - 试用者从仓库加载时选择仓库内 `browser-extension/`；从 zip 试用时先解压，再选择解压出来的 `browser-extension/`
 - zip 内含 `browser-extension/LOAD-THIS-FIRST.md` 和 `browser-extension/AI-SITE-TEST-CARDS.md`，试用者解压后能直接看到加载步骤、当前边界和逐站验收任务
-- AI 站点适配材料：同步侧栏“复制诊断”输出的 JSON，可用于补 selector 和真实网页验收
+- AI 站点适配材料：同步侧栏“复制问题信息”输出的 JSON，可用于补 selector 和真实网页验收
 - 未来商店发布仍需稳定公开隐私政策 URL、发布截图和逐站真实网页验收
 
 ## 默认更新工作流
@@ -122,7 +122,7 @@
 
 参考 Mem0 / OpenMemory 的不是视觉，而是工作流结构：跨 ChatGPT、Claude、Gemini、Perplexity 等网页维护 supported sites，把记忆能力放在用户正在输入的位置。Agent Memory Lab 保留这个入口位置，但把数据策略改成本地优先：插件只负责识别页面、召回相关记忆、生成候选；长期写入必须回到 Viewer 审阅后确认。
 
-逐站迭代时，以“复制诊断”为最小反馈单元：先确认 provider、输入框、草稿长度、最近对话数量，再决定是补 selector、调整插入逻辑，还是优化本地搜索召回。
+逐站迭代时，以“复制问题信息”为最小反馈单元：先确认 provider、输入框、草稿长度、最近对话数量，再决定是补 selector、调整插入逻辑，还是优化本地搜索召回。
 
 外部反馈统一进入 `docs/external-feedback-triage-cn.md` 的分诊表：先归类本地连接、站点适配、输入事件、审阅队列、隐私信任或交付文档，再决定是否更新插件、selector、证据 JSON、README 或飞书源文档。
 

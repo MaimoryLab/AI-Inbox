@@ -44,7 +44,7 @@ Long-term memory is not created silently by the extension. Candidates are review
 By default, the extension connects to local services:
 
 - Local API: `http://localhost:3111`
-- Local viewer: `http://localhost:3113`
+- Local viewer: `启动输出里的 Viewer 地址`
 
 Captured content is sent to your local Agent Memory Lab instance for review. The extension does not send captured content to a third-party cloud service by default.
 

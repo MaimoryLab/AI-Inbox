@@ -24,7 +24,7 @@ Agent 使用：通过 Skill / API / MCP 取回上下文
 ## 现在支持
 
 - 检查本地 Agent Memory Lab 服务是否在线
-- 在弹窗和同步侧栏保存前编辑候选记忆标题、正文、项目、标签和经验候选状态，再送入本地待审阅队列
+- 在弹窗和同步侧栏保存前编辑候选记忆标题、正文、保存范围、分类备注和经验候选状态，再送入本地待审阅队列
 - 弹窗显示扩展版本、本地连接状态和使用指南入口，方便加载后自查
 - 把当前网页加入待审阅记忆队列
 - 把当前网页上的一条观察加入待审阅经验队列
@@ -48,9 +48,9 @@ Agent 使用：通过 Skill / API / MCP 取回上下文
 
 | 入口 | 适合做什么 |
 | --- | --- |
-| 弹窗 | 预览并编辑待审阅草稿、项目、标签和经验候选状态，补充一条经验，打开本地工作台 |
+| 弹窗 | 预览并编辑待审阅草稿、保存范围、分类备注和经验候选状态，补充一条经验，打开本地工作台 |
 | 同步侧栏 | 边浏览边看页面类型、候选记忆、候选经验和隐私提示，并把候选填入带项目/标签的审阅草稿 |
-| AI 页面状态 | 检查 ChatGPT / Claude 等页面是否找到了输入框和最近对话；如果未命中，可复制诊断和保存证据命令用于修正规则 |
+| AI 页面状态 | 检查 ChatGPT / Claude 等页面是否找到了输入框和最近对话；如果未命中，可复制问题信息和保存证据命令用于修正规则 |
 | 输入框记忆提示 | 在 ChatGPT / Claude / Gemini / Perplexity 等页面输入问题时，提示本地相关记忆，并可插入当前输入框 |
 | 右键保存 | 保存整页、选中文本或链接片段，统一送到 Viewer 待审阅 |
 
@@ -123,7 +123,7 @@ icons/                  插件图标
 
 ## 本地使用
 
-1. 进入项目目录并启动工作台：`cd /Users/szn/agentmemory && npm run build && npm run start:local-memory`
+1. 进入项目目录并启动工作台：`cd agentmemory-lab && npm run build && npm run start:local-memory`
 2. 打开 Chrome / Edge：`chrome://extensions`
 3. 打开“开发者模式”
 4. 点击“加载已解压的扩展程序”
@@ -135,12 +135,12 @@ icons/                  插件图标
 本地自检页：
 
 ```text
-http://localhost:3113/demo/browser-extension.html
+启动输出里的 Viewer 地址 + /demo/browser-extension.html
 ```
 
-`start:local-memory` 会读取 `/Users/szn/记忆/data` 里的本地记忆。自检页只用于排查插件注入和“记忆建议”入口是否正常。真正使用时，应该在真实网页和 AI 页面里打开插件，再回到 Viewer 待审阅队列确认保存。
+`start:local-memory` 会读取 `你的本地记忆数据目录` 里的本地记忆。自检页只用于排查插件注入和“记忆建议”入口是否正常。真正使用时，应该在真实网页和 AI 页面里打开插件，再回到 Viewer 待审阅队列确认保存。
 
-默认 API 是 `http://localhost:3111`，Viewer 是 `http://localhost:3113`。如果默认端口已被占用，先确认是否已有 Agent Memory Lab 在运行；必要时停止旧进程后再启动。
+默认 API 是 `http://localhost:3111`，Viewer 是 `启动输出里的 Viewer 地址`。如果默认端口已被占用，先确认是否已有 Agent Memory Lab 在运行；必要时停止旧进程后再启动。
 
 侧栏顶部会显示连接状态：
 
@@ -153,20 +153,20 @@ http://localhost:3113/demo/browser-extension.html
 2. 打开 ChatGPT / Claude / Gemini / Perplexity 任一页面。
 3. 在输入框输入一个和本地项目相关的问题。
 4. 查看输入框附近的“记忆建议”提示，尝试插入或复制相关记忆。
-5. 打开同步侧栏查看“AI 页面状态”。如果显示“输入框：未找到”，点击“复制诊断”和“复制向导”，把诊断和证据保存结果交给开发者补站点规则。
+5. 打开同步侧栏查看“AI 页面状态”。如果显示“输入框：未找到”，点击“复制问题信息”和“复制检查步骤”，把诊断和证据保存结果交给开发者补站点规则。
 6. 用弹窗或同步侧栏把当前网页加入待审阅，再回到 Viewer 记忆库确认保存。
 
 交付检查：
 
 ```bash
-cd /Users/szn/agentmemory
+cd agentmemory-lab
 npm run check:browser-extension
 npm run package:browser-extension
 npm run status:delivery
 npm run preview:browser-extension
 ```
 
-第一个命令会确认扩展脚本语法、Manifest V3 content script 配置、图标尺寸、`shared/site-config.js` 和运行脚本里的 AI provider 没有分叉；也会检查弹窗和同步侧栏都保留“保存前审阅草稿”，候选内容必须先填入草稿，再把编辑后的标题、正文、项目、标签和经验候选状态送到 Viewer 待审阅队列。它还会用本地 fixture 检查 ChatGPT、Claude、Gemini、Perplexity、Grok、DeepSeek 的输入框和对话 selector 至少能命中最小页面模型。第二个命令会生成可分发的本地预览包：`artifacts/agent-memory-lab-extension.zip`，并检查 zip 里包含 manifest、content script、侧栏、弹窗、设置页、shared 数据结构和 PNG 图标。第三个命令会汇总当前交付状态和下一步真实站点验收目标。
+第一个命令会确认扩展脚本语法、Manifest V3 content script 配置、图标尺寸、`shared/site-config.js` 和运行脚本里的 AI provider 没有分叉；也会检查弹窗和同步侧栏都保留“保存前审阅草稿”，候选内容必须先填入草稿，再把编辑后的标题、正文、保存范围、分类备注和经验候选状态送到 Viewer 待审阅队列。它还会用本地 fixture 检查 ChatGPT、Claude、Gemini、Perplexity、Grok、DeepSeek 的输入框和对话 selector 至少能命中最小页面模型。第二个命令会生成可分发的本地预览包：`artifacts/agent-memory-lab-extension.zip`，并检查 zip 里包含 manifest、content script、侧栏、弹窗、设置页、shared 数据结构和 PNG 图标。第三个命令会汇总当前交付状态和下一步真实站点验收目标。
 
 本地 fixture 不是正式站点验收的替代品，只是防回归网。真正发布前仍需在真实 AI 页面打开插件，确认输入框旁提示、插入、复制和侧栏诊断都可用。
 
@@ -186,14 +186,14 @@ npm run preview:browser-extension
 
 ```text
 API: http://localhost:3111
-Viewer: http://localhost:3113
+Viewer: 启动输出里的 Viewer 地址
 ```
 
 ## 还缺什么
 
 - 真实站点逐页验收：ChatGPT、Claude、Gemini、Perplexity、Grok、DeepSeek 都需要记录截图、浏览器版本和诊断 JSON。
 - 更精确的 AI 对话抽取器：每个产品用自己的对话节点规则，减少误抓导航、按钮和系统提示。
-- 保存前编辑候选内容：弹窗和同步侧栏已支持改标题、正文、项目、标签，并可把草稿标记为可沉淀经验。
+- 保存前编辑候选内容：弹窗和同步侧栏已支持改标题、正文、保存范围、分类备注，并可把草稿标记为可沉淀经验。
 - 更稳定的输入框注入：按站点维护 `editorSelectors`、`anchorSelectors`、`placement` 和输入事件。
 - 选中文本快捷送审：参考 Mem0 的 selection / context menu 流程，让网页片段也能进入同一套审阅队列。
 

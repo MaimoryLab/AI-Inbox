@@ -49,7 +49,7 @@ This is especially useful for users who want AI assistants to remember project c
 
 ## Privacy Summary
 
-Agent Memory Lab is local-first by default. The extension connects to your local Agent Memory Lab API, usually `http://localhost:3111`, and opens your local viewer, usually `http://localhost:3113`.
+Agent Memory Lab is local-first by default. The extension connects to your local Agent Memory Lab API, usually `http://localhost:3111`, and opens your local viewer, usually `启动输出里的 Viewer 地址`.
 
 The extension does not intentionally collect browser history, cookies, passwords, payment details, hidden form fields, or unopened pages. It does not send captured content to a third-party cloud service by default.
 

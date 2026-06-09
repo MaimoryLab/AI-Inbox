@@ -1,4 +1,4 @@
-import { getSettings, authHeaders } from '../config.js';
+import { getSettings, authHeaders, resolveViewerBase } from '../config.js';
 
 export async function agentMemoryApi(path, options = {}) {
   const settings = await getSettings();
@@ -15,6 +15,7 @@ export async function agentMemoryApi(path, options = {}) {
 
 export async function openViewer(tab = 'dashboard', path = '') {
   const settings = await getSettings();
-  if (path) return chrome.tabs.create({ url: `${settings.viewerBase}${path.startsWith('/') ? path : `/${path}`}` });
-  return chrome.tabs.create({ url: `${settings.viewerBase}/#${tab}` });
+  const viewerBase = await resolveViewerBase(settings);
+  if (path) return chrome.tabs.create({ url: `${viewerBase}${path.startsWith('/') ? path : `/${path}`}` });
+  return chrome.tabs.create({ url: `${viewerBase}/#${tab}` });
 }

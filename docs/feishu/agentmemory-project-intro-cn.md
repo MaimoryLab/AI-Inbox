@@ -61,7 +61,7 @@ Skill 页会扫描本机的 Codex、Agents 和插件 Skill 目录，展示每个
 | Viewer | 已有总览、记忆、会话、Skill、待办、活动 |
 | README | 已改中文图文版，只保留首页和 Skill 页截图 |
 | 飞书文档 | 已同步项目介绍，只保留首页和 Skill 页截图 |
-| GitHub | 已推到 `sznnnnn/agentmemory-lab` 的 `szn-viewer-ui-iteration` 分支 |
+| GitHub | 已推到 `novitalabs/agentmemory-lab` 的 `szn-viewer-ui-iteration` 分支 |
 | 浏览器插件 | MVP 已完成，能把网页候选送到待审阅队列，并提供同步侧栏、连接状态和 AI 输入框记忆提示 |
 | 数据结构 | 已统一 `PageCapture`，包含页面类型、候选记忆、候选经验、隐私提示和 AI 输入草稿 |
 | Skill 管理 | 已支持搜索、来源筛选、详情查看、复制路径 |
@@ -75,7 +75,7 @@ Skill 页会扫描本机的 Codex、Agents 和插件 Skill 目录，展示每个
 浏览器插件位于：
 
 ```text
-/Users/szn/agentmemory/browser-extension
+agentmemory-lab/browser-extension
 ```
 
 现在支持：
@@ -89,7 +89,7 @@ Skill 页会扫描本机的 Codex、Agents 和插件 Skill 目录，展示每个
 | 连接状态 | 侧栏顶部显示审阅队列是否可用，未连接时提示先启动本地工作台 |
 | 页面类型识别 | 初步识别 AI 对话、GitHub、飞书、Notion、论文 / PDF、插件商店等页面 |
 | 输入框记忆提示 | 在 ChatGPT / Claude / Gemini / Perplexity 等页面输入问题时，显示“记忆建议”，并支持插入/复制 |
-| AI 页面诊断 | 侧栏显示是否识别 AI 产品、是否找到输入框、输入草稿长度和最近对话数量，并支持复制诊断 JSON |
+| AI 页面诊断 | 侧栏显示是否识别 AI 产品、是否找到输入框、输入草稿长度和最近对话数量，并支持复制问题信息 JSON |
 | 来源细分 | 浏览器写入会保留 AI 产品来源，Viewer 里可筛选 ChatGPT、Claude、Gemini、Perplexity 等来源 |
 | 右键菜单保存 | 从页面右键快速保存到 Agent Memory Lab |
 | 最近保存记录 | popup 中展示最近保存过的网页线索 |
@@ -102,16 +102,16 @@ Skill 页会扫描本机的 Codex、Agents 和插件 Skill 目录，展示每个
 ```text
 Chrome / Edge → chrome://extensions → 开发者模式 → 加载已解压的扩展程序 → 选择 browser-extension/
 npm run preview:browser-extension
-http://localhost:3113/demo/browser-extension.html
+启动输出里的 Viewer 地址 + /demo/browser-extension.html
 ```
 
-完整工作台启动方式：`cd /Users/szn/agentmemory && npm run build && npm run start:local-memory`。这个命令读取 `/Users/szn/记忆/data` 里的本地记忆。默认 API 是 `http://localhost:3111`，Viewer 是 `http://localhost:3113`；如果默认端口已被占用，先确认是否已有 Agent Memory Lab 在运行。
+完整工作台启动方式：`cd agentmemory-lab && npm run build && npm run start:local-memory`。这个命令读取 `你的本地记忆数据目录` 里的本地记忆。默认 API 是 `http://localhost:3111`，Viewer 是 `启动输出里的 Viewer 地址`；如果默认端口已被占用，先确认是否已有 Agent Memory Lab 在运行。
 
 默认连接：
 
 ```text
 API: http://localhost:3111
-Viewer: http://localhost:3113
+Viewer: 启动输出里的 Viewer 地址
 ```
 
 交付检查：
@@ -132,7 +132,7 @@ npm run check:delivery
 
 真实站点验收记录：`docs/browser-extension-ai-validation-cn.md`
 
-本地免登录插件预览页：`http://localhost:3113/demo/browser-extension.html`，内置演示记忆，可预览输入框旁“记忆建议”、插入和复制。
+本地免登录插件预览页：`启动输出里的 Viewer 地址 + /demo/browser-extension.html`，内置演示记忆，可预览输入框旁“记忆建议”、插入和复制。
 
 本地预览包输出：`artifacts/agent-memory-lab-extension.zip`
 
@@ -141,7 +141,7 @@ npm run check:delivery
 | 优先级 | 缺口 | 为什么重要 |
 | --- | --- | --- |
 | P1 | 精准 AI 对话抽取器 | ChatGPT、Claude、Gemini、Perplexity 应继续按站点优化采集方式 |
-| P1 | AI 输入框注入精调 | 已补输入框、锚点、位置策略、插入事件、复制诊断和 fixture 检查，仍需要真实网页逐站验收 |
+| P1 | AI 输入框注入精调 | 已补输入框、锚点、位置策略、插入事件、复制问题信息和 fixture 检查，仍需要真实网页逐站验收 |
 | P1 | 选中文本送审 | 参考 Mem0 的 selection / context menu 流程，让网页片段也进入同一套本地审阅队列 |
 | P1 | 经验到 Skill 的安装流程 | 已有草稿预览和复制，后续再做明确确认后的本地写入 |
 | P2 | Chrome Web Store 打包 | 已有英文隐私政策和商店文案草稿，仍需要稳定公开隐私政策 URL、发布截图和真实站点验收证据 |
@@ -190,8 +190,8 @@ npm run check:delivery
 
 | 类型 | 地址 |
 | --- | --- |
-| GitHub 分支 | https://github.com/sznnnnn/agentmemory-lab/tree/szn-viewer-ui-iteration |
+| GitHub 分支 | https://github.com/novitalabs/agentmemory-lab/tree/szn-viewer-ui-iteration |
 | 飞书文档 | 当前文档 |
-| 浏览器插件 | `/Users/szn/agentmemory/browser-extension` |
-| 本地 Viewer | http://localhost:3113/#dashboard |
+| 浏览器插件 | `agentmemory-lab/browser-extension` |
+| 本地 Viewer | 启动输出里的 Viewer 地址，例如 http://localhost:3114/#dashboard |
 | 本地 API | http://localhost:3111 |

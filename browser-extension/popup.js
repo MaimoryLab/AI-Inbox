@@ -1,8 +1,8 @@
-import { getSettings } from './config.js';
+import { getSettings, resolveViewerBase } from './config.js';
 import { buildBrowserLessonDraft, buildBrowserMemoryDraft } from './shared/schema.js';
 
 const $ = (id) => document.getElementById(id);
-const EXTERNAL_TESTER_GUIDE_URL = 'https://github.com/sznnnnn/agentmemory-lab/blob/szn-viewer-ui-iteration/docs/external-tester-guide-cn.md';
+const EXTERNAL_TESTER_GUIDE_URL = 'https://github.com/novitalabs/agentmemory-lab/blob/szn-viewer-ui-iteration/docs/external-tester-guide-cn.md';
 let settings = await getSettings();
 let latestCapture = null;
 let defaultDraft = { title: '', content: '', meta: {} };
@@ -79,6 +79,7 @@ function buildDraft(capture) {
   return {
     title: draft.title || '浏览器记忆候选',
     content: draft.content,
+    emptyReason: draft.emptyReason || '',
     meta: buildDraftMetaFields(capture, 'memory')
   };
 }
@@ -87,9 +88,16 @@ function renderDraft(capture) {
   latestCapture = capture;
   defaultDraft = buildDraft(capture);
   $('draftTitle').value = defaultDraft.title;
-  $('draftContent').value = defaultDraft.content;
+  $('draftContent').value = defaultDraft.content || defaultDraft.emptyReason || '';
+  syncSaveMemoryState();
   setDraftMetaFields(defaultDraft.meta);
   renderDraftMeta(capture);
+}
+
+function syncSaveMemoryState() {
+  const text = $('draftContent').value.trim();
+  const hasAutoDraft = !!(defaultDraft && defaultDraft.content);
+  $('saveMemory').disabled = !text || (!hasAutoDraft && text === (defaultDraft.emptyReason || '').trim());
 }
 
 function renderDraftMeta(capture) {
@@ -171,18 +179,20 @@ $('saveMemory').addEventListener('click', async () => {
   } catch (err) {
     setMessage(err.message || '保存失败', 'error');
   } finally {
-    $('saveMemory').disabled = false;
+    syncSaveMemoryState();
   }
 });
 
 $('resetDraft').addEventListener('click', () => {
   $('draftTitle').value = defaultDraft.title || '';
-  $('draftContent').value = defaultDraft.content || '';
+  $('draftContent').value = defaultDraft.content || defaultDraft.emptyReason || '';
   setDraftMetaFields(defaultDraft.meta || {});
   renderDraftMeta(latestCapture);
+  syncSaveMemoryState();
   setMessage('已恢复为自动整理的内容');
 });
 
+$('draftContent').addEventListener('input', syncSaveMemoryState);
 $('draftProject').addEventListener('change', () => renderDraftMeta(latestCapture));
 $('draftTags').addEventListener('input', () => renderDraftMeta(latestCapture));
 $('draftAsLesson').addEventListener('change', () => renderDraftMeta(latestCapture));
@@ -191,6 +201,8 @@ $('draftAsLesson').addEventListener('change', () => {
   const draft = buildBrowserLessonDraft(latestCapture);
   $('draftTitle').value = draft.title || '经验候选';
   $('draftContent').value = draft.content || '';
+  defaultDraft = { title: $('draftTitle').value, content: $('draftContent').value, emptyReason: '', meta: getDraftMetaFields() };
+  syncSaveMemoryState();
   renderDraftMeta(latestCapture);
 });
 
@@ -211,8 +223,8 @@ $('saveLesson').addEventListener('click', async () => {
   }
 });
 
-$('openWorkbench').addEventListener('click', () => send('OPEN_VIEWER', { tab: 'memories' }).catch(() => chrome.tabs.create({ url: `${settings.viewerBase}/#memories` })));
-$('openSkills').addEventListener('click', () => send('OPEN_VIEWER', { tab: 'lessons' }).catch(() => chrome.tabs.create({ url: `${settings.viewerBase}/#lessons` })));
+$('openWorkbench').addEventListener('click', async () => send('OPEN_VIEWER', { tab: 'memories' }).catch(async () => chrome.tabs.create({ url: `${await resolveViewerBase(settings)}/#memories` })));
+$('openSkills').addEventListener('click', async () => send('OPEN_VIEWER', { tab: 'lessons' }).catch(async () => chrome.tabs.create({ url: `${await resolveViewerBase(settings)}/#lessons` })));
 $('openGuide').addEventListener('click', () => chrome.tabs.create({ url: EXTERNAL_TESTER_GUIDE_URL }));
 $('openSidePanel').addEventListener('click', async () => {
   const win = await chrome.windows.getCurrent();

@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 1. 加载插件 | 在 Chrome / Edge 开发者模式加载 `browser-extension/` 或解压后的插件包 | 插件是否能连接本地工作台，弹窗和同步侧栏是否可用 |
 | 2. 真实页面使用 | 在普通网页、ChatGPT、Claude、Gemini 或 Perplexity 里保存候选内容 | 是否能保存到 Viewer 待审阅队列，是否能看到“记忆建议” |
-| 3. 逐站验收 | 在 ChatGPT、Claude、Gemini、Perplexity 检查输入框、记忆建议、插入、复制诊断 | 一份脱敏诊断 JSON，或 `docs/validation/browser-extension-ai-sites/` 里的证据文件 |
+| 3. 逐站验收 | 在 ChatGPT、Claude、Gemini、Perplexity 检查输入框、记忆建议、插入、复制问题信息 | 一份脱敏诊断 JSON，或 `docs/validation/browser-extension-ai-sites/` 里的证据文件 |
 | 4. 提交反馈 | 使用 `docs/external-feedback-template-cn.md` 或 GitHub Issue 模板 | 问题路径、影响程度、实际现象、诊断 JSON、截图或录屏路径 |
 
 ## 最少要回收的信息
@@ -18,7 +18,7 @@
 - 是否能插入或复制记忆。
 - 是否能把网页加入待审阅。
 - Viewer 记忆库里是否出现待审阅卡片。
-- 如果是真实 AI 页面问题，必须附同步侧栏“复制诊断”的 JSON。
+- 如果是真实 AI 页面问题，必须附同步侧栏“复制问题信息”的 JSON。
 - 如果有截图或录屏，先确认不含私人聊天、Cookie、访问令牌、API Key 或申请材料。
 
 ## 反馈后怎么处理

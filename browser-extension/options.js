@@ -9,7 +9,7 @@ $('secret').value = settings.secret;
 $('save').addEventListener('click', async () => {
   await chrome.storage.sync.set({
     apiBase: $('apiBase').value.trim() || 'http://localhost:3111',
-    viewerBase: $('viewerBase').value.trim() || 'http://localhost:3113',
+    viewerBase: $('viewerBase').value.trim(),
     secret: $('secret').value.trim()
   });
   $('message').textContent = '已保存';

@@ -1,6 +1,6 @@
 export const DEFAULTS = {
   apiBase: 'http://localhost:3111',
-  viewerBase: 'http://localhost:3113'
+  viewerBase: ''
 };
 
 export async function getSettings() {
@@ -10,6 +10,17 @@ export async function getSettings() {
     viewerBase: stored.viewerBase || DEFAULTS.viewerBase,
     secret: stored.secret || ''
   };
+}
+
+export async function resolveViewerBase(settings = null) {
+  const current = settings || await getSettings();
+  if (current.viewerBase) return current.viewerBase.replace(/\/$/, '');
+  try {
+    const res = await fetch(`${current.apiBase}/agentmemory/livez`, { headers: authHeaders(current) });
+    const data = await res.json();
+    if (data && typeof data.viewerPort === 'number') return `http://localhost:${data.viewerPort}`;
+  } catch {}
+  return 'http://localhost:3113';
 }
 
 export function authHeaders(settings) {

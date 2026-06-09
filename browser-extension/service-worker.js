@@ -114,14 +114,31 @@ function applyCandidateMeta(payload, meta, capture, kind) {
   };
 }
 
+function fallbackMemoryPayload(capture, content) {
+  const page = capture && capture.page ? capture.page : {};
+  const provider = capture && capture.conversation && capture.conversation.provider ? capture.conversation.provider : '';
+  const sourceKind = provider || page.typeLabel || page.host || '浏览器';
+  return {
+    content,
+    concepts: normalizeTags(['browser-context', page.host || '', page.type ? `browser-page:${page.type}` : '', provider ? `browser-source:${provider.toLowerCase()}` : '']),
+    files: [],
+    project: 'browser',
+    sourceKind,
+    sourceLabel: provider || page.typeLabel || '浏览器',
+    pageType: page.type || '',
+    provider
+  };
+}
+
 async function savePageMemory() {
   const capture = await collectPage();
   const payload = captureToMemoryPayload(capture);
+  const draft = buildBrowserMemoryDraft(capture);
   const result = await agentMemoryApi('/agentmemory/review', {
     method: 'POST',
     body: JSON.stringify({
       kind: 'memory',
-      title: capture.page.title,
+      title: draft.title || capture.page.title,
       content: payload.content,
       source: 'browser-extension',
       page: capture.page,
@@ -169,8 +186,14 @@ async function saveCandidate(kind, text, title = '', meta = {}) {
     await rememberRecent(capture, 'review', result);
     return { capture, result };
   }
+  let basePayload;
+  try {
+    basePayload = captureToMemoryPayload(capture);
+  } catch {
+    basePayload = fallbackMemoryPayload(capture, trimmed);
+  }
   const payload = applyCandidateMeta({
-    ...captureToMemoryPayload(capture),
+    ...basePayload,
     content: trimmed
   }, meta, capture, 'memory');
   const result = await agentMemoryApi('/agentmemory/review', {

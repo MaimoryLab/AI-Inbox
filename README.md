@@ -45,18 +45,18 @@ Agent 复用层
 
 第一次打开项目时，可以先按这条路线跑通核心体验：
 
-1. 启动完整工作台：`cd /Users/szn/agentmemory && npm run build && npm run start:local-memory`，打开 `http://localhost:3113/#dashboard`。
+1. 启动完整工作台：`cd agentmemory-lab && npm run build && npm run start:local-memory`，打开 `启动输出里的 Viewer 地址，例如 http://localhost:3114/#dashboard`。
 2. 加载浏览器插件：Chrome / Edge → `chrome://extensions` → 开发者模式 → 加载 `browser-extension/`。
 3. 在 ChatGPT / Claude / Gemini / Perplexity 或普通网页里直接使用插件：打开同步侧栏，查看页面识别、候选记忆和“记忆建议”。
 4. 用插件把当前网页或选中文本加入待审阅，回到 Viewer 的记忆库确认保存。
-5. 如果插件没有出现“记忆建议”或侧栏识别异常，再运行自检页：`cd /Users/szn/agentmemory && npm run preview:browser-extension`，打开 `http://localhost:3113/demo/browser-extension.html`。
+5. 如果插件没有出现“记忆建议”或侧栏识别异常，再运行自检页：`cd agentmemory-lab && npm run preview:browser-extension`，打开 `启动输出里的 Viewer 地址 + /demo/browser-extension.html`。
 
 也可以按 [演示检查清单](docs/demo-checklist-cn.md) 自查核心体验是否完整。
 
 查看当前交付状态：
 
 ```bash
-cd /Users/szn/agentmemory
+cd agentmemory-lab
 npm run status:delivery
 ```
 
@@ -109,26 +109,26 @@ Agent Memory Lab 更像“工作记忆层”：它关心这段内容以后怎么
 本地可用路径：
 
 ```text
-cd /Users/szn/agentmemory
+cd agentmemory-lab
 Chrome / Edge -> chrome://extensions -> 开发者模式 -> 加载已解压的扩展程序 -> 选择 browser-extension/
 npm run build && npm run start:local-memory
-http://localhost:3113/#dashboard
+启动输出里的 Viewer 地址，例如 http://localhost:3114/#dashboard
 ```
 
 如果要查看这台机器上已经沉淀的本地记忆，请用：
 
 ```bash
-cd /Users/szn/agentmemory
+cd agentmemory-lab
 npm run build && npm run start:local-memory
 ```
 
-这个命令会使用 `/Users/szn/记忆/data`，也就是之前积累本地记忆的那套数据目录。直接运行 `npm run start` 会使用当前仓库里的 `data/`，可能只看到一套新的空白记忆库。
+这个命令会使用 `你的本地记忆数据目录`，也就是之前积累本地记忆的那套数据目录。直接运行 `npm run start` 会使用当前仓库里的 `data/`，可能只看到一套新的空白记忆库。
 
 如果 `npx @agentmemory/agentmemory demo` 报 `worker not reachable on port 3111`，说明端口可能被残留的 iii-engine 占着，但 Agent Memory worker 没有挂上。先清理再启动：
 
 ```bash
 npx @agentmemory/agentmemory stop --force
-cd /Users/szn/agentmemory
+cd agentmemory-lab
 npm run start:local-memory
 ```
 
@@ -205,13 +205,13 @@ npm run start
 默认 Viewer 地址：
 
 ```text
-http://localhost:3113/#dashboard
+启动输出里的 Viewer 地址，例如 http://localhost:3114/#dashboard
 ```
 
 检查完整工作台状态：
 
 ```bash
-cd /Users/szn/agentmemory
+cd agentmemory-lab
 npm run check:workbench
 ```
 
@@ -226,7 +226,7 @@ npm run check:release-gates
 快速看交付状态：
 
 ```bash
-cd /Users/szn/agentmemory
+cd agentmemory-lab
 npm run status:delivery
 ```
 

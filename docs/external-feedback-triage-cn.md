@@ -8,7 +8,7 @@
 2. 侧栏诊断 JSON：尤其是 `ai` 和 `manualValidation`
 3. 当前状态：`npm run status:delivery`
 
-如果反馈没有诊断 JSON，先请试用者补“同步侧栏 -> 复制诊断”。如果涉及真实 AI 页面公开发布验收，还需要把 JSON 放到 `docs/validation/browser-extension-ai-sites/`。
+如果反馈没有诊断 JSON，先请试用者补“同步侧栏 -> 复制问题信息”。如果涉及真实 AI 页面公开发布验收，还需要把 JSON 放到 `docs/validation/browser-extension-ai-sites/`。
 
 ## 分诊表
 
@@ -25,7 +25,7 @@
 | 加入待审阅后 Viewer 看不到 | API 响应、最近同步、Viewer 待审阅 | 审阅队列 | 检查 `/agentmemory/review` 和来源筛选 |
 | 保存内容不可信/太黑盒 | 草稿截图、标题正文、项目、标签、经验候选状态 | 审阅草稿 | 优化弹窗/侧栏草稿生成与说明 |
 | zip 加载不清楚 | `LOAD-THIS-FIRST.md` 是否被看到 | 交付文档 | 更新 zip 内说明和外部试用指南 |
-| 用户担心隐私 | 复制诊断内容、隐私说明 | 隐私/信任 | 更新隐私说明，删去不必要字段 |
+| 用户担心隐私 | 复制问题信息内容、隐私说明 | 隐私/信任 | 更新隐私说明，删去不必要字段 |
 
 ## 优先级规则
 

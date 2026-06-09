@@ -118,7 +118,7 @@ function setConnectionState(state, text) {
     $('connectionTitle').textContent = '可以保存';
     $('connectionText').textContent = text || '内容会先放进本地工作台，由你确认后再变成长期记忆。';
     $('connectionAction').textContent = '刷新';
-    $('savePage').disabled = false;
+    syncSavePageState();
     return;
   }
   if (state === 'offline') {
@@ -254,7 +254,14 @@ function buildMemoryDraft(capture) {
     ...assistantTurns.flatMap(splitFactSentences),
     ...splitFactSentences(conversation.promptDraft)
   ]);
-  const fact = cleanDraftText(evidence[0] || memories.find((item) => isUsefulFact(item)) || `请从这个页面提炼一条具体事实：${page.title || '当前页面'}`);
+  const fact = cleanDraftText(evidence[0] || memories.find((item) => isUsefulFact(item)) || '');
+  if (!fact) {
+    return {
+      title: '需要具体对话后再保存',
+      content: '',
+      emptyReason: '这页还没有读到足够的具体对话，暂时不会生成记忆候选。请在 AI 页面展开真实对话，或选中一段具体内容后再保存。'
+    };
+  }
   const provider = conversation.provider || page.typeLabel || page.host || '浏览器';
   return {
     title: fact.length > 42 ? `${fact.slice(0, 42)}...` : fact,
@@ -327,6 +334,7 @@ function buildDefaultDraft(capture) {
     kind: 'memory',
     title: draft.title || '浏览器记忆候选',
     content: draft.content,
+    emptyReason: draft.emptyReason || '',
     meta: buildDraftMetaFields(capture, 'memory')
   };
 }
@@ -346,10 +354,17 @@ function draftMetaText(capture, kind) {
 function setDraft(draft, options = {}) {
   defaultDraft = options.defaultDraft ? draft : defaultDraft;
   $('draftTitle').value = draft.title || '';
-  $('draftContent').value = draft.content || '';
+  $('draftContent').value = draft.content || draft.emptyReason || '';
   $('draftContent').dataset.kind = draft.kind || 'memory';
+  syncSavePageState();
   setDraftMetaFields(draft.meta || buildDraftMetaFields(latestCapture, draft.kind || 'memory'));
   $('draftMeta').textContent = draftMetaText(latestCapture, draft.kind || 'memory');
+}
+
+function syncSavePageState() {
+  const text = $('draftContent').value.trim();
+  const emptyReason = defaultDraft && defaultDraft.emptyReason ? defaultDraft.emptyReason.trim() : '';
+  $('savePage').disabled = !text || (!!emptyReason && text === emptyReason);
 }
 
 function renderTurns(turns) {
@@ -508,13 +523,14 @@ $('savePage').addEventListener('click', async () => {
   } catch (err) {
     setMessage(err.message || '保存失败', 'error');
   } finally {
-    $('savePage').disabled = false;
+    syncSavePageState();
   }
 });
 $('resetDraft').addEventListener('click', () => {
   setDraft(defaultDraft);
   setMessage('已恢复为自动整理的内容');
 });
+$('draftContent').addEventListener('input', syncSavePageState);
 $('draftProject').addEventListener('change', () => {
   $('draftMeta').textContent = draftMetaText(latestCapture, $('draftContent').dataset.kind || 'memory');
 });

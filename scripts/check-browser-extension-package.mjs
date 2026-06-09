@@ -43,12 +43,12 @@ if (!entries.every((entry) => entry === 'browser-extension/' || entry.startsWith
 }
 
 const loadGuide = readFileSync('browser-extension/LOAD-THIS-FIRST.md', 'utf8');
-for (const marker of ['五步验收', '项目、标签', '经验候选', 'AI-SITE-TEST-CARDS.md', 'npm run wizard:ai-validation-evidence', 'external-tester-feedback-cn.yml']) {
+for (const marker of ['五步验收', '保存范围、分类备注', '经验候选', 'AI-SITE-TEST-CARDS.md', 'npm run wizard:ai-validation-evidence', 'external-tester-feedback-cn.yml']) {
   if (!loadGuide.includes(marker)) throw new Error(`Zip loading guide missing marker: ${marker}`);
 }
 
 const packageManifest = readFileSync('artifacts/browser-extension/PACKAGE-MANIFEST.md', 'utf8');
-for (const marker of ['Agent Memory Lab Extension Package', 'Commit:', 'Real AI Evidence Status', '复制诊断', '复制向导', 'matchedSelectors.editor']) {
+for (const marker of ['Agent Memory Lab Extension Package', 'Commit:', 'Real AI Evidence Status', '复制问题信息', '复制检查步骤', 'matchedSelectors.editor']) {
   if (!packageManifest.includes(marker)) throw new Error(`Package manifest missing marker: ${marker}`);
 }
 

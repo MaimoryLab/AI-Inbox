@@ -88,8 +88,8 @@ const readme = read('README.md');
 assert(readme.includes('npm run preview:browser-extension'), 'README must mention browser extension self-check command.');
 assert(readme.includes('npm run build && npm run start:local-memory'), 'README must mention local memory workbench start command.');
 assert(readme.includes('npm run check:workbench'), 'README must mention workbench status check command.');
-assert(readme.includes('cd /Users/szn/agentmemory'), 'README must show project directory before npm commands.');
-assert(readme.includes('/Users/szn/记忆/data'), 'README must explain which local memory store is used.');
+assert(readme.includes('cd agentmemory-lab'), 'README must show project directory before npm commands.');
+assert(readme.includes('你的本地记忆数据目录'), 'README must explain which local memory store is used.');
 for (const marker of ['本地可用路径', '真实网页和 AI 页面', '回到 Viewer 的记忆库确认保存', '自检页']) {
   assert(readme.includes(marker), `README missing usable workflow marker: ${marker}`);
 }
@@ -116,18 +116,18 @@ assert(imageRefs.includes('docs/readme-assets/screenshots/skills.jpg'), 'README 
 const browserReadme = read('browser-extension/README.md');
 assert(existsSync('iii-config.local-memory.yaml'), 'Local memory config must exist.');
 const localMemoryConfig = read('iii-config.local-memory.yaml');
-assert(localMemoryConfig.includes('/Users/szn/记忆/data/state_store.db'), 'Local memory config must point to the existing memory state store.');
+assert(localMemoryConfig.includes('state_store.db') && localMemoryConfig.includes('stream_store'), 'Local memory config must define state and stream stores.');
 assert(read('package.json').includes('start:local-memory'), 'package.json must expose start:local-memory.');
 assert(browserReadme.includes('npm run package:browser-extension'), 'Browser extension README must mention packaging command.');
 assert(browserReadme.includes('npm run status:delivery'), 'Browser extension README must mention delivery status command.');
 assert(browserReadme.includes('npm run preview:browser-extension'), 'Browser extension README must mention self-check command.');
-assert(browserReadme.includes('cd /Users/szn/agentmemory'), 'Browser extension README must show project directory before npm commands.');
+assert(browserReadme.includes('cd agentmemory-lab'), 'Browser extension README must show project directory before npm commands.');
 assert(browserReadme.includes('docs/browser-extension-privacy-cn.md'), 'Browser extension README must link privacy doc.');
 assert(browserReadme.includes('docs/browser-extension-mem0-reference-cn.md'), 'Browser extension README must link Mem0 reference doc.');
 assert(browserReadme.includes('docs/browser-extension-ai-site-test-cards-cn.md'), 'Browser extension README must link AI site test cards doc.');
 assert(browserReadme.includes('保存前编辑'), 'Browser extension README must mention edit-before-save flow.');
 assert(browserReadme.includes('插件是浏览器入口层，本地工作台是记忆中枢'), 'Browser extension README must explain extension/workbench relationship.');
-assert(browserReadme.includes('复制向导'), 'Browser extension README must mention the copy evidence wizard flow.');
+assert(browserReadme.includes('复制检查步骤'), 'Browser extension README must mention the copy evidence wizard flow.');
 for (const marker of ['项目', '标签', '经验候选']) {
   assert(browserReadme.includes(marker), `Browser extension README must mention draft ${marker}.`);
 }
@@ -137,12 +137,12 @@ for (const marker of ['本地使用', '真实网页和 AI 页面', '本地自检
 }
 
 const loadGuide = read('browser-extension/LOAD-THIS-FIRST.md');
-for (const marker of ['五步验收', '项目、标签', '经验候选', 'AI-SITE-TEST-CARDS.md', 'cd /Users/szn/agentmemory', 'npm run wizard:ai-validation-evidence', 'external-test-loop-cn.md', 'external-tester-feedback-cn.yml']) {
+for (const marker of ['五步验收', '保存范围、分类备注', '经验候选', 'AI-SITE-TEST-CARDS.md', 'cd agentmemory-lab', 'npm run wizard:ai-validation-evidence', 'external-test-loop-cn.md', 'external-tester-feedback-cn.yml']) {
   assert(loadGuide.includes(marker), `Zip loading guide missing marker: ${marker}`);
 }
 
 const siteCards = read('docs/browser-extension-ai-site-test-cards-cn.md');
-for (const marker of ['真实 AI 站点测试卡', 'ChatGPT', 'Claude', 'Gemini', 'Perplexity', '复制向导', 'manualValidation.memoryInsertPassed', 'manualValidation.diagnosticsCopied', 'manualValidation.siteInputStillWorks', 'npm run wizard:ai-validation-evidence']) {
+for (const marker of ['真实 AI 站点测试卡', 'ChatGPT', 'Claude', 'Gemini', 'Perplexity', '复制检查步骤', 'manualValidation.memoryInsertPassed', 'manualValidation.diagnosticsCopied', 'manualValidation.siteInputStillWorks', 'npm run wizard:ai-validation-evidence']) {
   assert(siteCards.includes(marker), `AI site test cards missing marker: ${marker}`);
 }
 const zipSiteCards = read('browser-extension/AI-SITE-TEST-CARDS.md');
@@ -151,12 +151,12 @@ for (const marker of ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', '公开发布
 }
 
 const checklist = read('docs/demo-checklist-cn.md');
-for (const marker of ['审阅队列可用', 'AI 页面状态', '记忆建议', 'Skill 管理台', 'cd /Users/szn/agentmemory']) {
+for (const marker of ['审阅队列可用', 'AI 页面状态', '记忆建议', 'Skill 管理台', 'cd agentmemory-lab']) {
   assert(checklist.includes(marker), `Demo checklist missing marker: ${marker}`);
 }
 
 const testerGuide = read('docs/external-tester-guide-cn.md');
-for (const marker of ['外部试用指南', '外部测试闭环', 'cd /Users/szn/agentmemory', 'npm run build && npm run start', 'npm run check:workbench', 'npm run check:release-gates', '记忆建议', '诊断 JSON', '复制向导', '从仓库试用', '从 zip 试用', 'browser-extension/', '插件自检页', '/demo/browser-extension.html', '外部试用反馈模板', 'external-tester-feedback-cn.yml', '外部反馈分诊指南', 'browser-extension-ai-site-test-cards-cn.md']) {
+for (const marker of ['外部试用指南', '外部测试闭环', 'cd agentmemory-lab', 'npm run build && npm run start', 'npm run check:workbench', 'npm run check:release-gates', '记忆建议', '诊断 JSON', '复制检查步骤', '从仓库试用', '从 zip 试用', 'browser-extension/', '插件自检页', '/demo/browser-extension.html', '外部试用反馈模板', 'external-tester-feedback-cn.yml', '外部反馈分诊指南', 'browser-extension-ai-site-test-cards-cn.md']) {
   assert(testerGuide.includes(marker), `External tester guide missing marker: ${marker}`);
 }
 
@@ -191,17 +191,17 @@ for (const marker of ['mem0ai/mem0-chrome-extension', 'supported sites', '输入
 }
 
 const releaseGates = read('docs/release-gates-cn.md');
-for (const marker of ['本地可演示', '外部可试用', '公开可发布', '未达到', '真实 AI 站点逐站验收', 'GitHub 外部试用 Issue 模板', '外部反馈分诊指南', '入口位置策略', '项目', '标签', '经验候选', 'npm run check:release-public']) {
+for (const marker of ['本地可演示', '外部可试用', '公开可发布', '未达到', '真实 AI 站点逐站验收', 'GitHub 外部试用 Issue 模板', '外部反馈分诊指南', '入口位置策略', '保存范围', '分类备注', '经验候选', 'npm run check:release-public']) {
   assert(releaseGates.includes(marker), `Release gates doc missing marker: ${marker}`);
 }
 
 const aiValidation = read('docs/browser-extension-ai-validation-cn.md');
-for (const marker of ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', '复制诊断', '通过标准', 'npm run record:ai-validation-evidence', 'anchorFound', 'placement', 'memoryWidgetVisible', 'matchedSelectors', 'browser-extension-ai-site-test-cards-cn.md']) {
+for (const marker of ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', '复制问题信息', '通过标准', 'npm run wizard:ai-validation-evidence', 'anchorFound', 'placement', 'memoryWidgetVisible', 'matchedSelectors', 'browser-extension-ai-site-test-cards-cn.md']) {
   assert(aiValidation.includes(marker), `AI validation doc missing marker: ${marker}`);
 }
 
 const evidenceReadme = read('docs/validation/browser-extension-ai-sites/README.md');
-for (const marker of ['npm run wizard:ai-validation-evidence', 'npm run record:ai-validation-evidence', '--clipboard', '--file diagnostics.json', '--pass', '证据质量门槛', 'matchedSelectors.editor', 'matchedSelectors.anchor', 'matchedSelectors.send', 'matchedSelectors.turn', '可以删掉 prompt 草稿']) {
+for (const marker of ['npm run wizard:ai-validation-evidence', '--clipboard', '--file diagnostics.json', '--pass', '证据质量门槛', 'matchedSelectors.editor', 'matchedSelectors.anchor', 'matchedSelectors.send', 'matchedSelectors.turn', '可以删掉 prompt 草稿']) {
   assert(evidenceReadme.includes(marker), `AI validation evidence README missing marker: ${marker}`);
 }
 

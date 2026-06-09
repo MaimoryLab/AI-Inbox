@@ -142,7 +142,7 @@ const deliveryManifest = {
     externalTestingEntry: {
       popupVersionVisible: true,
       popupLocalTestingStatusVisible: true,
-      testerGuideUrl: 'https://github.com/sznnnnn/agentmemory-lab/blob/szn-viewer-ui-iteration/docs/external-tester-guide-cn.md'
+      testerGuideUrl: 'https://github.com/novitalabs/agentmemory-lab/blob/szn-viewer-ui-iteration/docs/external-tester-guide-cn.md'
     },
     reviewDraft: {
       popup: true,
@@ -196,7 +196,7 @@ const deliveryManifest = {
       exists: existsSync('docs/external-feedback-triage-cn.md')
     },
     evidenceRecorder: {
-      command: 'npm run record:ai-validation-evidence',
+      command: 'npm run wizard:ai-validation-evidence',
       exists: existsSync('scripts/record-ai-validation-evidence.mjs')
     },
     aiSiteTestCards: {
@@ -345,8 +345,8 @@ const externalHandout = `# Agent Memory Lab 外部试用说明
 1. 解压 \`artifacts/agent-memory-lab-extension.zip\`。
 2. 打开解压后的 \`browser-extension/LOAD-THIS-FIRST.md\`。
 3. 在 Chrome / Edge 开发者模式加载解压后的 \`browser-extension/\` 文件夹。
-4. 打开 \`http://localhost:3113/demo/browser-extension.html\`，确认输入框旁出现“记忆建议”。
-5. 在弹窗或同步侧栏里编辑草稿的标题、正文、项目、标签和经验候选状态，再加入 Viewer 待审阅。
+4. 打开 \`启动输出里的 Viewer 地址 + /demo/browser-extension.html\`，确认输入框旁出现“记忆建议”。
+5. 在弹窗或同步侧栏里编辑草稿的标题、正文、保存范围、分类备注和经验候选状态，再加入 Viewer 待审阅。
 
 ## 通过时应该看到
 
@@ -354,16 +354,16 @@ const externalHandout = `# Agent Memory Lab 外部试用说明
 - 同步侧栏能显示当前页面、候选记忆、候选经验和隐私提示。
 - 记忆建议能出现在 demo 输入框旁，并能插入或复制。
 - 保存内容不会直接写入长期记忆，而是先进入 Viewer 待审阅队列。
-- Viewer 待审阅卡片能看到项目、标签、来源和经验候选状态。
+- Viewer 待审阅卡片能看到保存范围、分类备注、来源和经验候选状态。
 
 ## 真实 AI 页面验收
 
 当前真实站点证据：${aiEvidenceSummary ? `${aiEvidenceSummary.passedCount}/${aiEvidenceSummary.requiredCount}` : '0/4'}。
 
-公开发布前仍需 ChatGPT、Claude、Gemini、Perplexity 都通过真实页面验收。试用这些站点时，请打开同步侧栏，点击“复制诊断”，然后用下面命令记录证据：
+公开发布前仍需 ChatGPT、Claude、Gemini、Perplexity 都通过真实页面验收。试用这些站点时，请打开同步侧栏，点击“复制问题信息”，然后用下面命令记录证据：
 
 \`\`\`bash
-npm run record:ai-validation-evidence -- --clipboard --browser "Chrome 版本号" --notes "无隐私信息的备注"
+npm run wizard:ai-validation-evidence -- --clipboard
 \`\`\`
 
 只有你真实确认“插入成功、诊断已复制、原站输入仍正常”以后，才加 \`--pass\`。
@@ -411,7 +411,7 @@ const releaseNotes = `# Agent Memory Lab ${manifest.version} Release Notes
 
 - Viewer 总览可以显示外部试用状态、插件包状态、真实 AI 证据进度和测试卡入口。
 - 插件弹窗和同步侧栏都支持保存前编辑审阅草稿。
-- 草稿可编辑标题、正文、项目、标签，并可标记为可沉淀经验。
+- 草稿可编辑标题、正文、保存范围、分类备注，并可标记为可沉淀经验。
 - 浏览器插件保存内容默认进入 Viewer 待审阅队列，不直接写入长期记忆。
 - 同步侧栏可以复制真实 AI 页面诊断 JSON。
 - 同步侧栏提供本地测试卡入口：\`/docs/browser-extension-ai-site-test-cards-cn.md\`。
@@ -424,9 +424,9 @@ const releaseNotes = `# Agent Memory Lab ${manifest.version} Release Notes
 1. 运行 \`npm run package:browser-extension\` 生成插件 zip。
 2. 解压 \`artifacts/agent-memory-lab-extension.zip\`。
 3. 在 Chrome / Edge 开发者模式加载解压后的 \`browser-extension/\` 文件夹。
-4. 打开 \`http://localhost:3113/demo/browser-extension.html\`，先验证本地 demo。
+4. 打开 \`启动输出里的 Viewer 地址 + /demo/browser-extension.html\`，先验证本地 demo。
 5. 打开 ChatGPT、Claude、Gemini、Perplexity，按测试卡逐站验收。
-6. 复制同步侧栏诊断，用 \`npm run record:ai-validation-evidence\` 保存证据。
+6. 复制同步侧栏诊断，用 \`npm run wizard:ai-validation-evidence\` 保存证据。
 
 ## 已知边界
 

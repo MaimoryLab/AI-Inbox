@@ -34,7 +34,7 @@
 
 ## 诊断信息
 
-请粘贴同步侧栏“复制诊断”的 JSON，或提供 `docs/validation/browser-extension-ai-sites/` 里的证据文件名。
+请粘贴同步侧栏“复制问题信息”的 JSON，或提供 `docs/validation/browser-extension-ai-sites/` 里的证据文件名。
 
 ```json
 {
