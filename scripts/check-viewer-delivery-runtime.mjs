@@ -27,7 +27,7 @@ try {
   const base = `http://127.0.0.1:${port}`;
 
   const dashboard = await fetchText(base, '/');
-  for (const marker of ['renderDeliveryStatusCard', '/docs/browser-extension-ai-site-test-cards-cn.md', 'delivery-status']) {
+  for (const marker of ['renderDeliveryStatusCard', '/docs/browser-extension-ai-site-test-cards-cn.md', 'delivery-status', 'turnCount &gt; 0', '真实 AI 证据']) {
     assert(dashboard.text.includes(marker), `Viewer dashboard response missing ${marker}.`);
   }
 
