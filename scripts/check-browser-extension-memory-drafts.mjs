@@ -77,4 +77,24 @@ try {
 }
 assert(promptOnlyThrew, 'Prompt-only AI pages must be blocked before entering review.');
 
+const dashboardUiSelection = createPageCapture({
+  title: '灵感记忆台',
+  url: 'http://127.0.0.1:3114/#dashboard',
+  host: '127.0.0.1',
+  selection: '浏览器记忆入口 从网页和 AI 对话提取具体事实，先送审，再写入记忆库。 可本地使用 不要把链接当记忆。浏览器入口会把页面里的事实、偏好和待办变成候选，回到这里审阅后才进入长期记忆。 下载插件包 外测手册 验收一页纸 AI 验收包 反馈模板 分诊指南 1. 先看预览 2. 装到浏览器 3. 验收 AI 页面 4. 回来审阅 查看待审阅 适配检查',
+  headings: ['总览', '浏览器记忆入口', '最近会话']
+});
+
+assert(dashboardUiSelection.candidates.memories.length === 0, 'Dashboard UI copy must not become memory candidates.');
+const dashboardUiDraft = buildBrowserMemoryDraft(dashboardUiSelection);
+assert(dashboardUiDraft.content === '', 'Dashboard UI copy must not become a memory draft.');
+
+let dashboardUiThrew = false;
+try {
+  captureToMemoryPayload(dashboardUiSelection);
+} catch (err) {
+  dashboardUiThrew = /具体对话|具体记忆|保存/.test(String(err && err.message ? err.message : err));
+}
+assert(dashboardUiThrew, 'Dashboard UI copy must be blocked before entering review.');
+
 console.log('browser extension memory draft checks ok');

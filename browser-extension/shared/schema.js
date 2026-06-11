@@ -100,8 +100,32 @@ function cleanCandidateText(value) {
     .trim();
 }
 
+function isUiOrNavigationNoise(text) {
+  const value = cleanCandidateText(text);
+  if (!value) return true;
+  if (/^(下载|打开|安装|查看|测试|反馈|分诊|外测|验收|刷新|关闭|复制|保存|确认|取消|更多材料|适配检查|安装说明|反馈模板|外测手册)$/.test(value)) return true;
+  if (/^(总览|记忆|会话|活动|Skill|待办|状态|最近会话|浏览器记忆入口?)$/.test(value)) return true;
+  if (/^(可本地使用|检查连接中|读取中|暂时没有建议|保存后仍需在工作台确认)$/.test(value)) return true;
+  if (/^浏览器记忆入口?\s+从网页和\s*AI\s*对话提取具体事实/.test(value)) return true;
+  if (/^(可本地使用\s*)?不要把链接当记忆[。.]?$/.test(value)) return true;
+  if (/^浏览器入口会把页面里的事实、偏好和待办变成候选/.test(value)) return true;
+  if (/^从网页和\s*AI\s*对话提取具体事实，?先送审/.test(value)) return true;
+
+  const actionMatches = value.match(/(下载|打开|安装|查看|测试|反馈|分诊|外测|验收|手册|模板|指南|适配检查|插件包|按钮|点击|加载\s*browser-extension)/g) || [];
+  const uiStructureMatches = value.match(/(\d+\.\s*|可本地使用|真实\s*AI\s*证据|turnCount|工作台|审阅队列|长期记忆|来源页面|来源链接)/g) || [];
+  const durableSignals = /(用户|我|我的|我们|SZn|szn|刘欣|Liu Xin|Coco|项目决定|决策|偏好|喜欢|不喜欢|希望|需要|计划|正在做|负责|待办|TODO|必须|不要把[^。！？!?]{2,40}当)/i.test(value);
+
+  if (actionMatches.length >= 3 && !durableSignals) return true;
+  if (uiStructureMatches.length >= 4 && actionMatches.length >= 1 && !durableSignals) return true;
+  if (/浏览器记忆入口/.test(value) && /(下载插件包|外测手册|验收一页纸|AI 验收包|反馈模板|分诊指南)/.test(value)) return true;
+  if (/从网页和\s*AI\s*对话提取具体事实/.test(value) && /回到这里审阅/.test(value)) return true;
+
+  return false;
+}
+
 function isUsefulFact(text) {
   if (!text || text.length < 6) return false;
+  if (isUiOrNavigationNoise(text)) return false;
   if (/^https?:\/\//i.test(text)) return false;
   if (/^(摘要|来源|URL|页面结构|网页记忆线索|浏览器候选记忆|浏览器候选经验|在\s*ChatGPT\s*中继续跟进)[:：]?/.test(text)) return false;
   if (/ChatGPT\s*是一款供日常使用的\s*AI\s*聊天机器人/i.test(text)) return false;
@@ -154,7 +178,7 @@ function lessonEvidenceFromPage(page = {}) {
     ...userTurns.flatMap(splitFactSentences),
     ...splitFactSentences(page.promptDraft),
     ...assistantTurns.flatMap(splitFactSentences)
-  ]);
+  ]).filter((item) => !isUiOrNavigationNoise(item));
   const conversation = conversationLinesFromPage(page).slice(-4);
   return {
     evidence: evidence.slice(0, 3),
@@ -307,7 +331,10 @@ function buildMemoryCandidates(page, normalized) {
   if (provider) {
     if (!hasConversation && !splitFactSentences(page.selection).length) return [];
   }
-  if (page.selection && !candidates.length) candidates.push(cleanCandidateText(page.selection).slice(0, 180));
+  if (page.selection && !candidates.length) {
+    const selected = cleanCandidateText(page.selection).slice(0, 180);
+    if (isUsefulFact(selected)) candidates.push(selected);
+  }
   if (type === 'github') candidates.push(`GitHub 项目线索：${String(page.title || '').trim()}`);
   if (type === 'paper') candidates.push(`论文 / PDF 阅读线索：${String(page.title || '').trim()}`);
   return candidates.slice(0, 4);
