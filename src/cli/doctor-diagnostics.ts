@@ -12,9 +12,9 @@
 // outcome before moving on.
 //
 // Doctor v2 surface:
-//   agentmemory doctor             # interactive: Fix/Skip/More/Quit per failed check
-//   agentmemory doctor --all       # apply every available fix without prompting (CI)
-//   agentmemory doctor --dry-run   # show what each fix WOULD do; execute nothing
+//   agentmemory-lab doctor             # interactive: Fix/Skip/More/Quit per failed check
+//   agentmemory-lab doctor --all       # apply every available fix without prompting (CI)
+//   agentmemory-lab doctor --dry-run   # show what each fix WOULD do; execute nothing
 
 export type DiagnosticStatus = {
   ok: boolean;
@@ -30,7 +30,7 @@ export type DiagnosticFixResult = {
 export type DoctorContext = {
   /** Base URL for the running engine, e.g. http://localhost:3111 */
   baseUrl: string;
-  /** Viewer URL, e.g. http://localhost:3113 */
+  /** Viewer URL, e.g. http://localhost:3114 */
   viewerUrl: string;
   /** Path to ~/.agentmemory/.env */
   envPath: string;
@@ -245,7 +245,7 @@ export function buildDiagnostics(effects: DoctorEffects): Diagnostic[] {
       message: "Viewer port not reachable.",
       fixPreview: "Stop the engine, restart it, and retry the viewer probe.",
       moreInfo:
-        "The viewer is served on REST port + 2 (default 3113). If it never came up " +
+        "The viewer is served on REST port + 3 (default 3114). If it never came up " +
         "the most common cause is port collision; a sibling PR ships auto-bump for " +
         "this case. If that lands first this check just verifies; otherwise restart " +
         "the engine to retry binding.",

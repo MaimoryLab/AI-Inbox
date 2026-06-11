@@ -5,9 +5,9 @@
 ## 当前分支
 
 ```text
-repo: https://github.com/novitalabs/agentmemory-lab
+repo: https://github.com/MaimoryLab/agentmemory-lab
 branch: szn-viewer-ui-iteration
-current PR: https://github.com/novitalabs/agentmemory-lab/pull/3
+current PR: https://github.com/MaimoryLab/agentmemory-lab/pull/3
 ```
 
 这个分支是当前工作入口。目标分支受保护，不能直接推送；交付改动先推到 PR 分支，再通过 PR 合并。浏览器插件、Viewer、中文 README、外部试用文档和交付检查都以这个分支为准。

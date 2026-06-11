@@ -39,7 +39,7 @@ export class OpenRouterProvider implements MemoryProvider {
         "Content-Type": "application/json",
         Authorization: `Bearer ${this.apiKey}`,
         ...(this.baseUrl.includes("openrouter")
-          ? { "HTTP-Referer": "https://github.com/rohitg00/agentmemory" }
+          ? { "HTTP-Referer": "https://github.com/MaimoryLab/agentmemory-lab" }
           : {}),
       },
       body: JSON.stringify({

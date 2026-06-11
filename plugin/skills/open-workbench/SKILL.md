@@ -18,13 +18,14 @@ Choose the target tab from `$ARGUMENTS`:
 Open or share this URL:
 
 ```text
-http://localhost:3113/#<tab>
+http://localhost:3114/#<tab>
 ```
 
 If browser control is available, open the URL directly. If not, tell the user the exact URL and say to start the service first if it is unreachable:
 
 ```bash
-agentmemory viewer
+cd /Users/szn/agentmemory
+npm run start:local-memory
 ```
 
 Do not expose graph/audit/replay/profile as primary destinations; those are implementation/debug surfaces in this product direction.

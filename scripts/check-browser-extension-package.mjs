@@ -43,7 +43,7 @@ if (!entries.every((entry) => entry === 'browser-extension/' || entry.startsWith
 }
 
 const loadGuide = readFileSync('browser-extension/LOAD-THIS-FIRST.md', 'utf8');
-for (const marker of ['五步验收', '保存范围、分类备注', '经验候选', 'AI-SITE-TEST-CARDS.md', 'npm run wizard:ai-validation-evidence', 'external-tester-feedback-cn.yml']) {
+for (const marker of ['五步验收', '#sessions', '已抓取', 'AI-SITE-TEST-CARDS.md', '复制问题信息']) {
   if (!loadGuide.includes(marker)) throw new Error(`Zip loading guide missing marker: ${marker}`);
 }
 
@@ -53,7 +53,7 @@ for (const marker of ['Agent Memory Lab Extension Package', 'Commit:', 'Real AI 
 }
 
 const siteCards = readFileSync('browser-extension/AI-SITE-TEST-CARDS.md', 'utf8');
-for (const marker of ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', 'manualValidation', '公开发布']) {
+for (const marker of ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', 'turnCount > 0', '#sessions', 'manualValidation', '公开发布']) {
   if (!siteCards.includes(marker)) throw new Error(`AI site test cards missing marker: ${marker}`);
 }
 

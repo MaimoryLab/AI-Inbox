@@ -30,7 +30,7 @@ function entryMatches(entry: unknown): boolean {
 export const adapter: ConnectAdapter = {
   name: "copilot-cli",
   displayName: "GitHub Copilot CLI",
-  docs: "https://github.com/rohitg00/agentmemory#github-copilot-cli",
+  docs: "https://github.com/MaimoryLab/agentmemory-lab#github-copilot-cli",
   protocolNote:
     "→ Using MCP. Install the plugin too for full hooks/skills coverage.",
 

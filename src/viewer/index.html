@@ -823,6 +823,206 @@
       line-height: 1;
       font-weight: 300;
     }
+    .session-hero {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+      padding: 4px 0 10px;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .session-hero-title {
+      color: var(--ink);
+      font-family: var(--font-display);
+      font-size: 26px;
+      font-weight: 360;
+      line-height: 1.1;
+    }
+    .session-hero-note {
+      margin-top: 5px;
+      color: var(--ink-muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .session-hero-meta {
+      color: var(--ink-faint);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    .session-inbox {
+      display: grid;
+      grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+      margin-top: 0;
+    }
+    .session-source-rail {
+      position: sticky;
+      top: 86px;
+      display: grid;
+      gap: 6px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      background: #ffffff;
+    }
+    .session-source-label {
+      padding: 4px 10px 6px;
+      color: var(--ink-faint);
+      font-size: 11px;
+      font-weight: 650;
+    }
+    .session-source-chip {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      width: 100%;
+      min-height: 42px;
+      padding: 8px 10px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--ink-muted);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .session-source-chip:hover,
+    .session-source-chip.active {
+      background: var(--bg-alt);
+      color: var(--ink);
+    }
+    .session-source-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: var(--font-ui);
+      font-size: 13px;
+      font-weight: 650;
+    }
+    .session-source-count {
+      color: var(--ink-faint);
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+    .session-inbox-main {
+      min-width: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      background: #ffffff;
+      overflow: hidden;
+    }
+    .session-inbox-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-light);
+      background: var(--bg-subtle);
+    }
+    .session-inbox-title {
+      color: var(--ink);
+      font-family: var(--font-ui);
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .session-inbox-note {
+      margin-top: 3px;
+      color: var(--ink-muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .session-row {
+      display: grid;
+      grid-template-columns: 30px minmax(0, 1fr) auto;
+      gap: 12px;
+      width: 100%;
+      padding: 14px 16px;
+      border: 0;
+      border-bottom: 1px solid var(--border-light);
+      background: #ffffff;
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+      font: inherit;
+    }
+    .session-row:last-child { border-bottom: 0; }
+    .session-row:hover,
+    .session-row.selected { background: var(--bg-alt); }
+    .session-row.selected { box-shadow: inset 3px 0 0 var(--accent); }
+    .session-row-avatar {
+      display: grid;
+      width: 30px;
+      height: 30px;
+      place-items: center;
+      border: 1px solid var(--border-light);
+      border-radius: 999px;
+      background: var(--bg-subtle);
+      color: var(--ink-muted);
+      font-family: var(--font-ui);
+      font-size: 11px;
+      font-weight: 750;
+    }
+    .session-row-title {
+      min-width: 0;
+      color: var(--ink);
+      font-family: var(--font-ui);
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+    }
+    .session-row-preview {
+      margin-top: 5px;
+      color: var(--ink-muted);
+      font-size: 13px;
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+    }
+    .session-row-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+      color: var(--ink-faint);
+      font-size: 11px;
+      font-family: var(--font-ui);
+    }
+    .session-row-side {
+      display: grid;
+      justify-items: end;
+      gap: 6px;
+      color: var(--ink-faint);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    .session-row-count {
+      padding: 3px 7px;
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-pill);
+      background: #ffffff;
+      color: var(--ink-muted);
+      font-family: var(--font-mono);
+    }
+    .session-empty-filter {
+      padding: 28px 16px;
+      color: var(--ink-faint);
+      text-align: center;
+      font-size: 13px;
+    }
     .session-section {
       margin-bottom: 16px;
     }
@@ -963,6 +1163,14 @@
     }
     @media (max-width: 760px) {
       .session-overview { grid-template-columns: 1fr; }
+      .session-hero { align-items: flex-start; flex-direction: column; }
+      .session-hero-meta { white-space: normal; }
+      .session-inbox { grid-template-columns: 1fr; }
+      .session-source-rail { position: static; display: flex; overflow-x: auto; }
+      .session-source-chip { min-width: 148px; }
+      .session-row { grid-template-columns: 1fr; }
+      .session-row-avatar { display: none; }
+      .session-row-side { justify-items: start; grid-auto-flow: column; justify-content: start; }
       .session-folder-head { flex-direction: column; }
       .session-folder-stats { text-align: left; }
       .memory-display-card.identity > div:first-child { grid-template-columns: 1fr !important; }
@@ -2084,11 +2292,44 @@
       transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
       font: inherit;
     }
-    .folder-card:hover {
-      border-color: var(--ink-muted);
-      transform: translateY(-1px);
-      box-shadow: 0 18px 44px rgba(41, 37, 36, 0.07);
-    }
+	    .folder-card:hover {
+	      border-color: var(--ink-muted);
+	      transform: translateY(-1px);
+	      box-shadow: 0 18px 44px rgba(41, 37, 36, 0.07);
+	    }
+	    .folder-card.selected {
+	      border-color: var(--accent);
+	      box-shadow: 0 18px 44px rgba(41, 37, 36, 0.08);
+	    }
+	    .folder-card .folder-hover-preview {
+	      position: absolute;
+	      left: 12px;
+	      right: 12px;
+	      bottom: 12px;
+	      z-index: 5;
+	      max-height: 76px;
+	      padding: 9px 10px;
+	      border: 1px solid var(--border-light);
+	      border-radius: 8px;
+	      background: rgba(255, 255, 255, 0.96);
+	      color: var(--ink-muted);
+	      font-size: 12px;
+	      line-height: 1.45;
+	      opacity: 0;
+	      transform: translateY(6px);
+	      pointer-events: none;
+	      transition: opacity 0.15s ease, transform 0.15s ease;
+	      display: -webkit-box;
+	      -webkit-line-clamp: 3;
+	      -webkit-box-orient: vertical;
+	      overflow: hidden;
+	      box-shadow: 0 12px 28px rgba(41, 37, 36, 0.08);
+	    }
+	    .folder-card:hover .folder-hover-preview,
+	    .folder-card:focus-visible .folder-hover-preview {
+	      opacity: 1;
+	      transform: translateY(0);
+	    }
     .folder-card:focus-visible {
       outline: 2px solid var(--ink);
       outline-offset: 2px;
@@ -3214,8 +3455,8 @@
       </div>
     </div>
     <div class="tab-side-meta">
-      <a href="https://github.com/rohitg00/agentmemory" target="_blank" rel="noopener" aria-label="仓库" title="仓库"><span class="side-icon icon-repo"></span></a>
-      <a href="https://github.com/rohitg00/agentmemory#readme" target="_blank" rel="noopener" aria-label="文档" title="文档"><span class="side-icon icon-docs"></span></a>
+      <a href="https://github.com/MaimoryLab/agentmemory-lab" target="_blank" rel="noopener" aria-label="仓库" title="仓库"><span class="side-icon icon-repo"></span></a>
+      <a href="https://github.com/MaimoryLab/agentmemory-lab#readme" target="_blank" rel="noopener" aria-label="文档" title="文档"><span class="side-icon icon-docs"></span></a>
       <a id="footer-feedback" href="#" target="_blank" rel="noopener" aria-label="反馈" title="反馈"><span class="side-icon icon-feedback"></span></a>
     </div>
   </div>
@@ -3243,7 +3484,7 @@
     // 通过 file:// 打开时会触发跨域限制，导致本地接口数据不可用。
     // 自动跳转到本地服务地址，保留当前 hash 路由。
     if (window.location.protocol === 'file:') {
-      var target = 'http://localhost:3113/' + (window.location.hash || '#dashboard');
+      var target = 'http://localhost:3114/' + (window.location.hash || '#dashboard');
       window.location.replace(target);
     }
 
@@ -3255,21 +3496,21 @@
     var wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     var REST, WS_URL, WS_DIRECT_URL, wsPort;
     if (paramPort) {
-      var resolvedPort = parseInt(paramPort) === 3111 ? '3113' : paramPort;
+      var resolvedPort = parseInt(paramPort) === 3111 ? '3114' : paramPort;
       REST = window.location.protocol + '//' + hostName + ':' + resolvedPort;
       wsPort = params.get('wsPort') || String(parseInt(resolvedPort) - 1);
       WS_URL = wsProto + '//' + hostName + ':' + wsPort;
       WS_DIRECT_URL = WS_URL + '/stream/mem-live/viewer';
     } else if (locPort) {
-      var resolvedPort = parseInt(locPort) === 3111 ? '3113' : locPort;
+      var resolvedPort = parseInt(locPort) === 3111 ? '3114' : locPort;
       REST = window.location.protocol + '//' + hostName + ':' + resolvedPort;
       wsPort = params.get('wsPort') || String(parseInt(resolvedPort) - 1);
       WS_URL = wsProto + '//' + hostName + ':' + wsPort;
       WS_DIRECT_URL = WS_URL + '/stream/mem-live/viewer';
     } else {
       // file:// 场景下，origin/host 为空；默认回退到本地 agentmemory 服务。
-      var fallbackPort = parseInt(params.get('port') || '3113', 10);
-      if (Number.isNaN(fallbackPort)) fallbackPort = 3113;
+      var fallbackPort = parseInt(params.get('port') || '3114', 10);
+      if (Number.isNaN(fallbackPort)) fallbackPort = 3114;
       REST = 'http://' + hostName + ':' + fallbackPort;
       wsPort = params.get('wsPort') || String(fallbackPort - 1);
       WS_URL = wsProto + '//' + hostName + ':' + wsPort;
@@ -3332,7 +3573,7 @@
       graph: { loaded: false, nodes: [], edges: [], stats: null, filters: {}, selectedNode: null },
       memories: { loaded: false, items: [], reviewItems: [], search: '', typeFilter: '', sourceFilter: '' },
 	      timeline: { loaded: false, observations: [], sessionId: '', projectKey: '', sessions: [], minImportance: 0, page: 0, pageSize: 50, mode: 'episodes', episodeFilter: 'all', expandedEpisodes: {} },
-      sessions: { loaded: false, items: [], selectedId: null, warnings: [], highlightsById: {}, detailSectionsById: {}, detailCacheById: {}, stale: false, requestSeq: 0, detailRequestSeq: 0 },
+      sessions: { loaded: false, items: [], selectedId: null, sourceKey: 'all', warnings: [], highlightsById: {}, detailSectionsById: {}, detailCacheById: {}, stale: false, requestSeq: 0, detailRequestSeq: 0 },
       audit: { loaded: false, entries: [], opFilter: '' },
       activity: { loaded: false, observations: [], sessions: [], typeFilter: '', loadingPhase: '', warnings: [] },
       lessons: { loaded: false, items: [], search: '', skillSearch: '', skillRootFilter: 'all', mode: 'explicit', projects: [] },
@@ -3448,7 +3689,7 @@
       if (!c) return '执行本地操作';
       if (c.indexOf('ensure-agentmemory-live.mjs') >= 0 && c.indexOf('--restart') >= 0) return '重启灵感记忆台服务';
       if (c.indexOf('ensure-agentmemory-live.mjs') >= 0) return '启动灵感记忆台服务';
-      if (/^open\s+['"]?https?:\/\/127\.0\.0\.1:3113/.test(c)) return '打开灵感记忆台预览';
+      if (/^open\s+['"]?https?:\/\/127\.0\.0\.1:3114/.test(c)) return '打开灵感记忆台预览';
       if (c.indexOf('agentmemory/livez') >= 0 || c.indexOf('/health') >= 0) return '检查记忆台服务状态';
       if (c.indexOf('sessionBodyPreview') >= 0 || c.indexOf('observationDisplay') >= 0) return '验证页面修复是否生效';
       if (c.indexOf('bugfix-log') >= 0 && /sed|cat|ls/.test(c)) return '查看修复日志';
@@ -3883,6 +4124,32 @@
         groups[k].sessions.sort(function(a, b) { return (sessionRecordTime(b) || '').localeCompare(sessionRecordTime(a) || ''); });
         return groups[k];
       }).sort(function(a, b) { return (b.latest || '').localeCompare(a.latest || ''); });
+    }
+    function sessionSourceKey(s) {
+      var source = inferSessionSource(s);
+      return source.kind + ':' + source.name;
+    }
+    function sessionSourceGroups(items) {
+      var groups = {
+        all: { key: 'all', name: '全部会话', count: 0, latest: '', observations: 0, kind: 'all' }
+      };
+      (items || []).forEach(function(s) {
+        var source = inferSessionSource(s);
+        var key = sessionSourceKey(s);
+        if (!groups[key]) groups[key] = { key: key, name: source.name || '未标记来源', count: 0, latest: '', observations: 0, kind: source.kind || 'source' };
+        groups.all.count += 1;
+        groups[key].count += 1;
+        groups.all.observations += s.observationCount || 0;
+        groups[key].observations += s.observationCount || 0;
+        var rt = sessionRecordTime(s);
+        if (rt > groups.all.latest) groups.all.latest = rt;
+        if (rt > groups[key].latest) groups[key].latest = rt;
+      });
+      return Object.keys(groups).map(function(k) { return groups[k]; }).sort(function(a, b) {
+        if (a.key === 'all') return -1;
+        if (b.key === 'all') return 1;
+        return (b.latest || '').localeCompare(a.latest || '');
+      });
     }
     function sessionRecordTime(s) {
       return (s && (s.updatedAt || s.endedAt || s.startedAt)) || '';
@@ -4495,21 +4762,16 @@
       var version = delivery.extension && delivery.extension.version ? delivery.extension.version : '0.1.0';
       var next = notPassed.length ? notPassed.join('、') : '真实站点已齐';
       var html = '<div class="card" style="margin-bottom:16px;">';
-      html += '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">';
-      html += '<div><div class="card-title" style="margin-bottom:4px;">浏览器记忆</div><div style="font-size:13px;color:var(--ink-muted);line-height:1.5;">把网页和 AI 对话里的事实、偏好、待办先放进审阅队列。</div></div>';
-      html += '<span class="badge ' + deliveryBadgeClass(external) + '">可本地使用</span>';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">';
+      html += '<div><div class="card-title" style="margin-bottom:4px;">浏览器会话同步</div><div style="font-size:13px;color:var(--ink-muted);line-height:1.5;">打开 AI 会话页后自动同步，后续整理都在工作台完成。</div></div>';
+      html += '<span class="badge ' + deliveryBadgeClass(external) + '">' + esc(zipLabel) + '</span>';
       html += '</div>';
-      html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:-2px 0 14px;"><a class="btn btn-primary" href="/artifacts/agent-memory-lab-extension.zip" target="_blank" rel="noopener">下载插件</a><a class="btn" href="#memories">审阅候选</a><a class="btn" href="/demo/browser-extension.html" target="_blank" rel="noopener">打开预览</a></div>';
-      html += '<div class="memory-card-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:14px;">';
-      html += '<div class="stat-card" style="padding:14px;"><div class="label">1. 捕捉</div><div style="font-size:13px;color:var(--ink-secondary);line-height:1.45;margin-top:6px;">在网页或 AI 对话旁边摘取具体内容。</div></div>';
-      html += '<div class="stat-card" style="padding:14px;"><div class="label">2. 候选</div><div style="font-size:13px;color:var(--ink-secondary);line-height:1.45;margin-top:6px;">先进入审阅队列，不直接写进长期记忆。</div></div>';
-      html += '<div class="stat-card" style="padding:14px;"><div class="label">3. 入库</div><div style="font-size:13px;color:var(--ink-secondary);line-height:1.45;margin-top:6px;">确认是事实、偏好或待办后再保存。</div></div>';
+      html += '<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--border-light);border-bottom:1px solid var(--border-light);margin-bottom:12px;">';
+      html += '<div style="font-size:12px;color:var(--ink-muted);line-height:1.45;">' + esc(version) + ' · 支持 ChatGPT / Claude / Gemini 等 AI 会话页 · 真实页面证据 ' + passed + '/' + required + '</div>';
+      html += '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;"><a class="btn btn-primary" href="/artifacts/agent-memory-lab-extension.zip" target="_blank" rel="noopener">下载插件</a><a class="btn" href="#sessions">查看会话</a></div>';
       html += '</div>';
       if (!showDebug) {
-        html += '<details style="border-top:1px solid var(--line);padding-top:10px;"><summary style="cursor:pointer;font-size:12px;color:var(--ink-muted);">更多材料</summary>';
-        html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;"><a class="btn" href="/browser-extension/LOAD-THIS-FIRST.md" target="_blank" rel="noopener">安装说明</a><a class="btn" href="/docs/browser-extension-ai-site-test-cards-cn.md" target="_blank" rel="noopener">适配检查</a><a class="btn" href="/artifacts/external-tester-handout.md" target="_blank" rel="noopener">外测手册</a><a class="btn" href="/artifacts/external-feedback-template-cn.md" target="_blank" rel="noopener">反馈模板</a></div>';
-        html += '<div style="font-size:12px;color:var(--ink-muted);margin-top:8px;">' + esc(version) + ' · ' + esc(zipLabel) + ' · AI 页面证据 ' + passed + '/' + required + '</div>';
-        html += '</details></div>';
+        html += '<div style="font-size:12px;color:var(--ink-faint);line-height:1.45;">插件界面只显示同步状态，不在浏览器里做记忆选择。</div></div>';
         return html;
       }
       html += '<div class="stats-grid" style="margin-bottom:12px;">';
@@ -4517,7 +4779,7 @@
       html += '<div class="stat-card"><div class="label">真实 AI 证据</div><div class="value" style="font-size:24px;">' + passed + '/' + required + '</div><div class="sub">公开发布必需</div></div>';
       html += '<div class="stat-card"><div class="label">公开发布</div><div class="value" style="font-size:22px;">' + esc(publicReleaseLabel(publicState)) + '</div><div class="sub">需真实站点通过</div></div>';
       html += '</div>';
-      html += '<div style="border:1px solid var(--line);background:var(--surface-soft);padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--ink-secondary);line-height:1.45;">真实 AI 页面通过证据必须包含 <code>turnCount &gt; 0</code> 和会话区域 selector，候选记忆要来自具体对话或用户选中文本；页面标题、链接、导航文案和输入框草稿不能算通过。</div>';
+      html += '<div style="border:1px solid var(--line);background:var(--surface-soft);padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--ink-secondary);line-height:1.45;">真实 AI 页面通过证据必须包含 <code>turnCount &gt; 0</code> 和会话区域 selector；插件只同步网页 AI 会话，不读取选中文本或输入草稿。</div>';
       html += '<div class="gauge" style="margin-bottom:10px;"><span class="gauge-label">AI 页面</span><div class="gauge-bar"><div class="gauge-fill" style="width:' + pct + '%;background:' + (pct >= 100 ? 'var(--green)' : 'var(--yellow)') + '"></div></div><span class="gauge-value">' + pct + '%</span></div>';
       if (sites.length) {
         html += '<div class="memory-card-grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-bottom:12px;">';
@@ -4564,8 +4826,8 @@
           '<div style="font-family:var(--font-ui);font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:8px;">首次使用</div>' +
           '<div style="font-family:var(--font-display,Lora,Georgia,serif);font-size:22px;font-weight:700;color:var(--ink);margin-bottom:8px;">先导入示例数据</div>' +
           '<div style="font-size:13px;color:var(--ink-muted);margin-bottom:12px;line-height:1.5;max-width:640px;">目前还没有会话数据。先运行 demo，页面就会出现可浏览的记忆与活动。</div>' +
-          '<pre style="display:inline-block;margin:0;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-family:var(--font-mono);font-size:12px;color:var(--ink);">npx @agentmemory/agentmemory demo</pre>' +
-          '<div style="margin-top:10px;"><a class="empty-link" href="https://github.com/rohitg00/agentmemory#quick-start" target="_blank" rel="noopener" style="font-size:12px;">查看快速开始 &rarr;</a></div>' +
+          '<pre style="display:inline-block;margin:0;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-family:var(--font-mono);font-size:12px;color:var(--ink);">node dist/cli.mjs demo</pre>' +
+          '<div style="margin-top:10px;"><a class="empty-link" href="https://github.com/MaimoryLab/agentmemory-lab#quick-start" target="_blank" rel="noopener" style="font-size:12px;">查看快速开始 &rarr;</a></div>' +
           '</div>';
       }
       html += '<div class="stats-grid">';
@@ -4659,14 +4921,14 @@
           var latest = g.sessions && g.sessions[0];
           var latestId = sessionId(latest);
           var cardName = g.hasMissingId ? '未命名会话' : g.name;
-          html += '<button type="button" class="folder-card" data-action="open-session-group" data-session-id="' + esc(latestId || '') + '" title="' + esc(g.key) + '" aria-label="打开 ' + esc(cardName) + ' 的最近会话">';
+          html += '<button type="button" class="folder-card" data-action="open-session-group" data-session-id="' + esc(latestId || '') + '" title="' + esc(g.key) + '" aria-label="打开 ' + esc(cardName) + ' 的最新同步">';
           html += '<div class="folder-title">' + esc(cardName) + '</div>';
           html += '<div class="folder-path">' + esc(g.key) + '</div>';
           html += '<div class="folder-meta">';
-          html += '<span><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 9h8M8 13h5"/></svg>' + g.count + ' 段会话</span>';
+          html += '<span><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 9h8M8 13h5"/></svg>' + g.count + ' 次同步</span>';
           html += '<span><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H19v20H7.5A2.5 2.5 0 0 1 5 19.5z"/><path d="M5 19.5A2.5 2.5 0 0 1 7.5 17H19"/></svg>' + g.observations + ' 条记录</span>';
           html += '</div>';
-          html += '<div class="folder-time">最近更新 ' + esc(shortDateTime(g.latest)) + '</div>';
+          html += '<div class="folder-time">最近同步 ' + esc(shortDateTime(g.latest)) + '</div>';
           html += '</button>';
         });
         html += '</div>';
@@ -5702,9 +5964,10 @@
         var payload = reviewPayload(item);
         var tags = reviewTags(item);
         var project = reviewProject(item);
-        var meta = [item.kind === 'lesson' ? '经验候选' : '记忆候选', reviewSourceLabel(item), page.url || ''].filter(Boolean).join(' · ');
+        var decision = item.decision || (item.status === 'dismissed' ? 'evidence_only' : 'candidate');
+        var meta = [decision === 'evidence_only' ? '会话证据' : (item.kind === 'lesson' ? '经验候选' : '记忆候选'), reviewSourceLabel(item), page.url || ''].filter(Boolean).join(' · ');
         html += '<article class="memory-display-card" style="border-radius:8px;">';
-        html += '<div class="memory-card-topline"><span class="memory-card-type">待审阅</span><span class="memory-card-strength">' + esc(item.kind === 'lesson' ? '经验' : '记忆') + '</span></div>';
+        html += '<div class="memory-card-topline"><span class="memory-card-type">' + esc(decision === 'evidence_only' ? '已同步' : '待审阅') + '</span><span class="memory-card-strength">' + esc(decision === 'evidence_only' ? '证据' : (item.kind === 'lesson' ? '经验' : '记忆')) + '</span></div>';
         html += '<h3>' + esc(item.title || '未命名候选') + '</h3>';
         html += '<p>' + esc(item.content || '').replace(/\n/g, '<br>') + '</p>';
         html += '<div class="tag-list" style="margin-top:10px;">';
@@ -5713,7 +5976,11 @@
         tags.forEach(function(tag) { html += '<span class="tag">' + esc(tag) + '</span>'; });
         html += '</div>';
         html += '<div class="memory-card-source">' + esc(meta) + '</div>';
-        html += '<div class="memory-card-actions"><button class="btn btn-primary" data-action="edit-review" data-review-id="' + esc(item.id) + '">审阅保存</button><button class="btn" data-action="dismiss-review" data-review-id="' + esc(item.id) + '">忽略</button></div>';
+        if (decision === 'evidence_only') {
+          html += '<div class="memory-card-actions"><button class="btn" data-action="dismiss-review" data-review-id="' + esc(item.id) + '">从列表移除</button></div>';
+        } else {
+          html += '<div class="memory-card-actions"><button class="btn btn-primary" data-action="edit-review" data-review-id="' + esc(item.id) + '">审阅保存</button><button class="btn" data-action="dismiss-review" data-review-id="' + esc(item.id) + '">忽略</button></div>';
+        }
         html += '</article>';
       });
       html += '</div></section>';
@@ -6473,33 +6740,53 @@
         if (state.sessions.warnings && state.sessions.warnings.length) html += '<div style="margin-top:10px;"><button class="btn btn-primary" data-action="refresh-sessions">重试加载</button></div>';
         html += '</div>';
       } else {
-        var historyGroups = groupSessionsByProject(items);
+        var sourceGroups = sessionSourceGroups(items);
+        var activeSourceKey = state.sessions.sourceKey || 'all';
+        if (!sourceGroups.some(function(g) { return g.key === activeSourceKey; })) activeSourceKey = 'all';
+        state.sessions.sourceKey = activeSourceKey;
+        var activeSource = sourceGroups.find(function(g) { return g.key === activeSourceKey; }) || sourceGroups[0];
+        var visibleItems = activeSourceKey === 'all' ? items : items.filter(function(s) { return sessionSourceKey(s) === activeSourceKey; });
         var totalObs = items.reduce(function(sum, s) { return sum + (s.observationCount || 0); }, 0);
-        html += '<div class="session-overview">';
-        html += '<div class="session-overview-card"><div class="session-overview-label">历史会话</div><div class="session-overview-value">' + items.length + '</div></div>';
-        html += '<div class="session-overview-card"><div class="session-overview-label">项目</div><div class="session-overview-value">' + historyGroups.length + '</div></div>';
-        html += '<div class="session-overview-card"><div class="session-overview-label">记录</div><div class="session-overview-value">' + totalObs + '</div></div>';
+        html += '<div class="session-hero">';
+        html += '<div><div class="session-hero-title">会话收件箱</div><div class="session-hero-note">浏览器和本地 Agent 的会话会自动汇入这里，再从这里整理记忆、待办或 Skill。</div></div>';
+        html += '<div class="session-hero-meta">' + items.length + ' 段会话 · ' + (sourceGroups.length - 1) + ' 个来源 · ' + totalObs + ' 条记录</div>';
         html += '</div>';
         html += '<div id="session-detail"></div>';
 
         html += '<section class="session-section">';
-        html += '<div class="session-section-head"><div><div class="session-section-title">历史会话</div></div></div>';
-        var groupList = historyGroups;
-        groupList.forEach(function(g) {
-          var latestSession = g.sessions && g.sessions[0];
-          var latestId = sessionId(latestSession);
-          var selected = latestId && state.sessions.selectedId === latestId;
-          html += '<article class="session-folder-card">';
-          html += '<div class="session-folder-head">';
-          html += '<div style="min-width:0;"><div class="session-folder-name">' + esc(g.hasMissingId ? '未命名会话' : g.name) + '</div>';
-          html += '<div class="session-folder-path">' + esc(g.key) + '</div></div>';
-          html += '<div style="display:flex;align-items:center;gap:12px;">';
-          html += '<div class="session-folder-stats">' + g.count + ' 段<br>' + g.observations + ' 条<br>' + esc(shortDateTime(g.latest)) + '</div>';
-          if (latestId) html += '<button class="session-timeline-link' + (selected ? ' selected' : '') + '" data-action="select-session" data-session-id="' + esc(latestId) + '" aria-label="查看最近时间线"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16"/><circle cx="7" cy="12" r="2"/><circle cx="17" cy="12" r="2"/></svg>查看最近时间线</button>';
-          html += '</div>';
-          html += '</div>';
-          html += '</article>';
+        html += '<div class="session-inbox">';
+        html += '<aside class="session-source-rail" aria-label="会话来源">';
+        html += '<div class="session-source-label">来源</div>';
+        sourceGroups.forEach(function(g) {
+          html += '<button type="button" class="session-source-chip' + (g.key === activeSourceKey ? ' active' : '') + '" data-action="select-session-source" data-source-key="' + esc(g.key) + '">';
+          html += '<span class="session-source-name">' + esc(g.name) + '</span><span class="session-source-count">' + g.count + '</span>';
+          html += '</button>';
         });
+        html += '</aside>';
+        html += '<div class="session-inbox-main">';
+        html += '<div class="session-inbox-head"><div><div class="session-inbox-title">' + esc(activeSource ? activeSource.name : '全部会话') + '</div><div class="session-inbox-note">' + visibleItems.length + ' 段会话 · ' + ((activeSource && activeSource.observations) || 0) + ' 条记录</div></div><button class="btn" data-action="refresh-sessions">刷新</button></div>';
+        if (!visibleItems.length) {
+          html += '<div class="session-empty-filter">这个来源下暂时没有会话。</div>';
+        } else {
+          visibleItems.forEach(function(s) {
+            var id = sessionId(s);
+            var title = sessionTitleText(s);
+            var preview = sessionBodyPreview(s, title) || '暂无预览，点击查看完整过程。';
+            var source = inferSessionSource(s);
+            var avatarLabel = (source.name || '会').replace(/\s+/g, '').slice(0, 2);
+            var selected = id && state.sessions.selectedId === id;
+            html += '<button type="button" class="session-row' + (selected ? ' selected' : '') + '" data-action="select-session" data-session-id="' + esc(id || '') + '">';
+            html += '<span class="session-row-avatar" aria-hidden="true">' + esc(avatarLabel || '会') + '</span>';
+            html += '<div>';
+            html += '<div class="session-row-title">' + esc(title || '未命名会话') + '</div>';
+            html += '<div class="session-row-preview">' + esc(preview) + '</div>';
+            html += '<div class="session-row-meta"><span>' + esc(source.name || '本地记录') + '</span><span>' + esc(projectDisplayName(sessionProjectKey(s))) + '</span></div>';
+            html += '</div>';
+            html += '<div class="session-row-side"><span>' + esc(shortDateTime(sessionRecordTime(s))) + '</span><span class="session-row-count">' + (s.observationCount || 0) + ' 条</span></div>';
+            html += '</button>';
+          });
+        }
+        html += '</div></div>';
         html += '</section>';
       }
       html += '</div>';
@@ -6660,10 +6947,16 @@
         var detailRequestSeq = (state.sessions.detailRequestSeq || 0) + 1;
         state.sessions.detailRequestSeq = detailRequestSeq;
         if (!panel.innerHTML) panel.innerHTML = '<div class="detail-panel"><h3>加载会话详情中…</h3></div>';
-        obs = Array.isArray(s.embeddedObservations) ? s.embeddedObservations : [];
-        if (!obs.length) {
+        obs = [];
+        if (!Array.isArray(s.embeddedObservations) || String(s.id || '').indexOf('browser_sync_') >= 0 || !s.id) {
+          obs = Array.isArray(s.embeddedObservations) ? s.embeddedObservations : [];
+        }
+        if (!obs.length && id) {
           var obsRes = await apiGet('observations?sessionId=' + encodeURIComponent(id));
           obs = (obsRes && obsRes.observations) || [];
+        }
+        if ((!obs || obs.length === 0) && Array.isArray(s.embeddedObservations)) {
+          obs = s.embeddedObservations;
         }
         if ((!obs || obs.length === 0) && String(s.source || '').indexOf('local-') === 0) {
           var localRes = await apiGet('local-agent-session-events?sessionId=' + encodeURIComponent(id));
@@ -6723,7 +7016,7 @@
       var processExpanded = detailSections.process === true;
       var isLongTimeline = timelineObs.length > 80;
       html += '<div class="card" style="margin-bottom:12px;" data-section="process">';
-      html += renderSessionSectionTitle(id, 'process', '完整过程 · ' + timelineObs.length + ' 条', processExpanded);
+      html += renderSessionSectionTitle(id, 'process', '完整对话过程 · ' + timelineObs.length + ' 条', processExpanded);
       if (processExpanded && isLongTimeline) {
         html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:8px;"><div style="font-size:12px;color:var(--ink-muted);">记录很多，可以先跳到底部看最近进展。</div><button class="btn" data-action="session-jump" data-target="bottom">跳到底部</button></div>';
       }
@@ -7392,7 +7685,7 @@
           '<div class="empty-title">还没有结晶</div>' +
           '<div class="empty-lead">结晶是一次完整工作的压缩摘要，用来保留关键结论、涉及文件和可复用经验。当前还没有生成结晶，但会话和记忆已经可以先使用。</div>' +
           '<pre class="empty-cmd">导入历史会话后，可以把重要会话整理成结晶；后续我会优先把这里做成一键整理。</pre>' +
-          '<div><a class="empty-link" href="https://github.com/rohitg00/agentmemory#crystals" target="_blank" rel="noopener">结晶说明</a></div>' +
+          '<div><a class="empty-link" href="https://github.com/MaimoryLab/agentmemory-lab#crystals" target="_blank" rel="noopener">结晶说明</a></div>' +
           '</div>';
       } else {
         html += '<div class="crystal-list">';
@@ -7929,8 +8222,8 @@
           title: '智能分析未开启',
           keyLabel: 'ANTHROPIC_API_KEY',
           desc: '当前只能用基础功能；摘要、关系图与自动提炼暂不可用。',
-          enable: 'export ANTHROPIC_API_KEY=sk-ant-...\n# then restart: npx @agentmemory/agentmemory',
-          docs: 'https://github.com/rohitg00/agentmemory#quick-start',
+          enable: 'export ANTHROPIC_API_KEY=sk-ant-...\n# then restart: npm run start:local-memory',
+          docs: 'https://github.com/MaimoryLab/agentmemory-lab#quick-start',
           dismissKey: '__provider_noop',
         });
       }
@@ -7942,7 +8235,7 @@
           keyLabel: 'OPENAI_API_KEY',
           desc: '当前搜索偏向关键词匹配，语义理解能力较弱。',
           enable: 'export OPENAI_API_KEY=sk-...\n# or VOYAGE_API_KEY, COHERE_API_KEY, OLLAMA_HOST',
-          docs: 'https://github.com/rohitg00/agentmemory#embedding-providers',
+          docs: 'https://github.com/MaimoryLab/agentmemory-lab#embedding-providers',
           dismissKey: '__embedding_none',
         });
       }
@@ -8000,7 +8293,7 @@
           '### Steps to reproduce\n\n' +
           '1. \n2. \n3. \n'
         );
-        fbEl.href = 'https://github.com/rohitg00/agentmemory/issues/new?title=' +
+        fbEl.href = 'https://github.com/MaimoryLab/agentmemory-lab/issues/new?title=' +
           encodeURIComponent('[viewer] ') + '&body=' + body;
       }
     }
@@ -8214,6 +8507,11 @@
       if (action === 'select-session') {
         var sessionId = target.getAttribute('data-session-id');
         if (sessionId) selectSession(sessionId);
+        return;
+      }
+      if (action === 'select-session-source') {
+        state.sessions.sourceKey = target.getAttribute('data-source-key') || 'all';
+        renderSessions();
         return;
       }
       if (action === 'session-jump') {

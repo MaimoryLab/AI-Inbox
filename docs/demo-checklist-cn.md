@@ -10,7 +10,7 @@
 - 完整工作台可启动：`cd agentmemory-lab && npm run build && npm run start:local-memory`，Viewer 默认 `启动输出里的 Viewer 地址，例如 http://localhost:3114/#dashboard`，并读取 `你的本地记忆数据目录` 本地记忆库
 - 完整工作台状态检查可运行：`cd agentmemory-lab && npm run check:workbench`
 - 如果刚运行过 `npm run build`、`npm run package:browser-extension` 或 `npm run check:delivery`，先重启 `npm run start:local-memory`，再做工作台状态检查
-- 如果 `npx @agentmemory/agentmemory demo` 提示 `worker not reachable on port 3111`，通常是端口上只剩 iii-engine 壳、Agent Memory worker 没挂上。先运行 `npx @agentmemory/agentmemory stop --force` 清理，再从项目目录运行 `npm run start:local-memory`。
+- 如果 `node dist/cli.mjs demo` 提示 `worker not reachable on port 3111`，通常是端口上只剩 iii-engine 壳、Agent Memory worker 没挂上。先运行 `node dist/cli.mjs stop --force` 清理，再从项目目录运行 `npm run start:local-memory`。
 - 浏览器插件已加载：Chrome / Edge → `chrome://extensions` → 加载 `browser-extension/`
 - 插件检查已通过：`npm run check:browser-extension`，包括 AI 页面 fixture 的输入框和对话 selector 检查
 - 若要对外展示插件稳定性，更新 `docs/browser-extension-ai-validation-cn.md` 的真实站点验收记录

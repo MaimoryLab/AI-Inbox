@@ -10,68 +10,40 @@
   <main class="panel">
     <header>
       <div>
-        <h1>Agent Memory Lab</h1>
-        <p id="status">正在检查本地服务...</p>
+        <h1>会话同步</h1>
+        <p id="status">正在检查本地工作台...</p>
       </div>
-      <button id="openOptions" class="icon-btn" title="设置" aria-label="设置">⚙</button>
+      <div class="window-actions" aria-label="窗口操作">
+        <button id="openWorkbench" class="icon-btn" title="打开工作台" aria-label="打开工作台">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4"></path></svg>
+        </button>
+        <button id="closePopup" class="icon-btn" title="关闭" aria-label="关闭">×</button>
+      </div>
     </header>
 
-    <section class="trial-card">
-      <div>
-        <div class="label">本地工作台</div>
-        <div id="versionInfo" class="trial-title">Extension v0.1.0</div>
+    <section class="sync-card">
+      <div class="sync-head">
+        <span id="syncBadge" class="sync-badge">检查中</span>
+        <button id="syncNow" class="text-button scan-link">补扫</button>
       </div>
-      <div id="trialText" class="trial-text">内容会先进入本地工作台待审阅，由你确认后再写入长期记忆。</div>
+      <div id="statusTitle" class="status-title">检查中</div>
+      <div id="draftAssist" class="draft-assist">正在检查当前网页。</div>
     </section>
 
-    <section class="page-card">
-      <div class="label">当前网页</div>
+    <section class="page-card page-summary">
+      <div class="label">当前页面</div>
       <div id="pageTitle" class="title">读取中...</div>
       <div id="pageUrl" class="url"></div>
-    </section>
-
-    <section class="review-card">
-      <div class="review-head">
-        <div>
-          <div class="label">待确认内容</div>
-          <div class="hint">只保存具体事实、偏好、决定或待办。</div>
-        </div>
-        <button id="resetDraft" class="text-button" type="button">重置</button>
-      </div>
-      <input id="draftTitle" class="draft-input" type="text" placeholder="一句话标题" />
-      <textarea id="draftContent" rows="5" placeholder="正在整理这页值得记住的内容..."></textarea>
-      <div class="draft-fields">
-        <label>
-          <span>保存范围</span>
-          <select id="draftProject">
-            <option value="all">以后都能用</option>
-            <option value="page">只和这个网页相关</option>
-          </select>
-        </label>
-        <label>
-          <span>分类备注</span>
-          <input id="draftTags" type="text" placeholder="例如：学习、产品、设计" />
-        </label>
-      </div>
-      <label class="draft-check">
-        <input id="draftAsLesson" type="checkbox" />
-        <span>整理成可复用经验</span>
-      </label>
       <div id="draftMeta" class="draft-meta"></div>
-      <button id="saveMemory" class="primary wide">加入待确认</button>
     </section>
 
-    <div class="actions">
-      <button id="openSidePanel">打开同步侧栏</button>
-      <button id="openWorkbench">打开工作台</button>
-    </div>
-
-    <section class="recent-card">
-      <div class="label">最近保存</div>
+    <details class="recent-card compact-history">
+      <summary>最近同步</summary>
       <div id="recentList" class="recent-list">暂无记录</div>
-    </section>
+    </details>
 
     <div id="message" class="message"></div>
+    <div id="versionInfo" class="version-foot">Extension v0.1.0</div>
   </main>
   <script type="module" src="popup.js"></script>
 </body>

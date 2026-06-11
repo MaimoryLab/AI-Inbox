@@ -76,6 +76,112 @@ function browserSessionId(reviewId: string, page: Record<string, unknown>, creat
   return `browser_${shortHash(`${url}:${createdAt}:${reviewId}`)}`;
 }
 
+function browserSyncKey(page: Record<string, unknown>, conversation: { provider?: string; turns?: Array<{ role?: string; text?: string }> }): string {
+  const url = asNonEmptyString(page.url) || asNonEmptyString(page.title) || "browser";
+  const provider = conversation.provider || asNonEmptyString(page.host) || "browser";
+  const turns = Array.isArray(conversation.turns) ? conversation.turns : [];
+  const lastText = turns.slice(-3).map((turn) => `${turn.role || "unknown"}:${turn.text || ""}`).join("\n");
+  return shortHash(`${url}:${provider}:${turns.length}:${lastText}`);
+}
+
+function cleanBrowserCandidateText(value: unknown): string {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/^(用户|User|我)[:：]\s*/i, "")
+    .replace(/^(AI|Assistant|ChatGPT|Claude|Gemini|Perplexity)[:：]\s*/i, "")
+    .trim();
+}
+
+function isBrowserUiNoise(value: string): boolean {
+  const text = cleanBrowserCandidateText(value);
+  if (!text) return true;
+  if (/^https?:\/\//i.test(text)) return true;
+  if (/^(下载|打开|安装|查看|测试|反馈|分诊|外测|验收|刷新|关闭|复制|保存|确认|取消|加入待确认|高级选项|自动整理|最近加入|最近同步)$/.test(text)) return true;
+  if (/^(总览|记忆|会话|活动|Skill|待办|状态|最近会话|浏览器记忆入口?|本地工作台|当前页面|页面识别|候选记忆|其他建议)$/.test(text)) return true;
+  if (/浏览器记忆入口/.test(text) || /从网页和\s*AI\s*对话提取具体事实/.test(text)) return true;
+  if (/(按钮|点击|入口|侧栏|弹窗|工作台|插件|页面|选择器|测试卡|诊断|刷新|加载)/.test(text) && !/(用户|我|我的|我们|偏好|喜欢|不喜欢|希望|需要|计划|决定|负责|待办|TODO|必须|不要)/i.test(text)) return true;
+  return false;
+}
+
+function browserFactScore(value: string): number {
+  const text = cleanBrowserCandidateText(value);
+  if (text.length < 8 || isBrowserUiNoise(text)) return 0;
+  let score = 0;
+  if (/(我|我的|我们|用户|SZn|szn|刘欣|Liu Xin|Coco|你是|你叫)/i.test(text)) score += 0.26;
+  if (/(希望|想要|需要|正在|计划|负责|决定|偏好|喜欢|不喜欢|不要|应该|必须|待办|TODO)/i.test(text)) score += 0.35;
+  if (/(项目|产品|设计|飞书|GitHub|雅思|IELTS|UCL|英国|插件|记忆)/i.test(text)) score += 0.16;
+  if (text.length >= 18 && text.length <= 220) score += 0.16;
+  if (/[。！？!?]$/.test(text)) score += 0.04;
+  return Math.min(0.95, score);
+}
+
+function splitBrowserFactSentences(value: unknown): string[] {
+  return String(value || "")
+    .split(/[。！？!?\n]+/)
+    .map(cleanBrowserCandidateText)
+    .filter(Boolean)
+    .filter((text) => browserFactScore(text) >= 0.58)
+    .filter((text) => text.length <= 240);
+}
+
+function uniqueBrowserFacts(items: string[]): string[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = item.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function inferBrowserMemoryType(text: string): "pattern" | "preference" | "architecture" | "bug" | "workflow" | "fact" {
+  if (/(偏好|喜欢|不喜欢|希望|想要|不要)/.test(text)) return "preference";
+  if (/(流程|步骤|工作流|每次|默认|应该|必须)/.test(text)) return "workflow";
+  if (/(问题|报错|失败|无法|bug|风险)/i.test(text)) return "bug";
+  return "fact";
+}
+
+function buildBrowserMemoryCandidate(body: Record<string, unknown>, page: Record<string, unknown>, conversation: { provider?: string; promptDraft?: string; turns?: Array<{ role?: string; text?: string }> }): {
+  decision: "candidate" | "evidence_only";
+  title: string;
+  content: string;
+  confidence: number;
+  reason: string;
+  type: "pattern" | "preference" | "architecture" | "bug" | "workflow" | "fact";
+} {
+  const rawCandidates = body.candidates && typeof body.candidates === "object" ? body.candidates as Record<string, unknown> : {};
+  const memoryCandidates = Array.isArray(rawCandidates.memories) ? rawCandidates.memories : [];
+  const turns = Array.isArray(conversation.turns) ? conversation.turns : [];
+  const facts = uniqueBrowserFacts([
+    ...memoryCandidates.flatMap(splitBrowserFactSentences),
+    ...turns.filter((turn) => turn.role === "user").flatMap((turn) => splitBrowserFactSentences(turn.text)),
+    ...turns.filter((turn) => turn.role === "assistant").flatMap((turn) => splitBrowserFactSentences(turn.text)),
+    ...splitBrowserFactSentences((page as Record<string, unknown>).selection),
+  ]);
+  const best = facts
+    .map((fact) => ({ fact, score: browserFactScore(fact) }))
+    .sort((a, b) => b.score - a.score)[0];
+  if (!best) {
+    return {
+      decision: "evidence_only",
+      title: asNonEmptyString(page.title) || "浏览器会话",
+      content: [asNonEmptyString(page.title), asNonEmptyString(page.url), turns.length ? `已同步 ${turns.length} 条网页对话。` : "已同步网页上下文。"].filter(Boolean).join("\n"),
+      confidence: 0.25,
+      reason: "没有识别到足够具体的事实、偏好、决定或待办；仅作为工作台证据保留。",
+      type: "fact",
+    };
+  }
+  const fact = best.fact;
+  return {
+    decision: "candidate",
+    title: fact.length > 42 ? `${fact.slice(0, 42)}...` : fact,
+    content: [`候选事实：${fact}`, `依据：来自 ${conversation.provider || asNonEmptyString(page.typeLabel) || asNonEmptyString(page.host) || "浏览器"} 的网页会话`].join("\n"),
+    confidence: best.score,
+    reason: "本地规则识别到明确事实、偏好、决定或待办，进入工作台候选区。",
+    type: inferBrowserMemoryType(fact),
+  };
+}
+
 async function recordBrowserSessionFromReview(
   sdk: ISdk,
   item: ReviewQueueItem,
@@ -155,7 +261,7 @@ function graphDisabledResponse(): Response {
     error: "Knowledge graph not enabled",
     flag: "GRAPH_EXTRACTION_ENABLED",
     enableHow: "Set GRAPH_EXTRACTION_ENABLED=true and restart. Requires an LLM provider key.",
-    docsHref: "https://github.com/rohitg00/agentmemory#knowledge-graph",
+    docsHref: "https://github.com/MaimoryLab/agentmemory-lab#knowledge-graph",
   });
 }
 
@@ -164,7 +270,7 @@ function consolidationDisabledResponse(): Response {
     error: "Consolidation pipeline not enabled",
     flag: "CONSOLIDATION_ENABLED",
     enableHow: "Set CONSOLIDATION_ENABLED=true and restart. Requires an LLM provider key.",
-    docsHref: "https://github.com/rohitg00/agentmemory#consolidation",
+    docsHref: "https://github.com/MaimoryLab/agentmemory-lab#consolidation",
   });
 }
 
@@ -173,7 +279,7 @@ function slotsDisabledResponse(): Response {
     error: "Memory slots not enabled",
     flag: "AGENTMEMORY_SLOTS",
     enableHow: "Set AGENTMEMORY_SLOTS=true (in ~/.agentmemory/.env or the shell) and restart.",
-    docsHref: "https://github.com/rohitg00/agentmemory#memory-slots",
+    docsHref: "https://github.com/MaimoryLab/agentmemory-lab#memory-slots",
   });
 }
 
@@ -182,7 +288,7 @@ function reflectDisabledResponse(): Response {
     error: "Slot reflection not enabled",
     flag: "AGENTMEMORY_REFLECT",
     enableHow: "Set AGENTMEMORY_REFLECT=true (in ~/.agentmemory/.env or the shell) and restart. Requires AGENTMEMORY_SLOTS=true.",
-    docsHref: "https://github.com/rohitg00/agentmemory#memory-slots",
+    docsHref: "https://github.com/MaimoryLab/agentmemory-lab#memory-slots",
   });
 }
 
@@ -267,7 +373,7 @@ export function registerApiTriggers(
           needsLlm: true,
           description: "Extracts entities and relations from observations into a knowledge graph.",
           enableHow: "Set GRAPH_EXTRACTION_ENABLED=true and provide an LLM key, then restart.",
-          docsHref: "https://github.com/rohitg00/agentmemory#knowledge-graph",
+          docsHref: "https://github.com/MaimoryLab/agentmemory-lab#knowledge-graph",
         },
         {
           key: "CONSOLIDATION_ENABLED",
@@ -278,7 +384,7 @@ export function registerApiTriggers(
           needsLlm: true,
           description: "Periodically summarizes sessions into semantic facts + procedures.",
           enableHow: "Set CONSOLIDATION_ENABLED=true and provide an LLM key, then restart.",
-          docsHref: "https://github.com/rohitg00/agentmemory#consolidation",
+          docsHref: "https://github.com/MaimoryLab/agentmemory-lab#consolidation",
         },
         {
           key: "AGENTMEMORY_AUTO_COMPRESS",
@@ -289,7 +395,7 @@ export function registerApiTriggers(
           needsLlm: true,
           description: "Every observation is compressed by the LLM for richer summaries (costs tokens). OFF uses zero-LLM synthetic compression.",
           enableHow: "Set AGENTMEMORY_AUTO_COMPRESS=true and provide an LLM key.",
-          docsHref: "https://github.com/rohitg00/agentmemory/issues/138",
+          docsHref: "https://github.com/MaimoryLab/agentmemory-lab/issues/138",
         },
         {
           key: "AGENTMEMORY_INJECT_CONTEXT",
@@ -300,7 +406,7 @@ export function registerApiTriggers(
           needsLlm: false,
           description: "Hooks write recalled context into Claude Code's conversation. OFF captures in the background without injecting.",
           enableHow: "Set AGENTMEMORY_INJECT_CONTEXT=true and restart.",
-          docsHref: "https://github.com/rohitg00/agentmemory/issues/143",
+          docsHref: "https://github.com/MaimoryLab/agentmemory-lab/issues/143",
         },
       ];
       return {
@@ -1095,11 +1201,8 @@ export function registerApiTriggers(
       const authErr = checkAuth(req, secret);
       if (authErr) return authErr;
       const body = (req.body ?? {}) as Record<string, unknown>;
+      const syncMode = body.mode === "sync" || body.source === "browser-sync";
       const rawKind = body.kind === "lesson" ? "lesson" : "memory";
-      const rawContent = asNonEmptyString(body.content);
-      if (!rawContent) {
-        return { status_code: 400, body: { error: "content is required" } };
-      }
       const now = new Date().toISOString();
       const page = body.page && typeof body.page === "object" ? body.page as Record<string, unknown> : {};
       const rawConversation = body.conversation && typeof body.conversation === "object" ? body.conversation as Record<string, unknown> : {};
@@ -1114,16 +1217,26 @@ export function registerApiTriggers(
           return text ? { role, text } : null;
         }).filter((turn): turn is { role: string; text: string } => turn !== null).slice(-12),
       };
-      const title = asNonEmptyString(body.title) || asNonEmptyString(page.title) || (rawKind === "lesson" ? "待审阅经验" : "待审阅记忆");
+      const autoCandidate = syncMode ? buildBrowserMemoryCandidate(body, page, conversation) : null;
+      const rawContent = asNonEmptyString(body.content) || autoCandidate?.content;
+      if (!rawContent) {
+        return { status_code: 400, body: { error: "content is required" } };
+      }
+      const title = asNonEmptyString(body.title) || autoCandidate?.title || asNonEmptyString(page.title) || (rawKind === "lesson" ? "待审阅经验" : "待审阅记忆");
+      const payload = body.payload && typeof body.payload === "object" ? body.payload as Record<string, unknown> : {};
+      const syncId = syncMode ? browserSyncKey(page, conversation) : "";
+      const itemId = syncId ? `browser_sync_${syncId}` : `review_${Date.now().toString(36)}_${crypto.randomUUID().replace(/-/g, "").slice(0, 10)}`;
+      const existing = syncId ? await kv.get<ReviewQueueItem>(KV.reviewQueue, itemId) : null;
       const item: ReviewQueueItem = {
-        id: `review_${Date.now().toString(36)}_${crypto.randomUUID().replace(/-/g, "").slice(0, 10)}`,
-        createdAt: now,
+        id: existing?.id || itemId,
+        createdAt: existing?.createdAt || now,
         updatedAt: now,
-        status: "pending",
+        status: autoCandidate?.decision === "evidence_only" ? "dismissed" : (existing?.status || "pending"),
         kind: rawKind,
         title,
         content: rawContent,
-        source: body.source === "viewer" || body.source === "api" ? body.source : "browser-extension",
+        source: syncMode ? "browser-sync" : (body.source === "viewer" || body.source === "api" ? body.source : "browser-extension"),
+        ...(autoCandidate ? { decision: autoCandidate.decision, confidence: autoCandidate.confidence, reason: autoCandidate.reason } : {}),
         page: {
           type: typeof page.type === "string" ? page.type : undefined,
           typeLabel: typeof page.typeLabel === "string" ? page.typeLabel : undefined,
@@ -1132,9 +1245,13 @@ export function registerApiTriggers(
           host: typeof page.host === "string" ? page.host : undefined,
         },
         ...(conversation.provider || conversation.promptDraft || conversation.turns.length ? { conversation } : {}),
-        payload: body.payload && typeof body.payload === "object" ? body.payload as Record<string, unknown> : {},
+        payload: {
+          ...payload,
+          ...(autoCandidate ? { type: autoCandidate.type, decision: autoCandidate.decision, confidence: autoCandidate.confidence, reason: autoCandidate.reason } : {}),
+          ...(syncId ? { browserSyncId: syncId } : {}),
+        },
       };
-      if (item.source === "browser-extension") {
+      if (item.source === "browser-extension" || item.source === "browser-sync") {
         try {
           const browserSession = await recordBrowserSessionFromReview(sdk, item);
           item.payload = {
@@ -1150,7 +1267,7 @@ export function registerApiTriggers(
         }
       }
       await kv.set(KV.reviewQueue, item.id, item);
-      return { status_code: 201, body: { success: true, item } };
+      return { status_code: existing ? 200 : 201, body: { success: true, item } };
     },
   );
   sdk.registerTrigger({
@@ -1494,7 +1611,7 @@ export function registerApiTriggers(
       // mem::export already supports maxSessions/offset internally,
       // but the HTTP endpoint hardcoded an empty payload — so /export on a
       // real corpus (40 sessions × 34K observations × 8K memories) hit the
-      // iii engine invocation timeout and `agentmemory status` reported 0.
+      // iii engine invocation timeout and `agentmemory-lab status` reported 0.
       // Pass through the query-string pagination so callers can chunk.
       const rawMax = req.query_params?.["maxSessions"];
       const rawOffset = req.query_params?.["offset"];
@@ -2030,7 +2147,7 @@ export function registerApiTriggers(
         );
       }
 
-      // viewer + `agentmemory status` were hitting this endpoint to
+      // viewer + `agentmemory-lab status` were hitting this endpoint to
       // count memories. On a real corpus (8K+ memories) the unbounded
       // response either timed out at the iii engine boundary ("Invocation
       // stopped") or arrived too large for the viewer to render — so the

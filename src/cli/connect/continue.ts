@@ -73,7 +73,7 @@ function renderFreshYaml(): string {
 export const adapter: ConnectAdapter = {
   name: "continue",
   displayName: "Continue",
-  docs: "https://github.com/rohitg00/agentmemory#other-agents",
+  docs: "https://github.com/MaimoryLab/agentmemory-lab#other-agents",
   protocolNote:
     "→ Using MCP via ~/.continue/config.yaml (preferred) or config.json (legacy, only when no yaml).",
 

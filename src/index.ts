@@ -104,11 +104,11 @@ import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 
 // #640 + #474: the worker process (this file) is spawned by iii-exec
-// inside the engine. When `agentmemory stop` kills only the engine pid,
+// inside the engine. When `agentmemory-lab stop` kills only the engine pid,
 // this worker can survive (detached spawn, signal not propagated, or a
 // wrapper script keeps it running) and reconnects to the next engine as
 // a duplicate worker. Write the worker pid alongside iii.pid so
-// `agentmemory stop` can reap us too.
+// `agentmemory-lab stop` can reap us too.
 function workerPidfilePath(): string {
   return join(homedir(), ".agentmemory", "worker.pid");
 }
@@ -524,7 +524,9 @@ async function main() {
     `MCP surface (opt-in via \`npx @agentmemory/mcp\`): ${getAllTools().length} tools · 6 resources · 3 prompts`,
   );
 
-  const viewerPort = config.restPort + 2;
+  const viewerPort =
+    parseInt(process.env.III_VIEWER_PORT || process.env.AGENTMEMORY_VIEWER_PORT || "", 10) ||
+    config.restPort + 3;
   const viewerServer = startViewerServer(
     viewerPort,
     kv,

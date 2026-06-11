@@ -11,71 +11,49 @@
     <header class="topbar">
       <div class="brand-mark" aria-hidden="true">M</div>
       <div class="brand-copy">
-        <h1>保存到记忆</h1>
+        <h1>会话同步</h1>
         <p id="status">正在连接本地工作台...</p>
       </div>
-      <button id="refresh" class="icon-button" title="刷新" aria-label="刷新">↻</button>
+      <div class="window-actions" aria-label="窗口操作">
+        <button id="refresh" class="icon-button" title="刷新" aria-label="刷新">↻</button>
+        <button id="openWorkbench" class="icon-button" title="打开工作台" aria-label="打开工作台">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4"></path></svg>
+        </button>
+        <button id="closePanel" class="icon-button" title="关闭" aria-label="关闭">×</button>
+      </div>
     </header>
 
     <section id="connectionCard" class="connection-card checking">
       <div>
         <div id="connectionTitle" class="connection-title">检查连接中</div>
-        <div id="connectionText" class="connection-text">正在确认能否保存到本地工作台。</div>
+        <div id="connectionText" class="connection-text">正在确认能否同步到本地工作台。</div>
       </div>
       <button id="connectionAction" type="button">重试</button>
     </section>
 
-    <section class="section current-page">
-      <div class="section-head">
-        <span class="eyebrow">当前页面</span>
-        <span id="pageType" class="type-pill">网页</span>
+    <section class="section sync-overview">
+      <div class="sync-state-main">
+        <div>
+          <span class="eyebrow">同步状态</span>
+          <strong id="turnSummary">0 条</strong>
+        </div>
+        <button id="syncNow" class="ghost-button" type="button">补扫</button>
       </div>
+      <div id="draftAssist" class="draft-assist">网页里的 AI 会话会自动同步到工作台。</div>
+      <div class="sync-facts">
+        <span id="pageType">网页</span>
+        <span id="syncMode">自动</span>
+        <span id="draftMeta">只同步会话原文</span>
+      </div>
+    </section>
+
+    <details class="section current-page compact-source">
+      <summary>
+        <span class="eyebrow">页面来源</span>
+        <span id="privacy" class="type-pill">只同步会话</span>
+      </summary>
       <h2 id="pageTitle">读取中...</h2>
       <p id="pageUrl" class="url"></p>
-      <div id="privacy" class="privacy low">隐私风险低</div>
-    </section>
-
-    <section class="section review-draft">
-      <div class="section-head">
-        <span class="eyebrow">待确认内容</span>
-        <button id="resetDraft" class="ghost-button" type="button">重置</button>
-      </div>
-      <input id="draftTitle" class="draft-input" type="text" placeholder="一句话标题" />
-      <textarea id="draftContent" rows="5" placeholder="选择一条建议，或直接改写要保存的内容。"></textarea>
-      <div class="draft-fields">
-        <label>
-          <span>保存范围</span>
-          <select id="draftProject">
-            <option value="all">以后都能用</option>
-            <option value="page">只和这个网页相关</option>
-          </select>
-        </label>
-        <label>
-          <span>分类备注</span>
-          <input id="draftTags" type="text" placeholder="例如：学习、产品、设计" />
-        </label>
-      </div>
-      <label class="draft-check">
-        <input id="draftAsLesson" type="checkbox" />
-        <span>整理成可复用经验</span>
-      </label>
-      <div id="draftMeta" class="draft-meta">保存后仍需在工作台确认。</div>
-    </section>
-
-    <section class="section candidate-section">
-      <div class="section-head">
-        <span class="eyebrow">候选记忆</span>
-        <span class="count" id="memoryCount">0</span>
-      </div>
-      <div id="memoryCandidates" class="candidate-list empty">暂时没有建议</div>
-    </section>
-
-    <details class="section secondary-section">
-      <summary>
-        <span class="eyebrow">可复用经验</span>
-        <span class="count" id="lessonCount">0</span>
-      </summary>
-      <div id="lessonCandidates" class="candidate-list empty">暂时没有建议</div>
     </details>
 
     <details class="section secondary-section chat-section" id="chatSection" hidden>
@@ -96,7 +74,6 @@
       <div class="section-actions debug-actions">
         <button id="copyDiagnostics" class="ghost-button" type="button" disabled>复制问题信息</button>
         <button id="copyEvidenceCommand" class="ghost-button" type="button" disabled>复制检查步骤</button>
-        <button id="openTestCards" class="ghost-button" type="button">测试卡</button>
       </div>
       <div id="evidenceCommandHint" class="command-hint" hidden>页面识别不准时再使用。</div>
     </details>
@@ -107,11 +84,6 @@
       </summary>
       <div id="recentList" class="recent-list empty">暂无记录</div>
     </details>
-
-    <footer class="footer-actions">
-      <button id="savePage" class="primary">加入待确认</button>
-      <button id="openWorkbench">工作台</button>
-    </footer>
 
     <div id="message" class="message"></div>
   </main>

@@ -154,7 +154,7 @@ const deliveryManifest = {
     externalTestingEntry: {
       popupVersionVisible: true,
       popupLocalTestingStatusVisible: true,
-      testerGuideUrl: 'https://github.com/novitalabs/agentmemory-lab/blob/szn-viewer-ui-iteration/docs/external-tester-guide-cn.md'
+      testerGuideUrl: 'https://github.com/MaimoryLab/agentmemory-lab/blob/main/docs/external-tester-guide-cn.md'
     },
     reviewDraft: {
       popup: true,

@@ -1,8 +1,9 @@
-import { getSettings, authHeaders, resolveViewerBase } from '../config.js';
+import { getSettings, authHeaders, resolveApiBase, resolveViewerBase } from '../config.js';
 
 export async function agentMemoryApi(path, options = {}) {
   const settings = await getSettings();
-  const res = await fetch(`${settings.apiBase}${path}`, {
+  const apiBase = await resolveApiBase(settings);
+  const res = await fetch(`${apiBase}${path}`, {
     ...options,
     headers: { ...authHeaders(settings), ...(options.headers || {}) }
   });

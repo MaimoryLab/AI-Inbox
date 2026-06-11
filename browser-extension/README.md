@@ -1,206 +1,135 @@
 # Agent Memory Lab 浏览器插件
 
-这是 Agent Memory Lab 的浏览器入口，用来把网页、AI 对话和项目文档同步到本地记忆工作台。
+这是 Agent Memory Lab 的浏览器会话同步入口。它只做一件事：在 ChatGPT、Claude、Gemini、Perplexity、Grok、DeepSeek 等网页 AI 产品里抓取可见会话，并同步到本地工作台的 Sessions。
 
-它和 Agent Memory Lab 的关系很简单：插件是浏览器入口层，本地工作台是记忆中枢。插件负责在浏览器里识别页面、显示输入框旁的记忆建议、生成候选和诊断；本地工作台负责 API、Viewer、审阅队列、记忆库、文档、打包和发布检查。插件不会脱离本地工作台单独运行成一个云服务，也不会绕过审阅流程直接写入长期记忆。
-
-插件结构参考 Mem0 / OpenMemory 这类跨 AI 记忆插件：记忆入口放在 AI 输入框附近，站点规则按 ChatGPT、Claude、Gemini、Perplexity 等产品分别维护，页面失配时用诊断反馈。完整对标说明见 [`docs/browser-extension-mem0-reference-cn.md`](../docs/browser-extension-mem0-reference-cn.md)。
+插件不会在浏览器里提取记忆、生成候选、总结页面、保存选中文本或判断 Skill。记忆和 Skill 的整理沉淀都放回本地工作台完成。
 
 ```text
-AI 页面 / 网页内容
+网页 AI 会话
       |
       v
-浏览器插件：识别页面、提示记忆、生成候选
+浏览器插件：识别 AI 页面并同步原始对话
       |
       v
-本地工作台：审阅候选、管理记忆、沉淀经验
+本地工作台：统一展示 Sessions
       |
       v
-Agent 使用：通过 Skill / API / MCP 取回上下文
+工作台整理：后续再判断记忆、任务或 Skill
 ```
 
-它不是普通 Web Clipper。它更像一个本地优先的“上下文中转站”：先识别你正在看的页面，再生成可审阅的记忆候选，送到 Viewer 的“待审阅”队列，最后由你决定哪些内容值得进入长期记忆。
+## 当前支持
 
-## 现在支持
-
-- 检查本地 Agent Memory Lab 服务是否在线
-- 在弹窗和同步侧栏保存前编辑候选记忆标题、正文、保存范围、分类备注和经验候选状态，再送入本地待审阅队列
-- 弹窗显示扩展版本、本地连接状态和当前网页草稿，不暴露测试指南或内部验收入口
-- 把当前网页加入待审阅记忆队列
-- 把当前网页上的一条观察加入待审阅经验队列
-- 侧边栏优先显示当前页面、待确认内容、候选记忆和隐私提示
-- 侧边栏把候选经验、最近对话和 AI 页面识别信息折叠为辅助信息
-- 侧边栏可一键复制 AI 页面诊断，方便逐站修正输入框和对话抽取规则
-- 初步识别 ChatGPT、Claude、Gemini、Perplexity、Grok 等 AI 对话页面
-- 参考 OpenMemory / Mem0 的 supported-sites 架构，按 AI 产品维护独立站点配置
-- 在 AI 输入框附近召回本地记忆，但长期写入必须先进入本地审阅队列
-- 在支持的 AI 页面输入框附近显示“记忆建议”，并从本地搜索相关记忆，支持插入或复制到当前对话
-- 初步识别 GitHub、飞书、Notion、论文 / PDF、插件商店等网页类型
-- 右键菜单保存当前页面、选中文本或链接，都会进入同一套待审阅队列
-- 弹窗里查看最近保存记录
-- 一键打开本地工作台首页
-- 支持自定义 API 地址、Viewer 地址和访问密钥
+- 自动识别主流 AI 会话网页。
+- 自动扫描已打开的 AI 会话标签页。
+- 抓取网页里可见的用户 / AI 对话内容。
+- 同步到本地 Agent Memory Lab 工作台。
+- 弹窗和侧栏用中文显示连接状态、识别状态、抓取条数和最近同步。
+- 页面诊断只复制选择器、计数、浏览器版本等排错信息，不复制真实会话正文。
+- 右键菜单只保留“同步到工作台”和“打开工作台”。
 
 ## 使用体验
 
-插件目前有两个入口：
-
-| 入口 | 适合做什么 |
+| 入口 | 用途 |
 | --- | --- |
-| 弹窗 | 快速预览并编辑待审阅草稿，送入本地工作台 |
-| 同步侧栏 | 边浏览边看页面类型、候选记忆和隐私提示，并把候选填入带项目/标签的审阅草稿 |
-| 页面识别 | 折叠查看 ChatGPT / Claude 等页面是否找到了输入框和最近对话；识别不准时再复制诊断信息 |
-| 输入框记忆提示 | 在 ChatGPT / Claude / Gemini / Perplexity 等页面输入问题时，提示本地相关记忆，并可插入当前输入框 |
-| 右键保存 | 保存整页、选中文本或链接片段，统一送到 Viewer 待审阅 |
+| 弹窗 | 看当前页是否识别、抓到几条会话、手动同步所有已打开 AI 会话 |
+| 同步侧栏 | 看更完整的同步状态、最近抓到的对话、页面识别诊断 |
+| 工作台 | 查看所有同步进来的 Sessions，并在工作台里继续整理记忆或 Skill |
 
-更推荐日常使用“同步侧栏”，因为它更接近未来的跨 AI 产品记忆同步体验。
-
-## 项目结构
-
-```text
-manifest.json           Chrome / Edge 扩展入口
-service-worker.js       后台协调：API 请求、右键菜单、最近保存记录
-content-script.js       只负责采集当前网页上下文
-popup.html/js/css       弹窗 UI
-sidepanel.html/js/css   浏览器侧边栏同步面板
-options.html/js         本地连接设置
-shared/schema.js        统一 PageCapture 数据结构
-shared/page-types.js    页面类型与 AI 产品识别
-shared/site-config.js   ChatGPT / Claude / Gemini / Perplexity 等站点配置；content-script 需保持同一 provider 口径
-shared/api.js           统一本地 Agent Memory Lab API 调用
-icons/                  插件图标
-```
-
-`icons/icon.svg` 是源图，发布和 Manifest 使用 `icon16.png`、`icon32.png`、`icon48.png`、`icon128.png`。
-
-## 数据结构
-
-浏览器插件采集的数据统一成 `PageCapture`：
-
-```js
-{
-  schemaVersion: 1,
-  capturedAt: "2026-06-08T00:00:00.000Z",
-  source: "browser-extension",
-  page: {
-    title: "页面标题",
-    url: "https://example.com",
-    host: "example.com",
-    origin: "https://example.com",
-    type: "ai-chat",
-    typeLabel: "AI 对话",
-    description: "页面摘要",
-    selection: "用户选中的文本",
-    headings: ["页面标题结构"]
-  },
-  conversation: {
-    provider: "ChatGPT",
-    turns: [{ role: "user", text: "最近可见的一轮对话" }]
-  },
-  diagnostics: {
-    supportedAiPage: true,
-    provider: "ChatGPT",
-    editorFound: true,
-    editorSelector: "#prompt-textarea",
-    promptLength: 24,
-    turnCount: 4
-  },
-  candidates: {
-    memories: ["可保存的记忆候选"],
-    lessons: ["可沉淀的经验候选"]
-  },
-  privacy: {
-    risk: "low",
-    reasons: []
-  }
-}
-```
-
-所有写入本地记忆、经验和最近保存记录的逻辑都从这个结构转换，避免 popup、content script、service worker 各自拼一套数据。
-
-写入审阅队列时会保留更细的来源信息，例如 `browser-source:chatgpt`、`browser-page:ai-chat`。用户在 Viewer 记忆库里既可以筛选“浏览器”，也可以进一步筛选 ChatGPT、Claude、Gemini、Perplexity 等来源。
+日常使用时，插件应该像一个轻量状态面板，而不是一个小型记忆编辑器。
 
 ## 本地使用
 
-1. 进入项目目录并启动工作台：`cd agentmemory-lab && npm run build && npm run start:local-memory`
-2. 打开 Chrome / Edge：`chrome://extensions`
-3. 打开“开发者模式”
-4. 点击“加载已解压的扩展程序”
+1. 进入项目目录并启动工作台：`npm run build && npm run start:local-memory`
+2. 打开 Chrome / Edge 的扩展管理页。
+3. 打开“开发者模式”。
+4. 点击“加载已解压的扩展程序”。
 5. 选择本目录：`browser-extension`
-6. 打开 ChatGPT、Claude、Gemini、Perplexity 或普通网页
-7. 点击浏览器工具栏里的 Agent Memory Lab 图标
-8. 打开同步侧栏，保存候选内容或查看输入框旁的“记忆建议”
-
-本地自检页：
-
-```text
-启动输出里的 Viewer 地址 + /demo/browser-extension.html
-```
-
-`start:local-memory` 会读取 `你的本地记忆数据目录` 里的本地记忆。自检页只用于排查插件注入和“记忆建议”入口是否正常。真正使用时，应该在真实网页和 AI 页面里打开插件，再回到 Viewer 待审阅队列确认保存。
-
-默认 API 是 `http://localhost:3111`，Viewer 是 `启动输出里的 Viewer 地址`。如果默认端口已被占用，先确认是否已有 Agent Memory Lab 在运行；必要时停止旧进程后再启动。
-
-侧栏顶部会显示连接状态：
-
-- “审阅队列可用”：可以把当前页面送去 Viewer 审阅。
-- “本地工作台未连接”：先启动本地 Viewer / API，再点“重试”。
-
-建议试用路线：
-
-1. 启动本地工作台并加载插件，在真实网页或 AI 页面确认侧栏可用。
-2. 打开 ChatGPT / Claude / Gemini / Perplexity 任一页面。
-3. 在输入框输入一个和本地项目相关的问题。
-4. 查看输入框附近的“记忆建议”提示，尝试插入或复制相关记忆。
-5. 打开同步侧栏查看“AI 页面状态”。如果显示“输入框：未找到”，点击“复制问题信息”和“复制检查步骤”，把诊断和证据保存结果交给开发者补站点规则。
-6. 用弹窗或同步侧栏把当前网页加入待审阅，再回到 Viewer 记忆库确认保存。
-
-交付检查：
-
-```bash
-cd agentmemory-lab
-npm run check:browser-extension
-npm run package:browser-extension
-npm run status:delivery
-npm run preview:browser-extension
-```
-
-第一个命令会确认扩展脚本语法、Manifest V3 content script 配置、图标尺寸、`shared/site-config.js` 和运行脚本里的 AI provider 没有分叉；也会检查弹窗和同步侧栏都保留“保存前审阅草稿”，候选内容必须先填入草稿，再把编辑后的标题、正文、保存范围、分类备注和经验候选状态送到 Viewer 待审阅队列。它还会用本地 fixture 检查 ChatGPT、Claude、Gemini、Perplexity、Grok、DeepSeek 的输入框和对话 selector 至少能命中最小页面模型。第二个命令会生成可分发的本地预览包：`artifacts/agent-memory-lab-extension.zip`，并检查 zip 里包含 manifest、content script、侧栏、弹窗、设置页、shared 数据结构和 PNG 图标。第三个命令会汇总当前交付状态和下一步真实站点验收目标。
-
-本地 fixture 不是正式站点验收的替代品，只是防回归网。真正发布前仍需在真实 AI 页面打开插件，确认输入框旁提示、插入、复制和侧栏诊断都可用。
-
-把 zip 发给别人本地试用时，先解压 `artifacts/agent-memory-lab-extension.zip`，阅读解压目录里的 `browser-extension/LOAD-THIS-FIRST.md`，再在 Chrome / Edge 的“加载已解压的扩展程序”里选择解压出来的 `browser-extension/` 文件夹。
-
-权限和隐私说明见：[`docs/browser-extension-privacy-cn.md`](../docs/browser-extension-privacy-cn.md)。
-
-英文隐私政策草稿见：[`docs/browser-extension-privacy-en.md`](../docs/browser-extension-privacy-en.md)。
-
-英文商店发布文案草稿见：[`docs/browser-extension-store-listing-en.md`](../docs/browser-extension-store-listing-en.md)。
-
-真实 AI 站点验收记录见：[`docs/browser-extension-ai-validation-cn.md`](../docs/browser-extension-ai-validation-cn.md)。
-
-真实 AI 站点测试卡见：[`docs/browser-extension-ai-site-test-cards-cn.md`](../docs/browser-extension-ai-site-test-cards-cn.md)。zip 试用包里也包含 `AI-SITE-TEST-CARDS.md`，方便测试者不回到仓库也能逐站验收。
+6. 打开真实 AI 会话页面。
+7. 点击插件图标，确认“已抓取 N 条”。
+8. 回到工作台 `#sessions` 查看同步进来的会话。
 
 默认连接：
 
 ```text
 API: http://localhost:3111
-Viewer: 启动输出里的 Viewer 地址
+Viewer: http://localhost:3114
 ```
 
-## 还缺什么
+如果默认端口不可用，先确认是否已有 Agent Memory Lab 在运行；不要用上游官方包启动我们的本地版本。
 
-- 真实站点逐页验收：ChatGPT、Claude、Gemini、Perplexity、Grok、DeepSeek 都需要记录截图、浏览器版本和诊断 JSON。
-- 更精确的 AI 对话抽取器：每个产品用自己的对话节点规则，减少误抓导航、按钮和系统提示。
-- 保存前编辑候选内容：弹窗和同步侧栏已支持改标题、正文、保存范围、分类备注，并可把草稿标记为可沉淀经验。
-- 更稳定的输入框注入：按站点维护 `editorSelectors`、`anchorSelectors`、`placement` 和输入事件。
-- 选中文本快捷送审：参考 Mem0 的 selection / context menu 流程，让网页片段也能进入同一套审阅队列。
+## 数据结构
 
-## 参考方向
+插件同步的数据是最小会话包：
 
-- Mem0 / OpenMemory：Cross-LLM memory，把记忆带到 ChatGPT、Claude、Perplexity 等产品里。
-- Mem0 的实现启发：每个 AI 产品维护站点配置，再共享后台、侧栏和类型定义；记忆召回应贴近输入框，而不是藏在单独页面里。
-- Agent Memory Lab 的逐站适配方法：复制侧栏诊断 -> 更新 `shared/site-config.js` 的 selector / placement -> 同步内容脚本站点表 -> 运行 `npm run check:browser-extension` -> 在真实页面确认输入框提示和插入行为。
-- Agent Memory Lab 的差异：浏览器里只生成候选和召回建议，长期记忆写入必须经过 Viewer 的审阅、编辑、删除和来源筛选。
-- Rethread / Nico / ContextBridge / Personal AI Memory：都在强调跨 AI 产品的上下文延续。
-- Agent Memory Lab 的取向：本地优先、保存前可审阅、和主工作台统一数据，而不是把浏览器里看到的内容直接上传到云端。
+```js
+{
+  schemaVersion: 1,
+  capturedAt: "2026-06-11T00:00:00.000Z",
+  source: "browser-extension",
+  page: {
+    type: "ai-chat",
+    typeLabel: "AI 对话",
+    title: "页面标题",
+    url: "https://chatgpt.com/c/...",
+    host: "chatgpt.com",
+    origin: "https://chatgpt.com"
+  },
+  conversation: {
+    provider: "ChatGPT",
+    turns: [
+      { role: "user", text: "用户发言" },
+      { role: "assistant", text: "AI 回复" }
+    ]
+  },
+  diagnostics: {
+    supportedAiPage: true,
+    provider: "ChatGPT",
+    editorFound: true,
+    sendFound: true,
+    turnCount: 2
+  }
+}
+```
+
+不会包含：
+
+- 页面正文摘要
+- 选中文本
+- 输入框草稿
+- 页面标题结构
+- 记忆候选
+- Skill 候选
+- 插件侧的长期记忆判断
+
+## 检查命令
+
+```bash
+npm run check:browser-extension
+npm run build
+```
+
+`check:browser-extension` 会确认插件仍然只同步会话：没有候选 UI、没有插件内保存记忆消息、没有记忆建议浮窗、没有页面内容抽取字段。
+
+## 真实站点验收
+
+真实发布前需要在这些站点确认：
+
+- ChatGPT
+- Claude
+- Gemini
+- Perplexity
+- Grok
+- DeepSeek
+
+每个站点至少确认：
+
+- Provider 识别正确。
+- 页面有真实会话时 `turnCount > 0`。
+- 弹窗或侧栏显示已抓取条数。
+- 工作台 `#sessions` 里出现对应会话。
+- 原站输入、发送、滚动和附件按钮没有异常。
+- 复制诊断时不包含真实会话正文。
+
+## 边界
+
+插件不是 Web Clipper，也不是记忆编辑器。它只负责把网页 AI 对话送回本地工作台。任何“是否值得长期记住”“是否沉淀为 Skill”“是否生成待办”的判断，都应该在工作台里发生。

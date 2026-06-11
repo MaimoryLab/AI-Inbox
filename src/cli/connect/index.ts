@@ -101,7 +101,7 @@ export async function runConnect(args: string[]): Promise<void> {
   if (platform() === "win32" && !allowWindowsAdapter) {
     p.intro("agentmemory connect");
     p.log.warn(
-      "Windows: automated `connect` is not supported yet. See https://github.com/rohitg00/agentmemory#other-agents for manual install steps.",
+      "Windows: automated `connect` is not supported yet. See https://github.com/MaimoryLab/agentmemory-lab#other-agents for manual install steps.",
     );
     p.outro("Windows: manual install required — see docs");
     return;
@@ -198,7 +198,7 @@ function summarize(
   );
   if (wiredAny) {
     p.log.info(
-      "Next: install agentmemory's 8 skills into the same agent(s) so they know when to call the tools:\n  npx skills add rohitg00/agentmemory -y",
+      "Next: install agentmemory's 8 skills into the same agent(s) so they know when to call the tools:\n  npx skills add MaimoryLab/agentmemory-lab -y",
     );
   }
 

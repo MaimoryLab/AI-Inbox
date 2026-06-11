@@ -1,9 +1,6 @@
-import { buildBrowserLessonDraft, buildBrowserMemoryDraft } from './shared/schema.js';
-
 const $ = (id) => document.getElementById(id);
 const AI_SITE_TEST_CARDS_PATH = '/docs/browser-extension-ai-site-test-cards-cn.md';
 let latestCapture = null;
-let defaultDraft = { kind: 'memory', title: '', content: '', meta: {} };
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>'"]/g, (char) => ({
@@ -87,13 +84,11 @@ function buildDiagnosticReport(capture) {
         turn: matched.turn || diagnostics.turnSelector || ''
       },
       placement: diagnostics.placement || '',
-      memoryWidgetVisible: !!diagnostics.memoryWidgetVisible,
       promptLength: diagnostics.promptLength || 0,
       turnCount: diagnostics.turnCount || 0,
       checkedAt: diagnostics.checkedAt || ''
     },
     manualValidation: {
-      memoryInsertPassed: false,
       diagnosticsCopied: true,
       siteInputStillWorks: false,
       browser: '填写浏览器名称和版本',
@@ -117,140 +112,38 @@ function setConnectionState(state, text) {
   const card = $('connectionCard');
   card.className = `connection-card ${state}`;
   if (state === 'connected') {
-    $('connectionTitle').textContent = '可以保存';
-    $('connectionText').textContent = text || '内容会先放进本地工作台，由你确认后再变成长期记忆。';
+    $('connectionTitle').textContent = '正在自动同步';
+    $('connectionText').textContent = text || '网页 AI 会话会自动进入本地工作台。';
     $('connectionAction').textContent = '刷新';
-    syncSavePageState();
     return;
   }
   if (state === 'offline') {
     $('connectionTitle').textContent = '本地工作台未连接';
-    $('connectionText').textContent = text || '先启动 Agent Memory Lab，再保存网页内容。';
+    $('connectionText').textContent = text || '先启动 Agent Memory Lab，再同步网页会话。';
     $('connectionAction').textContent = '重试';
-    $('savePage').disabled = true;
     return;
   }
   $('connectionTitle').textContent = '检查连接中';
-  $('connectionText').textContent = '正在确认能否保存到本地工作台。';
+  $('connectionText').textContent = '正在确认能否同步到本地工作台。';
   $('connectionAction').textContent = '重试';
 }
 
-function candidateEmptyState(kind) {
-  const capture = latestCapture || {};
-  const page = capture.page || {};
-  const conversation = capture.conversation || {};
-  const turns = Array.isArray(conversation.turns) ? conversation.turns : [];
-  const provider = conversation.provider || '';
-  if (provider && !turns.length) {
-    return {
-      title: kind === 'lesson' ? '还不能沉淀经验' : '还不能生成记忆',
-      body: '插件还没有读到这页的具体对话。为了避免把网页介绍、链接或输入框草稿误存成记忆，请先展开真实对话，或选中一段具体内容后再保存。'
-    };
-  }
-  return {
-    title: kind === 'lesson' ? '暂时没有经验建议' : '暂时没有记忆建议',
-    body: page.selection ? '选中的内容还不够具体，可以手动改写后加入待确认。' : '当前页面还没有足够具体的信息，可以选中一段内容，或在准备保存区手动补充。'
-  };
-}
-
-function renderCandidateList(node, items, kind) {
-  if (!items || !items.length) {
-    node.className = 'candidate-list empty';
-    const empty = candidateEmptyState(kind);
-    node.innerHTML = `<div class="empty-card"><strong>${escapeHtml(empty.title)}</strong><span>${escapeHtml(empty.body)}</span></div>`;
-    return;
-  }
-  node.className = 'candidate-list';
-  node.innerHTML = items.map((text) => `
-    <article class="candidate">
-      <p>${escapeHtml(text)}</p>
-      <button data-draft-kind="${kind}" data-draft-text="${escapeHtml(text)}">使用这条</button>
-    </article>
-  `).join('');
-}
-
-function normalizeTags(tags) {
-  const seen = new Set();
-  return String(Array.isArray(tags) ? tags.join(',') : tags || '')
-    .split(/[,，\s]+/)
-    .map((tag) => tag.trim())
-    .filter(Boolean)
-    .filter((tag) => {
-      const key = tag.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-}
-
-function buildDraftMetaFields(capture, kind = 'memory') {
-  const page = capture && capture.page ? capture.page : {};
-  const provider = capture && capture.conversation && capture.conversation.provider ? capture.conversation.provider : '';
-  const typeLabel = String(page.typeLabel || '').trim();
-  const tags = ['browser', provider ? provider.toLowerCase() : '', typeLabel ? typeLabel.toLowerCase() : '', kind === 'lesson' ? 'lesson' : 'memory'];
-  return {
-    projectScope: provider ? 'page' : 'all',
-    project: provider || page.host || 'browser',
-    tags: normalizeTags(tags.join(', ')),
-    asLesson: kind === 'lesson'
-  };
-}
-
-function setDraftMetaFields(meta = {}) {
-  $('draftProject').value = meta.projectScope === 'page' ? 'page' : 'all';
-  $('draftTags').value = normalizeTags(meta.tags || '').join(', ');
-  $('draftAsLesson').checked = !!meta.asLesson;
-}
-
-function getDraftMetaFields() {
-  const page = latestCapture && latestCapture.page ? latestCapture.page : {};
-  const provider = latestCapture && latestCapture.conversation && latestCapture.conversation.provider ? latestCapture.conversation.provider : '';
-  const projectScope = $('draftProject').value === 'page' ? 'page' : 'all';
-  return {
-    projectScope,
-    project: projectScope === 'page' ? (provider || page.host || 'browser') : 'all',
-    tags: normalizeTags($('draftTags').value),
-    asLesson: $('draftAsLesson').checked
-  };
-}
-
-function buildDefaultDraft(capture) {
-  const draft = buildBrowserMemoryDraft(capture);
-  return {
-    kind: 'memory',
-    title: draft.title || '浏览器记忆候选',
-    content: draft.content,
-    emptyReason: draft.emptyReason || '',
-    meta: buildDraftMetaFields(capture, 'memory')
-  };
-}
-
-function draftMetaText(capture, kind) {
+function draftMetaText(capture) {
   const page = capture && capture.page ? capture.page : {};
   const provider = capture && capture.conversation && capture.conversation.provider ? capture.conversation.provider : '';
   const source = provider || page.typeLabel || page.host || '浏览器';
-  const meta = getDraftMetaFields();
-  const type = meta.asLesson || kind === 'lesson' ? '会整理成经验' : '会保存为记忆';
-  const project = meta.projectScope === 'all' ? '以后都能用' : '只和这个网页相关';
-  const tags = meta.tags.length ? `已加备注：${meta.tags.join('、')}` : '还没有分类备注';
-  const privacy = capture && capture.privacy && capture.privacy.risk === 'medium' ? '可能含敏感信息，建议先删改' : '保存后仍需在工作台确认';
-  return `${source} · ${project} · ${tags} · ${type} · ${privacy}`;
+  return `${source} · 只同步会话原文`;
 }
 
-function setDraft(draft, options = {}) {
-  defaultDraft = options.defaultDraft ? draft : defaultDraft;
-  $('draftTitle').value = draft.title || '';
-  $('draftContent').value = draft.content || draft.emptyReason || '';
-  $('draftContent').dataset.kind = draft.kind || 'memory';
-  syncSavePageState();
-  setDraftMetaFields(draft.meta || buildDraftMetaFields(latestCapture, draft.kind || 'memory'));
-  $('draftMeta').textContent = draftMetaText(latestCapture, draft.kind || 'memory');
-}
-
-function syncSavePageState() {
-  const text = $('draftContent').value.trim();
-  const emptyReason = defaultDraft && defaultDraft.emptyReason ? defaultDraft.emptyReason.trim() : '';
-  $('savePage').disabled = !text || (!!emptyReason && text === emptyReason);
+function renderSyncState(capture) {
+  const turns = capture && capture.conversation && Array.isArray(capture.conversation.turns) ? capture.conversation.turns : [];
+  const provider = capture && capture.conversation && capture.conversation.provider ? capture.conversation.provider : '';
+  $('turnSummary').textContent = `${turns.length} 条`;
+  $('syncMode').textContent = provider ? '自动' : '等待';
+  $('draftAssist').textContent = turns.length
+    ? `已读到 ${turns.length} 条网页对话，会自动同步到工作台。`
+    : '还没有读到真实对话。打开或展开 AI 对话后会自动同步。';
+  $('draftMeta').textContent = draftMetaText(capture);
 }
 
 function renderTurns(turns) {
@@ -284,23 +177,20 @@ function renderDiagnostics(capture) {
   $('copyEvidenceCommand').disabled = false;
   $('evidenceCommandHint').hidden = false;
   $('aiProvider').textContent = diagnostics.provider || 'AI 页面';
-  const readyForTrial = !!(diagnostics.editorFound && diagnostics.anchorFound && diagnostics.memoryWidgetVisible && diagnostics.sendFound);
+  const readyForTrial = !!(diagnostics.supportedAiPage && diagnostics.turnCount > 0);
   const missing = [];
-  if (!diagnostics.editorFound) missing.push('输入框');
-  if (!diagnostics.anchorFound || !diagnostics.memoryWidgetVisible) missing.push('记忆入口');
-  if (!diagnostics.sendFound) missing.push('发送按钮');
+  if (!diagnostics.supportedAiPage) missing.push('AI 页面');
+  if (!diagnostics.turnCount) missing.push('会话内容');
   $('aiValidationSummary').className = `validation-summary ${readyForTrial ? 'ready' : 'needs-check'}`;
   $('aiValidationSummary').innerHTML = `
-    <strong>${readyForTrial ? '页面识别正常' : '页面识别待确认'}</strong>
-    <span>${readyForTrial ? '输入框、记忆入口和发送按钮都已识别。' : `还缺：${escapeHtml(missing.join('、') || '页面结构确认')}`}</span>
+    <strong>${readyForTrial ? '会话抓取正常' : '会话抓取未就绪'}</strong>
+    <span>${readyForTrial ? '已读到网页里的 AI 会话。' : `还缺：${escapeHtml(missing.join('、') || '页面结构确认')}`}</span>
   `;
   const rows = [
     { label: '页面', value: diagnostics.provider || '已识别', ok: true },
     { label: '输入框', value: diagnostics.editorFound ? '可用' : '未找到', ok: !!diagnostics.editorFound },
-    { label: '记忆入口', value: diagnostics.anchorFound ? '可显示' : '未找到合适位置', ok: !!diagnostics.anchorFound },
     { label: '发送按钮', value: diagnostics.sendFound ? '未受影响' : '未确认', ok: !!diagnostics.sendFound },
-    { label: '输入草稿', value: `${diagnostics.promptLength || 0} 字`, ok: true },
-    { label: '最近对话', value: `${diagnostics.turnCount || 0} 条`, ok: true }
+    { label: '已抓取会话', value: `${diagnostics.turnCount || 0} 条`, ok: (diagnostics.turnCount || 0) > 0 }
   ];
   $('aiDiagnosticList').innerHTML = rows.map((row) => `
     <div class="diagnostic-row${row.ok ? '' : ' warn'}">
@@ -320,7 +210,7 @@ function renderRecent(items) {
   node.className = 'recent-list';
   node.innerHTML = items.slice(0, 6).map((item) => `
     <article class="recent-item">
-      <div class="recent-meta">${escapeHtml(item.typeLabel || item.host || '')} · ${item.kind === 'review' ? '待确认' : item.kind === 'lesson' ? '经验' : '记忆'}</div>
+      <div class="recent-meta">${escapeHtml(item.typeLabel || item.host || '')} · 会话同步</div>
       <div class="recent-title">${escapeHtml(item.title || '未命名页面')}</div>
     </article>
   `).join('');
@@ -332,16 +222,9 @@ function renderCapture(capture) {
   $('pageType').textContent = page.typeLabel || '网页';
   $('pageTitle').textContent = page.title || '当前页面';
   $('pageUrl').textContent = page.url || '';
-  const reasons = capture.privacy && capture.privacy.reasons ? capture.privacy.reasons : [];
-  $('privacy').textContent = reasons.length ? reasons.join('、') : '隐私风险低';
-  $('privacy').className = `privacy ${capture.privacy && capture.privacy.risk === 'medium' ? 'medium' : 'low'}`;
-  const memories = capture.candidates && capture.candidates.memories ? capture.candidates.memories : [];
-  const lessons = capture.candidates && capture.candidates.lessons ? capture.candidates.lessons : [];
-  $('memoryCount').textContent = String(memories.length);
-  $('lessonCount').textContent = String(lessons.length);
-  renderCandidateList($('memoryCandidates'), memories, 'memory');
-  renderCandidateList($('lessonCandidates'), lessons, 'lesson');
-  setDraft(buildDefaultDraft(capture), { defaultDraft: true });
+  $('privacy').textContent = '只同步会话';
+  $('privacy').className = 'type-pill';
+  renderSyncState(capture);
   renderDiagnostics(capture);
   renderTurns(capture.conversation && capture.conversation.turns ? capture.conversation.turns : []);
 }
@@ -370,31 +253,6 @@ async function refresh() {
   }
 }
 
-document.addEventListener('click', async (event) => {
-  const target = event.target.closest('[data-draft-kind]');
-  if (!target) return;
-  const kind = target.dataset.draftKind || 'memory';
-  const page = latestCapture && latestCapture.page ? latestCapture.page : {};
-  const selectedText = target.dataset.draftText || '';
-  const source = latestCapture && latestCapture.conversation && latestCapture.conversation.provider
-    ? latestCapture.conversation.provider
-    : page.typeLabel || page.host || '浏览器';
-  const lessonDraft = kind === 'lesson' ? buildBrowserLessonDraft({
-    ...latestCapture,
-    candidates: {
-      ...(latestCapture && latestCapture.candidates ? latestCapture.candidates : {}),
-      lessons: selectedText ? [selectedText] : []
-    }
-  }) : null;
-  setDraft({
-    kind,
-    title: lessonDraft ? lessonDraft.title : selectedText.slice(0, 42) || page.title || '记忆候选',
-    content: lessonDraft ? lessonDraft.content : [`候选事实：${selectedText}`, `依据：来自 ${source} 的具体内容`].filter(Boolean).join('\n'),
-    meta: buildDraftMetaFields(latestCapture, kind)
-  });
-  setMessage('已放入准备保存区');
-});
-
 $('refresh').addEventListener('click', refresh);
 $('connectionAction').addEventListener('click', refresh);
 $('copyDiagnostics').addEventListener('click', async () => {
@@ -413,39 +271,19 @@ $('copyEvidenceCommand').addEventListener('click', async () => {
     setMessage(err.message || '复制失败', 'error');
   }
 });
-$('savePage').addEventListener('click', async () => {
-  $('savePage').disabled = true;
-  setMessage('正在加入待确认...');
+$('syncNow').addEventListener('click', async () => {
+  $('syncNow').disabled = true;
+  setMessage('正在扫描已打开的 AI 会话...');
   try {
-    const title = $('draftTitle').value.trim();
-    const text = $('draftContent').value.trim();
-    const meta = getDraftMetaFields();
-    const kind = meta.asLesson ? 'lesson' : ($('draftContent').dataset.kind || 'memory');
-    if (!text) throw new Error('先确认一条要保存的内容');
-    await send('SAVE_CANDIDATE', { kind, title, text, meta });
-    setMessage('已加入工作台，稍后确认即可保存', 'ok');
-    await refresh();
+    const data = await send('SYNC_OPEN_AI_TABS', { force: true });
+    setMessage(`已扫描 ${data.scanned || 0} 个 AI 会话标签页，同步 ${data.synced || 0} 个`, 'ok');
   } catch (err) {
-    setMessage(err.message || '保存失败', 'error');
+    setMessage(err.message || '同步失败', 'error');
   } finally {
-    syncSavePageState();
+    $('syncNow').disabled = false;
   }
 });
-$('resetDraft').addEventListener('click', () => {
-  setDraft(defaultDraft);
-  setMessage('已恢复为自动整理的内容');
-});
-$('draftContent').addEventListener('input', syncSavePageState);
-$('draftProject').addEventListener('change', () => {
-  $('draftMeta').textContent = draftMetaText(latestCapture, $('draftContent').dataset.kind || 'memory');
-});
-$('draftTags').addEventListener('input', () => {
-  $('draftMeta').textContent = draftMetaText(latestCapture, $('draftContent').dataset.kind || 'memory');
-});
-$('draftAsLesson').addEventListener('change', () => {
-  $('draftMeta').textContent = draftMetaText(latestCapture, $('draftContent').dataset.kind || 'memory');
-});
-$('openWorkbench').addEventListener('click', () => send('OPEN_VIEWER', { tab: 'dashboard' }).catch(() => {}));
-$('openTestCards').addEventListener('click', () => send('OPEN_VIEWER', { path: AI_SITE_TEST_CARDS_PATH }).catch(() => {}));
+$('openWorkbench').addEventListener('click', () => send('OPEN_VIEWER', { tab: 'sessions' }).catch(() => {}));
+$('closePanel').addEventListener('click', () => window.close());
 
 refresh();

@@ -78,7 +78,7 @@ echo "agentmemory backfill — server: $URL"
 
 # --- liveness ---
 if ! curl -fsS "${META_CURL_OPTS[@]}" "$URL/agentmemory/livez" >/dev/null; then
-  echo "server not reachable at $URL (try: npx @agentmemory/agentmemory)" >&2
+  echo "server not reachable at $URL (try: npm run start:local-memory)" >&2
   exit 1
 fi
 

@@ -48,9 +48,11 @@ const sidepanel = readFileSync('browser-extension/sidepanel.js', 'utf8');
 const schema = readFileSync('browser-extension/shared/schema.js', 'utf8');
 const manifestText = readFileSync('browser-extension/manifest.json', 'utf8');
 const siteConfig = readFileSync('browser-extension/shared/site-config.js', 'utf8');
+const sidepanelCss = readFileSync('browser-extension/sidepanel.css', 'utf8');
 const sharedApi = readFileSync('browser-extension/shared/api.js', 'utf8');
-if (!contentScript.includes('DEMO_MEMORIES') || !contentScript.includes("provider.id === 'agentmemoryDemo'")) {
-  throw new Error('Content script must provide local demo memories for the Agent Memory Demo page.');
+const config = readFileSync('browser-extension/config.js', 'utf8');
+if (!manifest.description || !/自动抓取网页 AI 会话/.test(manifest.description)) {
+  throw new Error('Manifest description must be Chinese and describe browser conversation sync.');
 }
 const contentProviders = [...contentScript.matchAll(/id:\s*'([^']+)'/g)].map((match) => match[1]);
 const sharedProviders = [...siteConfig.matchAll(/\n\s*([a-z0-9_-]+):\s*\{\s*\n\s*id:\s*'([^']+)'/g)].map((match) => match[2]);
@@ -62,29 +64,62 @@ if (missingInContent.length || missingInShared.length) {
 }
 
 const menuContexts = JSON.stringify(manifest.permissions || []) + serviceWorker;
-if (!serviceWorker.includes('saveContextSelection') || !serviceWorker.includes('browser-extension-selection')) {
-  throw new Error('Service worker must save selected text into the same review queue.');
+if (!menuContexts.includes("contexts: ['page']") || !serviceWorker.includes('sync-page-conversation')) {
+  throw new Error('Context menu must expose page-level workbench sync, not manual memory saving.');
 }
-if (!serviceWorker.includes('browser-extension-link') || !serviceWorker.includes('browser-context:link')) {
-  throw new Error('Service worker must preserve right-click link context.');
+if (serviceWorker.includes("id: 'save-page-memory'") || serviceWorker.includes("contexts: ['page', 'selection', 'link']")) {
+  throw new Error('Context menu must not expose manual page/selection/link memory saving.');
 }
-if (!menuContexts.includes("contexts: ['page', 'selection', 'link']")) {
-  throw new Error('Context menu must expose page, selection, and link save actions.');
+if (!popupJs.includes('已自动抓取') || !popupHtml.includes('draftAssist') || !popupHtml.includes('syncNow')) {
+  throw new Error('Popup must expose automatic browser conversation sync status.');
 }
-if (!popupHtml.includes('待确认内容') || !popupHtml.includes('draftContent') || !popupHtml.includes('resetDraft')) {
-  throw new Error('Popup must expose an editable review draft before saving.');
+if (!popupHtml.includes('closePopup') || !popupHtml.includes('aria-label="打开工作台"') || popupHtml.includes('打开工作台</button>') || popupHtml.includes('查看会话</button>')) {
+  throw new Error('Popup must use compact top-right workbench controls instead of a large workbench button.');
 }
-for (const field of ['draftProject', 'draftTags', 'draftAsLesson']) {
-  if (!popupHtml.includes(field)) throw new Error(`Popup review draft missing ${field}.`);
+for (const forbidden of [
+  'draftAsLesson',
+  'draftTitle',
+  'draftContent',
+  'draftProject',
+  'draftTags',
+  '整理成可复用经验',
+  '加入待确认',
+  '保存到记忆',
+  '本地判断',
+  '记忆候选',
+  '候选记忆',
+  '暂时没有记忆建议',
+  '记忆入口',
+  '记忆建议',
+  '待确认',
+  '经验候选'
+]) {
+  if (popupHtml.includes(forbidden) || popupJs.includes(forbidden) || sidepanelHtml.includes(forbidden) || sidepanel.includes(forbidden)) {
+    throw new Error(`Extension must not expose memory candidate UI: ${forbidden}.`);
+  }
 }
-if (!popupJs.includes('buildDraft') || !popupJs.includes('SAVE_CANDIDATE') || !popupJs.includes('resetDraft')) {
-  throw new Error('Popup must save the edited review draft via SAVE_CANDIDATE.');
+for (const forbidden of ['SAVE_PAGE_MEMORY', 'SAVE_PAGE_LESSON', 'SAVE_CANDIDATE', 'SEARCH_MEMORIES', 'buildBrowserMemoryDraft', 'buildBrowserLessonDraft', 'captureToMemoryPayload', 'captureToLessonPayload', 'candidates:', 'DEMO_MEMORIES', 'agent-memory-lab-widget', 'data-insert-memory', 'data-copy-memory']) {
+  if (contentScript.includes(forbidden) || serviceWorker.includes(forbidden) || schema.includes(forbidden) || sidepanel.includes(forbidden) || popupJs.includes(forbidden)) {
+    throw new Error(`Extension must only sync conversations; found stale path: ${forbidden}.`);
+  }
 }
-if (!popupJs.includes('getDraftMetaFields') || !serviceWorker.includes('message.meta')) {
-  throw new Error('Popup draft metadata must be sent with review candidates.');
+if (!contentScript.includes('scheduleConversationSync') || !contentScript.includes('SYNC_PAGE_CONVERSATION')) {
+  throw new Error('Content script must automatically sync browser conversations to the workbench.');
+}
+if (!contentScript.includes('MAX_CAPTURE_TURNS = 160') || contentScript.includes('return turns.slice(-8)') || schema.includes('slice(-8)')) {
+  throw new Error('Browser conversation capture must preserve full AI sessions instead of only the latest 8 turns.');
+}
+if (!serviceWorker.includes('async function syncPageConversation') || !serviceWorker.includes("source: 'browser-sync'") || !serviceWorker.includes("mode: 'sync'")) {
+  throw new Error('Service worker must send browser conversations as automatic sync events.');
+}
+if (!popupJs.includes("send('SYNC_OPEN_AI_TABS'") || !sidepanel.includes("send('SYNC_OPEN_AI_TABS'")) {
+  throw new Error('Popup and side panel must support syncing all open AI conversation tabs.');
+}
+if (!serviceWorker.includes('syncOpenAiConversationTabs') || !serviceWorker.includes('chrome.tabs.query({})') || !serviceWorker.includes('chrome.alarms.create')) {
+  throw new Error('Service worker must scan open AI conversation tabs automatically.');
 }
 if (!serviceWorker.includes('conversation: capture.conversation')) {
-  throw new Error('Browser review candidates must preserve captured browser conversation turns.');
+  throw new Error('Browser sync events must preserve captured browser conversation turns.');
 }
 if (!popupHtml.includes('本地工作台') || !popupHtml.includes('versionInfo') || popupHtml.includes('openGuide')) {
   throw new Error('Popup must expose local workbench status and version without a tester guide entry.');
@@ -92,47 +127,20 @@ if (!popupHtml.includes('本地工作台') || !popupHtml.includes('versionInfo')
 if (!popupJs.includes('getManifest') || popupJs.includes('external-tester-guide-cn.md')) {
   throw new Error('Popup must render extension version without linking stale external guide docs.');
 }
-if (!popupJs.includes('buildBrowserMemoryDraft') || !serviceWorker.includes('buildBrowserMemoryDraft') || !sidepanel.includes('buildBrowserMemoryDraft')) {
-  throw new Error('Browser extension must draft concrete facts before sending review candidates.');
+for (const stalePageField of ['description:', 'selection:', 'headings:', 'promptDraft:', 'privacy:', 'candidates:']) {
+  if (schema.includes(stalePageField)) throw new Error(`Shared capture schema must not include page extraction field: ${stalePageField}`);
 }
-if (!schema.includes('buildBrowserLessonDraft') || !serviceWorker.includes('buildBrowserLessonDraft') || !sidepanel.includes('buildBrowserLessonDraft')) {
-  throw new Error('Browser extension must draft lessons from concrete conversation evidence.');
+if (!sidepanel.includes('正在自动同步') || !sidepanelHtml.includes('draftAssist') || !sidepanelHtml.includes('syncNow')) {
+  throw new Error('Side panel must expose automatic browser conversation sync status.');
 }
-if (!schema.includes('conversationSummaryFacts') || sidepanel.includes('function conversationSummaryFacts')) {
-  throw new Error('Browser extension side panel must use shared conversation extraction rules.');
+if (!sidepanelHtml.includes('closePanel') || !sidepanelHtml.includes('aria-label="打开工作台"') || sidepanelHtml.includes('工作台</button>') || sidepanelHtml.includes('footer-actions')) {
+  throw new Error('Side panel must use compact top-right workbench controls instead of a footer workbench button.');
 }
-if (schema.includes('从当前页面提炼具体事实') || sidepanel.includes('请从这个页面提炼一条具体事实')) {
-  throw new Error('Browser extension must not create vague page-title memory fallbacks when no concrete conversation was captured.');
+if (sidepanel.includes('data-draft-kind') || sidepanel.includes('SAVE_CANDIDATE')) {
+  throw new Error('Side panel must not route users through manual candidate editing.');
 }
-if (!schema.includes('hasConcreteMemoryEvidence') || !schema.includes('需要具体对话后再保存') || !sidepanel.includes('emptyReason')) {
-  throw new Error('Browser extension must show a clear empty state instead of saving vague memory candidates.');
-}
-for (const marker of ['还不能生成记忆', '还不能沉淀经验', '没有读到这页的具体对话', '展开真实对话', '选中一段具体内容']) {
-  if (!sidepanel.includes(marker)) throw new Error(`Side panel empty state missing concrete conversation guidance: ${marker}.`);
-}
-if (!schema.includes('刘欣（Liu Xin）') || !schema.includes('UI\\/?UX')) {
-  throw new Error('Browser memory extraction must handle concrete identity/background facts from AI conversations.');
-}
-for (const marker of ['对话依据', 'ChatGPT\\s*是一款供日常使用']) {
-  if (!schema.includes(marker)) throw new Error(`Shared lesson drafting guard missing ${marker}.`);
-}
-if (schema.includes('从当前网页提炼一条可复用经验') || schema.includes('这段对话还没有足够内容提炼经验，请选择具体对话或补充一句经验')) {
-  throw new Error('Shared lesson drafting must not generate vague lesson placeholders without concrete evidence.');
-}
-if (!sidepanelHtml.includes('待确认内容') || !sidepanelHtml.includes('draftContent') || !sidepanelHtml.includes('resetDraft')) {
-  throw new Error('Side panel must expose an editable review draft before saving.');
-}
-for (const field of ['draftProject', 'draftTags', 'draftAsLesson']) {
-  if (!sidepanelHtml.includes(field)) throw new Error(`Side panel review draft missing ${field}.`);
-}
-if (!sidepanel.includes('buildDefaultDraft') || !sidepanel.includes('data-draft-kind') || !sidepanel.includes('SAVE_CANDIDATE')) {
-  throw new Error('Side panel must route candidates through the editable review draft.');
-}
-if (!sidepanel.includes('getDraftMetaFields') || !serviceWorker.includes('normalizeCandidateMeta')) {
-  throw new Error('Side panel draft metadata must reach the review queue payload.');
-}
-if (!sidepanelHtml.includes('openTestCards') || !sidepanel.includes('AI_SITE_TEST_CARDS_PATH')) {
-  throw new Error('Side panel must expose the local AI site test cards entry.');
+if (sidepanelHtml.includes('openTestCards')) {
+  throw new Error('Side panel should not expose tester cards in the ordinary extension flow.');
 }
 if (!sidepanelHtml.includes('copyEvidenceCommand') || !sidepanelHtml.includes('复制检查步骤') || !sidepanel.includes('buildEvidenceCommand') || !sidepanel.includes('wizard:ai-validation-evidence')) {
   throw new Error('Side panel must expose a copyable AI validation evidence wizard command.');
@@ -140,22 +148,25 @@ if (!sidepanelHtml.includes('copyEvidenceCommand') || !sidepanelHtml.includes('�
 for (const field of ['aiValidationSummary', 'validation-summary']) {
   if (!sidepanelHtml.includes(field) && !sidepanel.includes(field) && !sidepanelCss.includes(field)) throw new Error(`Side panel must expose the AI validation card field: ${field}.`);
 }
-for (const label of ['页面识别', '页面识别正常', '识别不准时再使用']) {
+for (const label of ['页面识别', '会话抓取正常', '识别不准时再使用']) {
   if (!sidepanelHtml.includes(label) && !sidepanel.includes(label)) throw new Error(`Side panel AI diagnostics missing label: ${label}.`);
 }
 if (!sharedApi.includes('path =') || !serviceWorker.includes('message.path')) {
   throw new Error('OPEN_VIEWER must support local viewer document paths.');
 }
+if (!sharedApi.includes('resolveApiBase') || !config.includes('viewerFallbackBase') || !config.includes('hasAgentMemoryApi')) {
+  throw new Error('Extension API client must fall back to the local viewer proxy when the REST API route is unavailable.');
+}
 if (!sharedApi.includes('resolveViewerBase') || !manifestText.includes('localhost:3114')) {
   throw new Error('Extension must discover the active Viewer port and allow the 3114 fallback viewer.');
 }
 
-for (const field of ['anchorFound', 'placement', 'memoryWidgetVisible', 'checkedAt', 'anchorSelector', 'anchorSource', 'adjacentSelector', 'sendFound', 'sendSelector', 'turnSelector', 'turnSelectorCount', 'matchedSelectors']) {
+for (const field of ['anchorFound', 'placement', 'checkedAt', 'anchorSelector', 'anchorSource', 'adjacentSelector', 'sendFound', 'sendSelector', 'turnSelector', 'turnSelectorCount', 'matchedSelectors']) {
   if (!contentScript.includes(field)) throw new Error(`Content script diagnostics missing ${field}.`);
   if (!schema.includes(field)) throw new Error(`Shared schema diagnostics must preserve ${field}.`);
   if (!sidepanel.includes(field)) throw new Error(`Side panel diagnostics must expose ${field}.`);
 }
-for (const label of ['页面', '输入框', '记忆入口', '发送按钮', '最近对话']) {
+for (const label of ['页面', '输入框', '发送按钮', '已抓取会话']) {
   if (!sidepanel.includes(label)) throw new Error(`Side panel diagnostics must show ${label}.`);
 }
 for (const internalLabel of ['输入规则', '锚点规则', '相邻控件', '发送规则', '会话规则']) {
@@ -164,7 +175,7 @@ for (const internalLabel of ['输入规则', '锚点规则', '相邻控件', '�
 for (const field of ['getManifest', 'manifestVersion', 'version']) {
   if (!sidepanel.includes(field)) throw new Error(`Diagnostic report must include extension ${field}.`);
 }
-for (const field of ['manualValidation', 'memoryInsertPassed', 'diagnosticsCopied', 'siteInputStillWorks']) {
+for (const field of ['manualValidation', 'diagnosticsCopied', 'siteInputStillWorks']) {
   if (!sidepanel.includes(field)) throw new Error(`Diagnostic report must include manual validation template field ${field}.`);
 }
 for (const field of ['validationGuide', 'requiredProducts', 'ChatGPT', 'Claude', 'Gemini', 'Perplexity', '/docs/browser-extension-ai-site-test-cards-cn.md']) {

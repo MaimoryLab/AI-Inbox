@@ -15,9 +15,9 @@
 //
 // We then write `~/.agentmemory/preferences.json` and seed
 // `~/.agentmemory/.env` with a commented-out `*_API_KEY=` line for the
-// chosen provider. This matches the existing `agentmemory init` flow
+// chosen provider. This matches the existing `agentmemory-lab init` flow
 // closely so users who skip onboarding still get the same file via
-// `agentmemory init`.
+// `agentmemory-lab init`.
 
 import { copyFile, mkdir } from "node:fs/promises";
 import { constants as fsConstants, existsSync, writeFileSync } from "node:fs";
@@ -93,7 +93,7 @@ export function getInitialAgentValues(
 }
 
 // Mirror src/cli.ts findEnvExample so onboarding ships the same .env
-// skeleton whether called directly or via `agentmemory init`. We
+// skeleton whether called directly or via `agentmemory-lab init`. We
 // duplicate (rather than import) so the onboarding module doesn't
 // pull cli.ts's top-level side effects into the test runner.
 function findEnvExample(): string | null {
@@ -234,7 +234,7 @@ export async function runOnboarding(): Promise<OnboardingResult> {
   if (envPath) {
     lines.push(`✓ Wrote ${envPath} (edit to add your API key)`);
   } else {
-    lines.push(`! Could not write ~/.agentmemory/.env — run \`agentmemory init\` after this completes.`);
+    lines.push(`! Could not write ~/.agentmemory/.env — run \`agentmemory-lab init\` after this completes.`);
   }
   if (provider) {
     const envKey = PROVIDERS.find((x) => x.value === provider)?.envKey;

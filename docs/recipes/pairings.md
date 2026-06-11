@@ -86,7 +86,7 @@ Four planes, four consumers, four update models. None of them try to do what the
 
 | Project | Plane | Surface | Consumer | Update model |
 |---|---|---|---|---|
-| [agentmemory](https://github.com/rohitg00/agentmemory) | session history (observations, decisions, preferences) | MCP + REST + hooks | agent | live (observations stream) |
+| [agentmemory](https://github.com/MaimoryLab/agentmemory-lab) | session history (observations, decisions, preferences) | MCP + REST + hooks | agent | live (observations stream) |
 | [codegraph](https://github.com/colbymchenry/codegraph) | code structure (symbols, call edges, routes) | MCP server | agent | live (FS watcher) |
 | [Understand Anything](https://github.com/Lum1104/Understand-Anything) | code structure + business domain + architecture | plugin (slash commands) + web dashboard | **human** + agent | on-demand `/understand` |
 | [Graphify](https://github.com/safishamsi/graphify) | code + docs + PDFs + images + videos | skill (slash command) | human + agent | on-demand `/graphify` |
@@ -106,7 +106,7 @@ Four planes, four consumers, four update models. None of them try to do what the
 
 ## Suggested install order for a brand-new project
 
-1. **agentmemory** — observe and persist from day one, even before the codebase has structure. Run `npx @agentmemory/agentmemory connect` and pick your agent.
+1. **agentmemory** — observe and persist from day one, even before the codebase has structure. Run `npm run start:local-memory connect` and pick your agent.
 2. **codegraph** — once code lands, agent queries answer from the index instead of grepping. Run `npx @colbymchenry/codegraph`.
 3. **Understand Anything** *or* **Graphify** — when the codebase passes a few thousand LOC or starts shipping docs and PDFs alongside code, generate the graph for visual exploration and onboarding. Run `/plugin install understand-anything` or `uv tool install graphifyy && graphify install`.
 

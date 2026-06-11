@@ -81,15 +81,10 @@ const fakeCapture = {
       turn: '[data-message-author-role]'
     },
     placement: 'after-editor',
-    memoryWidgetVisible: true,
     promptLength: 36,
     turnCount: 2,
     checkedAt: '2026-06-09T00:00:00.000Z'
   },
-  candidates: {
-    memories: ['PRIVATE_MEMORY_CANDIDATE_SHOULD_NOT_LEAK'],
-    lessons: ['PRIVATE_LESSON_CANDIDATE_SHOULD_NOT_LEAK']
-  }
 };
 
 function makeReport(capture) {
@@ -141,13 +136,11 @@ function makeReport(capture) {
         turn: matched.turn || diagnostics.turnSelector || ''
       },
       placement: diagnostics.placement || '',
-      memoryWidgetVisible: !!diagnostics.memoryWidgetVisible,
       promptLength: diagnostics.promptLength || 0,
       turnCount: diagnostics.turnCount || 0,
       checkedAt: diagnostics.checkedAt || ''
     },
     manualValidation: {
-      memoryInsertPassed: false,
       diagnosticsCopied: true,
       siteInputStillWorks: false,
       browser: '填写浏览器名称和版本',
@@ -163,9 +156,7 @@ for (const secret of [
   'PRIVATE_HEADING_SHOULD_NOT_LEAK',
   'PRIVATE_PROMPT_DRAFT_SHOULD_NOT_LEAK',
   'PRIVATE_USER_TURN_SHOULD_NOT_LEAK',
-  'PRIVATE_ASSISTANT_TURN_SHOULD_NOT_LEAK',
-  'PRIVATE_MEMORY_CANDIDATE_SHOULD_NOT_LEAK',
-  'PRIVATE_LESSON_CANDIDATE_SHOULD_NOT_LEAK'
+  'PRIVATE_ASSISTANT_TURN_SHOULD_NOT_LEAK'
 ]) {
   if (reportText.includes(secret)) throw new Error(`Diagnostic JSON leaked private content: ${secret}`);
 }

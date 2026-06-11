@@ -18,7 +18,7 @@
 // own output without needing any OTEL wiring. If we later want
 // structured OTEL logs, this file is the only thing that changes.
 //
-// See rohitg00/agentmemory#143 follow-up — the #116 migration updated
+// See MaimoryLab/agentmemory-lab#143 follow-up — the #116 migration updated
 // test mocks but left the real `getContext()` imports in place, which
 // passed `npm test` (tests mock iii-sdk) and `npm run build` (tsdown
 // doesn't type-check) but crashed `node dist/index.mjs` on first

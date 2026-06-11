@@ -118,12 +118,12 @@ function vlog(msg: string): void {
 
 if (args.includes("--help") || args.includes("-h")) {
   console.log(`
-agentmemory — persistent memory for AI coding agents
+Agent Memory Lab — local-first memory workbench for AI agents
 
-Usage: agentmemory [command] [options]
+Usage: agentmemory-lab [command] [options]
 
 Commands:
-  (default)          Start agentmemory worker
+  (default)          Start Agent Memory Lab worker
   init               Copy bundled .env.example to ~/.agentmemory/.env if absent
   connect [agent]    Wire agentmemory into an installed agent (claude-code,
                      copilot-cli, codex, cursor, gemini-cli, openclaw,
@@ -134,7 +134,7 @@ Commands:
   doctor             Interactive diagnostic + fixer. [F]ix · [S]kip · [?]more · [Q]uit
                      --all: apply every fix without prompting (CI)
                      --dry-run: show what each fix would do, don't execute
-  remove             Cleanly uninstall agentmemory (pidfile, state, .env, binaries).
+  remove             Cleanly uninstall Agent Memory Lab (pidfile, state, .env, binaries).
                      --force: skip confirmations · --keep-data: keep memory data
   demo               Seed sample sessions and show recall in action
   upgrade            Upgrade local deps + iii runtime (best effort)
@@ -164,13 +164,13 @@ Environment:
   AGENTMEMORY_III_VERSION      Override pinned iii-engine version (default ${IIPINNED_VERSION}).
 
 Quick start:
-  npx @agentmemory/agentmemory          # start with local iii-engine or Docker
-  npx @agentmemory/agentmemory demo     # see semantic recall in 30 seconds
-  npx @agentmemory/agentmemory doctor   # diagnose config + feature flags
-  npx @agentmemory/agentmemory status   # health + memory count + flags
-  npx @agentmemory/agentmemory upgrade  # upgrade agentmemory + iii runtime
-  npx @agentmemory/agentmemory mcp      # standalone MCP server (no engine)
-  npx @agentmemory/mcp                  # same as above (shim package)
+  git clone https://github.com/MaimoryLab/agentmemory-lab
+  cd agentmemory-lab
+  npm install
+  npm run build
+  npm run start:local-memory       # start the MaimoryLab workbench
+  node dist/cli.mjs demo           # seed local demo data
+  node dist/cli.mjs status         # health + memory count + flags
 `);
   process.exit(0);
 }
@@ -237,13 +237,15 @@ function getViewerUrl(): string {
   try {
     const u = new URL(getBaseUrl());
     const vPort =
+      parseInt(process.env["AGENTMEMORY_VIEWER_PORT"] || "", 10) ||
       parseInt(process.env["III_VIEWER_PORT"] || "", 10) ||
-      (parseInt(u.port || "3111", 10) || 3111) + 2;
+      (parseInt(u.port || "3111", 10) || 3111) + 3;
     return `${u.protocol}//${u.hostname}:${vPort}`;
   } catch {
     const vPort =
+      parseInt(process.env["AGENTMEMORY_VIEWER_PORT"] || "", 10) ||
       parseInt(process.env["III_VIEWER_PORT"] || "", 10) ||
-      getRestPort() + 2;
+      getRestPort() + 3;
     return `http://localhost:${vPort}`;
   }
 }
@@ -391,7 +393,7 @@ function enforceEngineVersionPin(iiiBinPath: string | null | undefined): void {
     ? `curl -fsSL https://github.com/iii-hq/iii/releases/download/iii/v${IIPINNED_VERSION}/${asset} | tar -xz -C ~/.local/bin`
     : `download v${IIPINNED_VERSION} from https://github.com/iii-hq/iii/releases/tag/iii%2Fv${IIPINNED_VERSION}`;
   p.log.error(
-    `iii-engine on PATH is v${detected} but agentmemory v${VERSION} hard-pins v${IIPINNED_VERSION}. ` +
+    `iii-engine on PATH is v${detected} but Agent Memory Lab v${VERSION} hard-pins v${IIPINNED_VERSION}. ` +
       `Engine API drift causes runtime failures (e.g. state::list-not-found on v0.13.0). ` +
       `Downgrade with: \`${downloadHint}\`. ` +
       `Or set AGENTMEMORY_III_VERSION=${detected} to override at your own risk.`,
@@ -439,7 +441,7 @@ function clearEnginePidfile(): void {
 
 // Worker pidfile (#640, #474): the agentmemory worker process
 // (`node dist/index.mjs`) is spawned by iii-exec inside the engine. When
-// `agentmemory stop` kills only the engine pid, the worker can survive
+// `agentmemory-lab stop` kills only the engine pid, the worker can survive
 // (detached spawn, signal not propagated, or kept alive by a wrapper
 // script). On the next start, the orphaned worker reconnects to the new
 // engine and shows up as a duplicate registration. We write the worker
@@ -512,57 +514,11 @@ function isInvokedViaNpx(): boolean {
 }
 
 // First-run global-install prompt. Replaces the previous passive
-// `p.log.info` hint that users ignored — typing `agentmemory stop`
+// `p.log.info` hint that users ignored — typing `agentmemory-lab stop`
 // in a new shell would then 404 with `command not found`. We now
 // ask once, persist the answer in preferences, and never ask again.
 async function maybeOfferGlobalInstall(): Promise<void> {
-  if (!isInvokedViaNpx()) return;
-  if (!process.stdin.isTTY) return;
-  if (process.env["CI"]) return;
-  const prefs = readPrefs();
-  if (prefs.skipGlobalInstall || prefs.skipNpxHint) return;
-
-  const answer = await p.confirm({
-    message:
-      "Install agentmemory globally so the bare `agentmemory` command works in any shell? [Y/n]",
-    initialValue: true,
-  });
-  if (p.isCancel(answer)) {
-    // Treat Ctrl+C as "not now" rather than "never". Don't persist.
-    return;
-  }
-  if (answer === false) {
-    writePrefs({ skipGlobalInstall: true });
-    p.log.info(
-      "Skipped. Re-run via `npx @agentmemory/agentmemory` or install later with: npm install -g @agentmemory/agentmemory",
-    );
-    return;
-  }
-
-  const npmBin = whichBinary("npm");
-  if (!npmBin) {
-    p.log.warn(
-      "npm not found on PATH. Install manually: npm install -g @agentmemory/agentmemory",
-    );
-    return;
-  }
-  const ok = runCommand(
-    npmBin,
-    ["install", "-g", `@agentmemory/agentmemory@${VERSION}`],
-    { label: `Installing @agentmemory/agentmemory@${VERSION} globally` },
-  );
-  if (ok) {
-    p.log.success(
-      "Installed globally. `agentmemory stop` etc. will now work in new shells.",
-    );
-    // Persist so we never re-prompt even if the user happens to npx
-    // again from a CI-less TTY.
-    writePrefs({ skipGlobalInstall: true });
-  } else {
-    p.log.warn(
-      "Global install failed. Try manually: npm install -g @agentmemory/agentmemory",
-    );
-  }
+  return;
 }
 
 // iii-console install state.
@@ -921,12 +877,12 @@ function installInstructions(): string[] {
       `     1. Open https://github.com/iii-hq/iii/releases/tag/iii%2Fv${IIPINNED_VERSION}`,
       `     2. Download iii-x86_64-pc-windows-msvc.zip (or iii-aarch64-pc-windows-msvc.zip on ARM)`,
       "     3. Extract iii.exe to %USERPROFILE%\\.local\\bin\\iii.exe (or add to PATH)",
-      "     4. Re-run: npx @agentmemory/agentmemory",
+      "     4. Re-run: npm run start:local-memory",
       "",
       `  B) Docker: docker pull iiidev/iii:${IIPINNED_VERSION}`,
-      "     Re-run with AGENTMEMORY_USE_DOCKER=1 npx @agentmemory/agentmemory",
+      "     Re-run with AGENTMEMORY_USE_DOCKER=1 npm run start:local-memory",
       "",
-      "Or skip the engine entirely (standalone MCP):  npx @agentmemory/agentmemory mcp",
+      "Or skip the engine entirely (standalone MCP):  node dist/cli.mjs mcp",
       "",
       "Docs: https://iii.dev/docs",
     ];
@@ -938,12 +894,12 @@ function installInstructions(): string[] {
     `agentmemory needs iii-engine v${IIPINNED_VERSION}. Pick one:`,
     "",
     linuxInstall,
-    "     Then re-run: npx @agentmemory/agentmemory",
+    "     Then re-run: npm run start:local-memory",
     "",
     `  B) Docker: docker pull iiidev/iii:${IIPINNED_VERSION}`,
-    "     Re-run with AGENTMEMORY_USE_DOCKER=1 npx @agentmemory/agentmemory",
+    "     Re-run with AGENTMEMORY_USE_DOCKER=1 npm run start:local-memory",
     "",
-    "Or skip the engine entirely (standalone MCP):  npx @agentmemory/agentmemory mcp",
+    "Or skip the engine entirely (standalone MCP):  node dist/cli.mjs mcp",
     "",
     "Docs: https://iii.dev/docs",
   ];
@@ -956,20 +912,16 @@ function portInUseDiagnostic(port: number): string {
 }
 
 function workerRecoveryNote(port: number): string {
-  const stopCmd = isInvokedViaNpx()
-    ? "npx @agentmemory/agentmemory stop --force"
-    : "agentmemory stop --force";
   return [
     `Port ${port} is occupied, but the Agent Memory API is not answering /agentmemory/livez.`,
     "This usually means an iii-engine process is still bound to the port after the worker exited.",
     "",
     "Recover with:",
-    `  ${stopCmd}`,
-    `  ${isInvokedViaNpx() ? "npx @agentmemory/agentmemory" : "agentmemory"}`,
-    "",
-    "If you are developing this local repo, use:",
     "  cd /Users/szn/agentmemory",
+    "  node dist/cli.mjs stop --force",
     "  npm run start:local-memory",
+    "",
+    "Do not start this product with the upstream npm package. Use the MaimoryLab repo checkout above.",
     "",
     "Inspect the occupied port:",
     portInUseDiagnostic(port),
@@ -1014,8 +966,8 @@ function printReadyHint(consoleState: IiiConsoleState): void {
 
   const consoleLine =
     consoleState.kind === "installed"
-      ? // We can't safely probe iii-console's port (default 3113
-        // collides with our viewer) so we surface the binary location
+      ? // We surface the binary location and let the user start it
+        // on a port of their choice.
         // and let the user start it on a port of their choice. Use
         // the detected binary path so `(run: ...)` is executable as-
         // is, even when the binary isn't on PATH under the bare
@@ -1033,17 +985,9 @@ function printReadyHint(consoleState: IiiConsoleState): void {
   // p.note renders a bordered panel with a title — same affordance
   // used elsewhere in this CLI for "Troubleshooting" / "Setup
   // required" blocks, so the visual language stays consistent.
-  p.note(lines.join("\n"), `agentmemory v${VERSION}`);
+  p.note(lines.join("\n"), `Agent Memory Lab v${VERSION}`);
 
-  // Pick a runnable form for the suggested next-step. Users invoked
-  // via `npx` don't have the bare `agentmemory` command on PATH yet
-  // (unless they accepted the global-install prompt and the npm bin
-  // dir was already on PATH in this shell), so we suggest the npx
-  // form for them; everyone else gets the global form.
-  const demoCommand = isInvokedViaNpx()
-    ? "npx @agentmemory/agentmemory demo"
-    : "agentmemory demo";
-  process.stdout.write(`\nTry: ${demoCommand}\n`);
+  process.stdout.write("\nTry: node dist/cli.mjs demo\n");
 }
 
 async function main() {
@@ -1100,7 +1044,7 @@ async function main() {
     if (startupFailure?.kind === "no-docker-compose") {
       lines.unshift(
         "Docker is installed but docker-compose.yml is missing from this",
-        "install. Re-install with: npm install -g @agentmemory/agentmemory",
+        "install. Re-install with: npm install -g @maimorylab/agentmemory-lab",
         "",
       );
     }
@@ -1145,7 +1089,7 @@ async function main() {
           `Check whether port ${port} is already bound by another process:`,
           portInUseDiagnostic(port),
           "",
-          "If it is, free the port or override: agentmemory --port <N>",
+          "If it is, free the port or override: AGENTMEMORY_PORT=<N> npm run start:local-memory",
           "",
           "If it isn't, a firewall may be blocking 127.0.0.1:" + port + ".",
           "Re-run with --verbose to see engine stderr.",
@@ -1186,12 +1130,12 @@ async function apiFetch<T = unknown>(base: string, path: string, timeoutMs = 500
 async function runStatus() {
   const port = getRestPort();
   const base = getBaseUrl();
-  p.intro("agentmemory status");
+  p.intro("agentmemory-lab status");
 
   const up = await isEngineRunning();
   if (!up) {
     p.log.error(`Not running — no response at ${base}`);
-    p.log.info("Start with: npx @agentmemory/agentmemory");
+    p.log.info("Start with: npm run start:local-memory");
     process.exit(1);
   }
 
@@ -1491,7 +1435,7 @@ async function passiveServerChecks(): Promise<DoctorCheck[]> {
     ok: serverUp,
     hint: serverUp
       ? undefined
-      : `Start with: npx @agentmemory/agentmemory (tried ${base})`,
+      : `Start with: npm run start:local-memory (tried ${base})`,
   });
   if (!serverUp) return checks;
 
@@ -1554,8 +1498,8 @@ async function passiveServerChecks(): Promise<DoctorCheck[]> {
       case "not-loaded":
         return {
           ok: false,
-          hint:
-            "Plugin enabled but hooks not loaded by Claude Code. Try: /plugin uninstall agentmemory@agentmemory && /plugin install agentmemory@agentmemory, then restart the session.",
+      hint:
+            "Plugin enabled but hooks not loaded by Claude Code. Reinstall the local MaimoryLab plugin, then restart the session.",
         };
       case "no-debug-log":
         return {
@@ -1616,7 +1560,7 @@ async function applyFixWithReport(
 }
 
 async function runDoctor() {
-  p.intro("agentmemory doctor");
+  p.intro("agentmemory-lab doctor");
   const applyAll = args.includes("--all");
   const dryRun = args.includes("--dry-run");
   if (applyAll && dryRun) {
@@ -1914,12 +1858,12 @@ function findEnvExample(): string | null {
 }
 
 async function runInit() {
-  p.intro("agentmemory init");
+  p.intro("agentmemory-lab init");
   const target = join(homedir(), ".agentmemory", ".env");
   const template = findEnvExample();
   if (!template) {
     p.log.error(
-      "Could not locate .env.example in the package. Re-install with: npm i -g @agentmemory/agentmemory",
+      "Could not locate .env.example in the package. Re-install with: npm i -g @maimorylab/agentmemory-lab",
     );
     process.exit(1);
   }
@@ -1956,8 +1900,8 @@ async function runInit() {
       "",
       "Common next steps:",
       "  1. Pick an LLM provider key (ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY / etc.)",
-      "  2. Run `npx @agentmemory/agentmemory doctor` to verify the daemon sees them",
-      "  3. Run `npx @agentmemory/agentmemory` to start the worker",
+      "  2. Run `node dist/cli.mjs doctor` to verify the daemon sees them",
+      "  3. Run `npm run start:local-memory` to start the worker",
     ].join("\n"),
     "Next steps",
   );
@@ -1967,7 +1911,7 @@ async function runInit() {
 async function runDemo() {
   const port = getRestPort();
   const base = `http://localhost:${port}`;
-  p.intro("agentmemory demo");
+  p.intro("node dist/cli.mjs demo");
 
   if (!(await isAgentmemoryReady())) {
     p.log.error(
@@ -2024,7 +1968,7 @@ async function runDemo() {
   ];
 
   p.note(lines.join("\n"), "demo complete");
-  p.log.success("agentmemory is working. Point your agent at it and get back to coding.");
+  p.log.success("Agent Memory Lab is working. Point your agent at it and get back to coding.");
 }
 
 function runCommand(
@@ -2061,7 +2005,7 @@ function runCommand(
 }
 
 async function runUpgrade() {
-  p.intro("agentmemory upgrade");
+  p.intro("agentmemory-lab upgrade");
 
   const cwd = process.cwd();
   const hasPackageJson = existsSync(join(cwd, "package.json"));
@@ -2134,11 +2078,11 @@ async function runUpgrade() {
       "Upgrade flow completed.",
       "",
       "Recommended next steps:",
-      "  1) agentmemory status",
+      "  1) node dist/cli.mjs status",
       "  2) npm/pnpm test",
-      "  3) restart agentmemory process",
+      "  3) npm run start:local-memory",
     ].join("\n"),
-    "agentmemory upgrade",
+    "agentmemory-lab upgrade",
   );
 }
 
@@ -2236,11 +2180,11 @@ async function stopDockerEngine(composeFile: string, port: number): Promise<void
     );
     process.exit(1);
   }
-  p.outro("Stopped. Memories persisted to disk; restart anytime with: npx @agentmemory/agentmemory");
+  p.outro("Stopped. Memories persisted to disk; restart anytime with: npm run start:local-memory");
 }
 
 async function runStop(): Promise<void> {
-  p.intro("agentmemory stop");
+  p.intro("agentmemory-lab stop");
   const port = getRestPort();
   const state = readEngineState();
   const running = await isEngineRunning();
@@ -2362,7 +2306,7 @@ async function runStop(): Promise<void> {
     p.log.error("One or more processes survived SIGKILL. Investigate with `ps`.");
     process.exit(1);
   }
-  p.outro("Stopped. Memories persisted to disk; restart anytime with: npx @agentmemory/agentmemory");
+  p.outro("Stopped. Memories persisted to disk; restart anytime with: npm run start:local-memory");
 }
 
 async function runMcp(): Promise<void> {
@@ -2552,7 +2496,7 @@ async function runImportJsonl(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// `agentmemory remove` — clean uninstall.
+// `agentmemory-lab remove` — clean uninstall.
 //
 // Planning logic lives in src/cli/remove-plan.ts so it's testable without
 // touching $HOME. This function loads the manifest, builds the plan,
@@ -2597,7 +2541,7 @@ function safeDelete(path: string): { ok: boolean; message: string } {
 }
 
 async function runRemove(): Promise<void> {
-  p.intro("agentmemory remove");
+  p.intro("agentmemory-lab remove");
   const force = args.includes("--force");
   const keepData = args.includes("--keep-data");
 
@@ -2689,7 +2633,7 @@ async function runRemove(): Promise<void> {
   }
 
   p.outro(
-    "Done. agentmemory cleanly removed. The npm package itself: npm uninstall -g @agentmemory/agentmemory",
+    "Done. Agent Memory Lab cleanly removed. The npm package itself: npm uninstall -g @maimorylab/agentmemory-lab",
   );
 }
 

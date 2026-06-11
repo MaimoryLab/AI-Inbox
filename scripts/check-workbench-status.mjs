@@ -1,5 +1,5 @@
 const apiPort = Number(process.env.III_REST_PORT || process.env.AGENTMEMORY_API_PORT || 3111);
-const expectedViewerPort = Number(process.env.AGENTMEMORY_VIEWER_PORT || apiPort + 2);
+const expectedViewerPort = Number(process.env.AGENTMEMORY_VIEWER_PORT || apiPort + 3);
 const apiBase = `http://127.0.0.1:${apiPort}`;
 
 async function fetchJson(url) {

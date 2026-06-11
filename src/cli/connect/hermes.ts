@@ -6,7 +6,7 @@ import type { ConnectAdapter, ConnectOptions, ConnectResult } from "./types.js";
 
 const HERMES_DIR = join(homedir(), ".hermes");
 const HERMES_CONFIG = join(HERMES_DIR, "config.yaml");
-const DOCS = "https://github.com/rohitg00/agentmemory/tree/main/integrations/hermes";
+const DOCS = "https://github.com/MaimoryLab/agentmemory-lab/tree/main/integrations/hermes";
 
 export const adapter: ConnectAdapter = {
   name: "hermes",

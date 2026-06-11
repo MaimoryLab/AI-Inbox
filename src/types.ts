@@ -112,7 +112,10 @@ export interface ReviewQueueItem {
   kind: "memory" | "lesson";
   title: string;
   content: string;
-  source: "browser-extension" | "viewer" | "api";
+  source: "browser-extension" | "browser-sync" | "viewer" | "api";
+  decision?: "candidate" | "evidence_only";
+  confidence?: number;
+  reason?: string;
   page?: {
     type?: string;
     typeLabel?: string;

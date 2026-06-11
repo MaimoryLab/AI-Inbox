@@ -1,24 +1,25 @@
 # Agent Memory Lab 真实 AI 站点测试卡
 
-这份文件是给外部试用者的快速入口。完整版本在仓库的 `docs/browser-extension-ai-site-test-cards-cn.md`。
+公开发布前，每个 AI 站点都要用真实会话验收一次。
 
-公开发布前的必测站点：
+必测站点：
 
 - ChatGPT：`chatgpt.com` / `chat.openai.com`
 - Claude：`claude.ai`
 - Gemini：`gemini.google.com`
 - Perplexity：`perplexity.ai` / `www.perplexity.ai`
+- Grok：`grok.com` / `x.ai`
+- DeepSeek：`chat.deepseek.com`
 
 ## 每个站点都要确认
 
 - Provider 识别正确。
-- 输入框已找到。
-- 输入框附近出现“记忆建议”。
-- 点击建议后可以插入或复制记忆。
-- 同步侧栏可以复制诊断 JSON。
+- 页面里至少有一轮真实对话。
+- 侧栏诊断里的 `turnCount > 0`。
+- 弹窗或侧栏显示“已抓取 N 条”。
+- 点击“同步已打开的 AI 会话”后，工作台 `#sessions` 出现对应会话。
 - 原站输入、发送、滚动、模型选择和附件按钮没有异常。
-- 页面里至少有一轮真实对话，诊断 JSON 的 `turnCount > 0`。
-- 待审阅候选来自具体对话或用户选中的文字，不是页面标题、链接、导航文案或输入框草稿。
+- 复制诊断 JSON 时不包含真实会话正文，只包含选择器、计数和页面元信息。
 
 ## 保存证据
 
@@ -28,20 +29,14 @@
 npm run wizard:ai-validation-evidence
 ```
 
-向导会逐项确认“插入/复制本地记忆是否成功、诊断是否复制、原站输入和发送是否仍正常、浏览器版本、无隐私备注”。
-
-已经真实确认三项都通过时，也可以使用无交互模式：
+已经确认通过时，也可以使用无交互模式：
 
 ```bash
 npm run wizard:ai-validation-evidence -- --yes --browser "Chrome 版本号" --notes "无隐私信息的备注"
 ```
 
-通过证据里必须能看到 `manualValidation.memoryInsertPassed`、`manualValidation.diagnosticsCopied`、`manualValidation.siteInputStillWorks` 三项都为通过，同时 `matchedSelectors.turn` 和 `turnCount > 0` 能证明插件确实命中了真实会话区域。
+证据里应能看到 `manualValidation.diagnosticsCopied`、`manualValidation.siteInputStillWorks`、`matchedSelectors.turn` 和 `turnCount > 0`。
 
 ## 当前边界
 
-本地 demo 通过不等于公开发布通过。公开发布需要 ChatGPT、Claude、Gemini、Perplexity 都有真实页面通过证据。
-
-反馈模板：`docs/external-feedback-template-cn.md`。
-
-GitHub Issue 模板：`.github/ISSUE_TEMPLATE/external-tester-feedback-cn.yml`。
+本地 demo 通过不等于公开发布通过。公开发布需要真实 AI 页面通过证据，并确认同步后的会话能在工作台 Sessions 里查看。

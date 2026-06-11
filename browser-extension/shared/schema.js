@@ -1,6 +1,8 @@
 import { PAGE_TYPE_LABELS, detectAiProvider, detectPageType } from './page-types.js';
 
 export const CAPTURE_SCHEMA_VERSION = 1;
+export const MAX_CAPTURE_TURNS = 160;
+export const MAX_TURN_TEXT_LENGTH = 6000;
 
 export function normalizeUrl(rawUrl) {
   try {
@@ -18,35 +20,24 @@ export function normalizeUrl(rawUrl) {
 export function createPageCapture(page = {}) {
   const normalized = normalizeUrl(page.url);
   const now = new Date().toISOString();
+  const pageType = detectPageType({ ...page, ...normalized });
   return {
     schemaVersion: CAPTURE_SCHEMA_VERSION,
     capturedAt: now,
     source: 'browser-extension',
     page: {
-      type: detectPageType({ ...page, ...normalized }),
-      typeLabel: PAGE_TYPE_LABELS[detectPageType({ ...page, ...normalized })] || '网页',
+      type: pageType,
+      typeLabel: PAGE_TYPE_LABELS[pageType] || '网页',
       title: String(page.title || '当前页面').trim(),
       url: normalized.url,
       host: page.host || normalized.host,
-      origin: normalized.origin,
-      description: String(page.description || '').trim(),
-      selection: String(page.selection || '').trim(),
-      headings: Array.isArray(page.headings) ? page.headings.map(String).map((x) => x.trim()).filter(Boolean).slice(0, 12) : []
+      origin: normalized.origin
     },
     conversation: {
       provider: String(page.aiProvider || detectAiProvider({ ...page, ...normalized }) || ''),
-      promptDraft: String(page.promptDraft || '').trim().slice(0, 1500),
-      turns: Array.isArray(page.turns) ? page.turns.map(normalizeTurn).filter(Boolean).slice(-8) : []
+      turns: Array.isArray(page.turns) ? page.turns.map(normalizeTurn).filter(Boolean).slice(-MAX_CAPTURE_TURNS) : []
     },
-    diagnostics: normalizeDiagnostics(page.diagnostics),
-    candidates: {
-      memories: buildMemoryCandidates(page, normalized),
-      lessons: buildLessonCandidates(page, normalized)
-    },
-    privacy: {
-      risk: detectPrivacyRisk(page),
-      reasons: detectPrivacyReasons(page)
-    }
+    diagnostics: normalizeDiagnostics(page.diagnostics)
   };
 }
 
@@ -86,319 +77,7 @@ function normalizeTurn(turn) {
   if (!turn || !turn.text) return null;
   return {
     role: turn.role === 'user' || turn.role === 'assistant' ? turn.role : 'unknown',
-    text: String(turn.text).trim().slice(0, 1200)
-  };
-}
-
-function cleanCandidateText(value) {
-  return String(value || '')
-    .replace(/\s+/g, ' ')
-    .replace(/^(Gemini|ChatGPT|Claude|Perplexity)\s+said\s+/i, '')
-    .replace(/^(用户|User|我)[:：]\s*/i, '')
-    .replace(/^我知道你是([^，。；;]+)([，。；;])/i, '$1$2')
-    .replace(/^你是([^，。；;]+)([，。；;])/i, '$1$2')
-    .trim();
-}
-
-function isUiOrNavigationNoise(text) {
-  const value = cleanCandidateText(text);
-  if (!value) return true;
-  if (/^(下载|打开|安装|查看|测试|反馈|分诊|外测|验收|刷新|关闭|复制|保存|确认|取消|更多材料|适配检查|安装说明|反馈模板|外测手册)$/.test(value)) return true;
-  if (/^(总览|记忆|会话|活动|Skill|待办|状态|最近会话|浏览器记忆入口?)$/.test(value)) return true;
-  if (/^(可本地使用|检查连接中|读取中|暂时没有建议|保存后仍需在工作台确认)$/.test(value)) return true;
-  if (/^浏览器记忆入口?\s+从网页和\s*AI\s*对话提取具体事实/.test(value)) return true;
-  if (/^(可本地使用\s*)?不要把链接当记忆[。.]?$/.test(value)) return true;
-  if (/^浏览器入口会把页面里的事实、偏好和待办变成候选/.test(value)) return true;
-  if (/^从网页和\s*AI\s*对话提取具体事实，?先送审/.test(value)) return true;
-
-  const actionMatches = value.match(/(下载|打开|安装|查看|测试|反馈|分诊|外测|验收|手册|模板|指南|适配检查|插件包|按钮|点击|加载\s*browser-extension)/g) || [];
-  const uiStructureMatches = value.match(/(\d+\.\s*|可本地使用|真实\s*AI\s*证据|turnCount|工作台|审阅队列|长期记忆|来源页面|来源链接)/g) || [];
-  const durableSignals = /(用户|我|我的|我们|SZn|szn|刘欣|Liu Xin|Coco|项目决定|决策|偏好|喜欢|不喜欢|希望|需要|计划|正在做|负责|待办|TODO|必须|不要把[^。！？!?]{2,40}当)/i.test(value);
-
-  if (actionMatches.length >= 3 && !durableSignals) return true;
-  if (uiStructureMatches.length >= 4 && actionMatches.length >= 1 && !durableSignals) return true;
-  if (/浏览器记忆入口/.test(value) && /(下载插件包|外测手册|验收一页纸|AI 验收包|反馈模板|分诊指南)/.test(value)) return true;
-  if (/从网页和\s*AI\s*对话提取具体事实/.test(value) && /回到这里审阅/.test(value)) return true;
-
-  return false;
-}
-
-function isUsefulFact(text) {
-  if (!text || text.length < 6) return false;
-  if (isUiOrNavigationNoise(text)) return false;
-  if (/^https?:\/\//i.test(text)) return false;
-  if (/^(摘要|来源|URL|页面结构|网页记忆线索|浏览器候选记忆|浏览器候选经验|在\s*ChatGPT\s*中继续跟进)[:：]?/.test(text)) return false;
-  if (/ChatGPT\s*是一款供日常使用的\s*AI\s*聊天机器人/i.test(text)) return false;
-  return /(我|我的|我们|你是|你叫|用户|刘欣|Liu Xin|coco|szn|背景|学生|设计师|UI\/?UX|交互设计|产品设计|希望|想要|需要|正在|计划|偏好|喜欢|不喜欢|不要|应该|必须|学习|备考|项目|产品|设计|插件|记忆|Skill|飞书|GitHub|雅思|IELTS)/i.test(text);
-}
-
-function splitFactSentences(text) {
-  return String(text || '')
-    .split(/[。！？!?\n]+/)
-    .map(cleanCandidateText)
-    .filter(isUsefulFact)
-    .filter((item) => item.length <= 220);
-}
-
-function uniqueCandidates(items) {
-  const seen = new Set();
-  return items
-    .map(cleanCandidateText)
-    .filter(Boolean)
-    .filter((item) => {
-      const key = item.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-}
-
-function truncateText(text, limit = 180) {
-  const value = cleanCandidateText(text);
-  return value.length > limit ? `${value.slice(0, limit)}...` : value;
-}
-
-function conversationLinesFromPage(page = {}) {
-  const turns = Array.isArray(page.turns) ? page.turns : [];
-  return turns
-    .map((turn) => {
-      const role = turn && turn.role === 'assistant' ? 'AI' : turn && turn.role === 'user' ? '用户' : '对话';
-      const text = truncateText(turn && turn.text ? turn.text : '', 220);
-      return text ? `${role}：${text}` : '';
-    })
-    .filter(Boolean);
-}
-
-function lessonEvidenceFromPage(page = {}) {
-  const turns = Array.isArray(page.turns) ? page.turns : [];
-  const userTurns = turns.filter((turn) => turn && turn.role === 'user').map((turn) => turn.text);
-  const assistantTurns = turns.filter((turn) => turn && turn.role === 'assistant').map((turn) => turn.text);
-  const evidence = uniqueCandidates([
-    ...splitFactSentences(page.selection),
-    ...userTurns.flatMap(splitFactSentences),
-    ...splitFactSentences(page.promptDraft),
-    ...assistantTurns.flatMap(splitFactSentences)
-  ]).filter((item) => !isUiOrNavigationNoise(item));
-  const conversation = conversationLinesFromPage(page).slice(-4);
-  return {
-    evidence: evidence.slice(0, 3),
-    conversation
-  };
-}
-
-function memoryEvidenceFromPage(page = {}) {
-  const turns = Array.isArray(page.turns) ? page.turns : [];
-  const userTurns = turns.filter((turn) => turn && turn.role === 'user').map((turn) => turn.text);
-  const assistantTurns = turns.filter((turn) => turn && turn.role === 'assistant').map((turn) => turn.text);
-  const isAiPage = !!page.aiProvider || detectPageType(page) === 'ai-chat';
-  return uniqueCandidates([
-    ...conversationSummaryFacts(turns),
-    ...splitFactSentences(page.selection),
-    ...userTurns.flatMap(splitFactSentences),
-    ...assistantTurns.flatMap(splitFactSentences),
-    ...(isAiPage ? [] : splitFactSentences(page.promptDraft))
-  ]).slice(0, 4);
-}
-
-export function hasConcreteMemoryEvidence(capture) {
-  const page = capture && capture.page ? capture.page : {};
-  const conversation = capture && capture.conversation ? capture.conversation : {};
-  const candidates = capture && capture.candidates && Array.isArray(capture.candidates.memories) ? capture.candidates.memories : [];
-  const evidence = memoryEvidenceFromPage({
-    ...page,
-    turns: Array.isArray(conversation.turns) ? conversation.turns : [],
-    promptDraft: conversation.promptDraft || page.promptDraft || ''
-  });
-  return evidence.some((item) => isUsefulFact(item)) || candidates.some((item) => isUsefulFact(item));
-}
-
-function conversationSummaryFacts(turns = []) {
-  const text = turns.map((turn) => cleanCandidateText(turn && turn.text ? turn.text : '')).filter(Boolean).join('。');
-  const facts = [];
-  const identity = text.match(/(?:你是|我知道你是|用户是)?\s*(刘欣（Liu Xin）|刘欣|Liu Xin|coco|szn)[，,、\s]*(?:是)?\s*([^。！？!?]{8,140})/i);
-  if (identity) {
-    var name = identity[1];
-    var desc = cleanCandidateText(identity[2]).replace(/^(是|一位|一个)\s*/, '');
-    if (desc) facts.push(`${name}是一位${desc}`);
-  }
-  const background = text.match(/(?:有着|具有|拥有)([^。！？!?]{0,120}?(?:UI\/?UX|交互设计|产品设计|用户体验)[^。！？!?]{0,120}?)(?:背景|经验|经历|能力)?/i);
-  if (background && !facts.some((item) => item.includes(background[1]))) {
-    facts.push(`用户具有${cleanCandidateText(background[1])}背景`);
-  }
-  const preference = text.match(/(?:希望|想要|需要|偏好|喜欢|不喜欢|不要)([^。！？!?]{6,160})/i);
-  if (preference) facts.push(`用户偏好或需求：${cleanCandidateText(preference[0])}`);
-  return facts.filter(isUsefulFact);
-}
-
-function makeLessonFromEvidence(primary = '') {
-  const text = cleanCandidateText(primary);
-  if (!text) return '';
-  if (/(不要|不需要|看不懂|难以理解|太奇怪|太丑|加载.*慢|没懂)/.test(text)) {
-    return `界面经验：遇到用户反馈“${truncateText(text, 90)}”时，优先减少解释性/内部化元素，并把功能改成可直接理解的具体结果。`;
-  }
-  if (/(自动|自己更新|基于.*聊天|对话记录|具体对话|提炼)/.test(text)) {
-    return `记忆经验：候选记忆和经验必须来自具体对话内容，先呈现可复用事实或结论，再把来源保留为上下文依据。`;
-  }
-  if (/(颜色|圆角|风格|卡片|排版|版式|icon|图标)/i.test(text)) {
-    return `设计经验：视觉调整要沿用既定风格，把颜色、圆角、图标和卡片层级统一到同一套界面语言里。`;
-  }
-  if (/(插件|浏览器|extension|网页|同步)/i.test(text)) {
-    return `产品经验：浏览器插件应作为网页到本地工作台的入口，保存具体事实并进入审阅，而不是只保存页面链接。`;
-  }
-  return `可沉淀经验：${truncateText(text, 160)}`;
-}
-
-function buildSourceNote(page) {
-  const title = String(page.title || '当前页面').trim();
-  const url = String(page.url || '').trim();
-  return [title ? `来源页面：${title}` : '', url ? `来源链接：${url}` : ''].filter(Boolean).join('\n');
-}
-
-export function buildBrowserMemoryDraft(capture) {
-  const page = capture && capture.page ? capture.page : {};
-  const conversation = capture && capture.conversation ? capture.conversation : {};
-  const candidates = capture && capture.candidates && Array.isArray(capture.candidates.memories) ? capture.candidates.memories : [];
-  const evidence = memoryEvidenceFromPage({
-    ...page,
-    turns: Array.isArray(conversation.turns) ? conversation.turns : [],
-    promptDraft: conversation.promptDraft || page.promptDraft || ''
-  });
-  const first = evidence.find((item) => String(item || '').trim()) || candidates.find((item) => isUsefulFact(item)) || '';
-  const fact = cleanCandidateText(first);
-  if (!fact) {
-    return {
-      title: '需要具体对话后再保存',
-      content: '',
-      fact: '',
-      source: buildSourceNote(page),
-      emptyReason: '这页还没有读到足够的具体对话，暂时不会生成记忆候选。请在 AI 页面展开真实对话，或选中一段具体内容后再保存。'
-    };
-  }
-  const provider = conversation.provider || page.typeLabel || page.host || '浏览器';
-  return {
-    title: fact.length > 42 ? `${fact.slice(0, 42)}...` : fact,
-    content: [`候选事实：${fact}`, `依据：来自 ${provider} 的具体对话`].filter(Boolean).join('\n'),
-    fact,
-    source: buildSourceNote(page)
-  };
-}
-
-export function buildBrowserLessonDraft(capture) {
-  const page = capture && capture.page ? capture.page : {};
-  const conversation = capture && capture.conversation ? capture.conversation : {};
-  const pageForEvidence = {
-    ...page,
-    turns: Array.isArray(conversation.turns) ? conversation.turns : [],
-    promptDraft: conversation.promptDraft || page.promptDraft || ''
-  };
-  const candidates = capture && capture.candidates && Array.isArray(capture.candidates.lessons) ? capture.candidates.lessons : [];
-  const first = candidates.find((item) => isUsefulFact(item)) || '';
-  const { evidence, conversation: lines } = lessonEvidenceFromPage(pageForEvidence);
-  const primary = first || evidence[0] || '';
-  if (!primary) {
-    return {
-      title: '需要具体对话后再提炼',
-      content: '这段页面还没有读到足够的具体对话，暂时不能沉淀成经验。请先选择一段真实对话，或手动补充一句可复用结论。',
-      lesson: '',
-      evidence: ''
-    };
-  }
-  const lesson = makeLessonFromEvidence(primary);
-  const evidenceText = lines.length ? lines.join('\n') : evidence.map((item) => `用户：${item}`).join('\n');
-  const provider = conversation.provider || page.typeLabel || page.host || '浏览器';
-  return {
-    title: lesson.replace(/^(界面经验|记忆经验|设计经验|产品经验|可沉淀经验)[:：]/, '').slice(0, 42),
-    content: [`经验：${lesson}`, evidenceText ? `对话依据：\n${evidenceText}` : '', `来源类型：${provider}`].filter(Boolean).join('\n'),
-    lesson,
-    evidence: evidenceText
-  };
-}
-
-function buildMemoryCandidates(page, normalized) {
-  const type = detectPageType({ ...page, ...normalized });
-  const provider = detectAiProvider({ ...page, ...normalized });
-  const turns = Array.isArray(page.turns) ? page.turns : [];
-  const userTurns = turns.filter((turn) => turn && turn.role === 'user').map((turn) => turn.text);
-  const assistantTurns = turns.filter((turn) => turn && turn.role === 'assistant').map((turn) => turn.text);
-  const hasConversation = turns.some((turn) => turn && turn.text && String(turn.text).trim().length >= 12);
-  const candidates = uniqueCandidates([
-    ...conversationSummaryFacts(turns),
-    ...splitFactSentences(page.selection),
-    ...userTurns.flatMap(splitFactSentences),
-    ...assistantTurns.flatMap(splitFactSentences),
-    ...(provider ? [] : splitFactSentences(page.promptDraft))
-  ]);
-  if (provider) {
-    if (!hasConversation && !splitFactSentences(page.selection).length) return [];
-  }
-  if (page.selection && !candidates.length) {
-    const selected = cleanCandidateText(page.selection).slice(0, 180);
-    if (isUsefulFact(selected)) candidates.push(selected);
-  }
-  if (type === 'github') candidates.push(`GitHub 项目线索：${String(page.title || '').trim()}`);
-  if (type === 'paper') candidates.push(`论文 / PDF 阅读线索：${String(page.title || '').trim()}`);
-  return candidates.slice(0, 4);
-}
-
-function buildLessonCandidates(page, normalized) {
-  const type = detectPageType({ ...page, ...normalized });
-  const { evidence } = lessonEvidenceFromPage(page);
-  if (type === 'ai-chat') {
-    return evidence.length ? evidence.map(makeLessonFromEvidence).filter(Boolean).slice(0, 3) : [];
-  }
-  if (evidence.length) return evidence.map(makeLessonFromEvidence).filter(Boolean).slice(0, 3);
-  return [];
-}
-
-function pageText(page) {
-  return [page.title, page.description, page.selection, ...(Array.isArray(page.headings) ? page.headings : [])].join('\n');
-}
-
-function detectPrivacyReasons(page) {
-  const text = pageText(page);
-  const reasons = [];
-  if (/(token|api[_ -]?key|secret|password|密码|密钥)/i.test(text)) reasons.push('可能包含密钥或密码');
-  if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(text)) reasons.push('可能包含邮箱');
-  if (/(身份证|护照|手机号|银行卡|地址)/.test(text)) reasons.push('可能包含个人信息');
-  return reasons;
-}
-
-function detectPrivacyRisk(page) {
-  return detectPrivacyReasons(page).length ? 'medium' : 'low';
-}
-
-export function captureToMemoryPayload(capture) {
-  const page = capture.page;
-  const provider = capture.conversation && capture.conversation.provider ? capture.conversation.provider : '';
-  const sourceKind = provider || page.typeLabel || page.host || '浏览器';
-  const draft = buildBrowserMemoryDraft(capture);
-  if (!draft.content) throw new Error(draft.emptyReason || '没有可保存的具体记忆');
-  return {
-    content: draft.content,
-    concepts: ['browser-context', page.host, `browser-page:${page.type}`, provider ? `browser-source:${provider.toLowerCase()}` : ''].filter(Boolean),
-    files: [],
-    project: 'browser',
-    sourceKind,
-    sourceLabel: provider ? provider : page.typeLabel || '浏览器',
-    pageType: page.type,
-    provider
-  };
-}
-
-export function captureToLessonPayload(capture, note) {
-  const page = capture.page;
-  const draft = buildBrowserLessonDraft(capture);
-  const content = cleanCandidateText(note) || draft.content;
-  return {
-    content,
-    context: draft.evidence || `${page.title}\n${page.url}`,
-    tags: ['browser', 'web-context'],
-    project: 'browser',
-    sourceKind: capture.conversation && capture.conversation.provider ? capture.conversation.provider : page.typeLabel || '浏览器',
-    sourceLabel: capture.conversation && capture.conversation.provider ? capture.conversation.provider : page.typeLabel || '浏览器',
-    pageType: page.type,
-    provider: capture.conversation && capture.conversation.provider ? capture.conversation.provider : '',
-    confidence: 0.75
+    text: String(turn.text).trim().slice(0, MAX_TURN_TEXT_LENGTH)
   };
 }
 

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
-const DELIVERY_REMOTE_URL = 'https://github.com/novitalabs/agentmemory-lab.git';
+const DELIVERY_REMOTE_URL = 'https://github.com/MaimoryLab/agentmemory-lab.git';
 const BASE_BRANCH = 'szn-viewer-ui-iteration';
 const DELIVERY_PR_BRANCH = process.env.AGENTMEMORY_DELIVERY_PR_BRANCH || 'codex/diagnostic-privacy-20260609';
 

@@ -1,7 +1,21 @@
-import { createCaptureRecord, createPageCapture, captureToLessonPayload, captureToMemoryPayload, buildBrowserLessonDraft, buildBrowserMemoryDraft } from './shared/schema.js';
+import { createCaptureRecord, createPageCapture } from './shared/schema.js';
 import { agentMemoryApi, openViewer } from './shared/api.js';
 
 const RECENT_KEY = 'recentCaptures';
+const SYNC_CACHE_KEY = 'autoSyncCache';
+const AUTO_SYNC_ALARM = 'agent-memory-lab-auto-sync';
+const AI_PAGE_HOSTS = [
+  'chatgpt.com',
+  'chat.openai.com',
+  'claude.ai',
+  'gemini.google.com',
+  'perplexity.ai',
+  'www.perplexity.ai',
+  'grok.com',
+  'x.ai',
+  'chat.deepseek.com',
+  'deepseek.com'
+];
 
 async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -17,51 +31,69 @@ async function collectPage() {
   } catch {}
   return createPageCapture({
     title: tab.title || '当前页面',
-    url: tab.url || '',
-    description: '',
-    selection: '',
-    headings: []
+    url: tab.url || ''
   });
 }
 
-async function collectPageFromContext(info = {}, tab = null) {
-  let capture = null;
+function isAiConversationTab(tab = {}) {
+  const raw = String(tab.url || '');
+  if (!/^https?:\/\//i.test(raw)) return false;
   try {
-    if (tab && tab.id) {
-      const response = await chrome.tabs.sendMessage(tab.id, { type: 'AGENT_MEMORY_LAB_COLLECT_PAGE' });
-      if (response && response.ok) capture = createPageCapture(response.page);
-    }
+    const url = new URL(raw);
+    return AI_PAGE_HOSTS.some((host) => url.hostname === host || url.hostname.endsWith(`.${host}`));
+  } catch {
+    return false;
+  }
+}
+
+async function ensureContentScript(tabId) {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: 'AGENT_MEMORY_LAB_PING' });
+    return true;
   } catch {}
-  if (!capture) {
-    capture = createPageCapture({
-      title: (tab && tab.title) || '当前页面',
-      url: info.pageUrl || (tab && tab.url) || '',
-      description: '',
-      selection: '',
-      headings: []
-    });
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['content-script.js'] });
+    return true;
+  } catch {
+    return false;
   }
-  const selection = String(info.selectionText || '').trim();
-  const linkUrl = String(info.linkUrl || '').trim();
-  if (selection || linkUrl) {
-    capture = createPageCapture({
-      ...capture.page,
-      selection: selection || capture.page.selection,
-      description: capture.page.description,
-      headings: capture.page.headings,
-      aiProvider: capture.conversation && capture.conversation.provider,
-      promptDraft: capture.conversation && capture.conversation.promptDraft,
-      turns: capture.conversation && capture.conversation.turns,
-      diagnostics: capture.diagnostics,
-      url: info.pageUrl || capture.page.url
-    });
-    capture.context = {
-      kind: selection ? 'selection' : 'link',
-      selection,
-      linkUrl
-    };
-  }
-  return capture;
+}
+
+async function collectTabPage(tab) {
+  if (!tab || !tab.id) throw new Error('没有可读取的标签页');
+  await ensureContentScript(tab.id);
+  try {
+    const response = await chrome.tabs.sendMessage(tab.id, { type: 'AGENT_MEMORY_LAB_COLLECT_PAGE' });
+    if (response && response.ok) return createPageCapture(response.page);
+  } catch {}
+  return createPageCapture({
+    title: tab.title || '当前页面',
+    url: tab.url || ''
+  });
+}
+
+function syncKeyForCapture(capture) {
+  const page = capture && capture.page ? capture.page : {};
+  const conversation = capture && capture.conversation ? capture.conversation : {};
+  const turns = Array.isArray(conversation.turns) ? conversation.turns : [];
+  const last = turns.slice(-3).map((turn) => `${turn.role || 'unknown'}:${turn.text || ''}`).join('\n');
+  return `${page.url || page.title || 'browser'}:${conversation.provider || page.host || 'browser'}:${turns.length}:${last}`;
+}
+
+async function shouldSyncCapture(capture, force = false) {
+  const page = capture && capture.page ? capture.page : {};
+  const provider = capture && capture.conversation && capture.conversation.provider ? capture.conversation.provider : '';
+  const turns = capture && capture.conversation && Array.isArray(capture.conversation.turns) ? capture.conversation.turns : [];
+  if (page.type !== 'ai-chat' || !provider) return false;
+  if (!turns.some((turn) => turn && turn.text && String(turn.text).trim().length >= 12)) return false;
+  const key = syncKeyForCapture(capture);
+  const stored = await chrome.storage.local.get([SYNC_CACHE_KEY]);
+  const cache = stored[SYNC_CACHE_KEY] && typeof stored[SYNC_CACHE_KEY] === 'object' ? stored[SYNC_CACHE_KEY] : {};
+  if (!force && cache[key]) return false;
+  cache[key] = Date.now();
+  const entries = Object.entries(cache).sort((a, b) => Number(b[1]) - Number(a[1])).slice(0, 200);
+  await chrome.storage.local.set({ [SYNC_CACHE_KEY]: Object.fromEntries(entries) });
+  return true;
 }
 
 async function rememberRecent(capture, kind, result) {
@@ -72,168 +104,58 @@ async function rememberRecent(capture, kind, result) {
   return next;
 }
 
-function normalizeTags(tags) {
-  const seen = new Set();
-  return String(Array.isArray(tags) ? tags.join(',') : tags || '')
-    .split(/[,，\s]+/)
-    .map((tag) => tag.trim())
-    .filter(Boolean)
-    .filter((tag) => {
-      const key = tag.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-}
-
-function normalizeCandidateMeta(meta = {}, capture = null, kind = 'memory') {
-  const page = capture && capture.page ? capture.page : {};
-  const provider = capture && capture.conversation && capture.conversation.provider ? capture.conversation.provider : '';
-  const projectScope = meta.projectScope === 'page' ? 'page' : 'all';
-  const project = projectScope === 'page' ? String(meta.project || provider || page.host || 'browser') : 'all';
-  const baseTags = ['browser', kind === 'lesson' ? 'lesson' : 'memory'];
-  if (provider) baseTags.push(provider.toLowerCase());
-  if (page.type) baseTags.push(`page:${page.type}`);
-  return {
-    projectScope,
-    project,
-    tags: normalizeTags([...baseTags, ...normalizeTags(meta.tags || [])]),
-    asLesson: !!meta.asLesson || kind === 'lesson'
-  };
-}
-
-function applyCandidateMeta(payload, meta, capture, kind) {
-  const normalized = normalizeCandidateMeta(meta, capture, kind);
-  return {
-    ...payload,
-    project: normalized.project,
-    projectScope: normalized.projectScope,
-    tags: normalized.tags,
-    asLesson: normalized.asLesson,
-    concepts: normalizeTags([...(payload.concepts || []), ...normalized.tags])
-  };
-}
-
-function fallbackMemoryPayload(capture, content) {
-  const page = capture && capture.page ? capture.page : {};
-  const provider = capture && capture.conversation && capture.conversation.provider ? capture.conversation.provider : '';
-  const sourceKind = provider || page.typeLabel || page.host || '浏览器';
-  return {
-    content,
-    concepts: normalizeTags(['browser-context', page.host || '', page.type ? `browser-page:${page.type}` : '', provider ? `browser-source:${provider.toLowerCase()}` : '']),
-    files: [],
-    project: 'browser',
-    sourceKind,
-    sourceLabel: provider || page.typeLabel || '浏览器',
-    pageType: page.type || '',
-    provider
-  };
-}
-
-async function savePageMemory() {
+async function syncPageConversation() {
   const capture = await collectPage();
-  const payload = captureToMemoryPayload(capture);
-  const draft = buildBrowserMemoryDraft(capture);
+  return syncCapture(capture, { force: true });
+}
+
+async function syncCapture(capture, { force = false } = {}) {
+  if (!(await shouldSyncCapture(capture, force))) return { capture, result: { skipped: true } };
+  const turns = capture && capture.conversation && Array.isArray(capture.conversation.turns) ? capture.conversation.turns : [];
   const result = await agentMemoryApi('/agentmemory/review', {
     method: 'POST',
     body: JSON.stringify({
-      kind: 'memory',
-      title: draft.title || capture.page.title,
-      content: payload.content,
-      source: 'browser-extension',
+      mode: 'sync',
+      kind: 'session',
+      source: 'browser-sync',
+      title: capture.page.title,
+      content: '',
       page: capture.page,
       conversation: capture.conversation,
-      payload
+      payload: {
+        project: capture.conversation && capture.conversation.provider ? capture.conversation.provider : capture.page.host || 'browser',
+        projectScope: 'page',
+        sourceLabel: capture.conversation && capture.conversation.provider ? capture.conversation.provider : capture.page.typeLabel || '浏览器',
+        provider: capture.conversation && capture.conversation.provider,
+        pageType: capture.page.type,
+        tags: ['browser', 'auto-sync', capture.page.type ? `page:${capture.page.type}` : '', capture.conversation && capture.conversation.provider ? `source:${capture.conversation.provider.toLowerCase()}` : ''].filter(Boolean),
+        turnCount: turns.length
+      }
     })
   });
-  await rememberRecent(capture, 'review', result);
+  await rememberRecent(capture, 'sync', result);
   return { capture, result };
 }
 
-async function savePageLesson(note) {
-  const capture = await collectPage();
-  const payload = captureToLessonPayload(capture, note);
-  const draft = buildBrowserLessonDraft(capture);
-  const result = await agentMemoryApi('/agentmemory/review', {
-    method: 'POST',
-    body: JSON.stringify({
-      kind: 'lesson',
-      title: draft.title || capture.page.title,
-      content: payload.content,
-      source: 'browser-extension',
-      page: capture.page,
-      conversation: capture.conversation,
-      payload
-    })
-  });
-  await rememberRecent(capture, 'review', result);
-  return { capture, result };
-}
-
-async function saveCandidate(kind, text, title = '', meta = {}) {
-  const capture = await collectPage();
-  const trimmed = String(text || '').trim();
-  const requestedKind = kind === 'lesson' || meta.asLesson ? 'lesson' : 'memory';
-  const draft = requestedKind === 'lesson' ? buildBrowserLessonDraft(capture) : buildBrowserMemoryDraft(capture);
-  const draftTitle = String(title || '').trim() || draft.title || capture.page.title;
-  if (!trimmed) throw new Error('没有可保存的候选内容');
-  if (requestedKind === 'lesson') {
-    const payload = applyCandidateMeta(captureToLessonPayload(capture, trimmed), meta, capture, 'lesson');
-    const result = await agentMemoryApi('/agentmemory/review', {
-      method: 'POST',
-      body: JSON.stringify({ kind: 'lesson', title: draftTitle, content: payload.content, source: 'browser-extension', page: capture.page, conversation: capture.conversation, payload, meta: payload })
-    });
-    await rememberRecent(capture, 'review', result);
-    return { capture, result };
+async function syncOpenAiConversationTabs({ force = false } = {}) {
+  const tabs = (await chrome.tabs.query({})).filter(isAiConversationTab);
+  const results = [];
+  for (const tab of tabs) {
+    try {
+      const capture = await collectTabPage(tab);
+      const synced = await syncCapture(capture, { force });
+      results.push({ ok: true, tabId: tab.id, title: capture.page.title, skipped: !!(synced.result && synced.result.skipped) });
+    } catch (err) {
+      results.push({ ok: false, tabId: tab.id, title: tab.title || '', error: err.message || String(err) });
+    }
   }
-  let basePayload;
-  try {
-    basePayload = captureToMemoryPayload(capture);
-  } catch {
-    basePayload = fallbackMemoryPayload(capture, trimmed);
-  }
-  const payload = applyCandidateMeta({
-    ...basePayload,
-    content: trimmed
-  }, meta, capture, 'memory');
-  const result = await agentMemoryApi('/agentmemory/review', {
-    method: 'POST',
-    body: JSON.stringify({ kind: 'memory', title: draftTitle, content: payload.content, source: 'browser-extension', page: capture.page, conversation: capture.conversation, payload, meta: payload })
-  });
-  await rememberRecent(capture, 'review', result);
-  return { capture, result };
-}
-
-async function saveContextSelection(info = {}, tab = null) {
-  const capture = await collectPageFromContext(info, tab);
-  const selection = String(info.selectionText || capture.page.selection || '').trim();
-  const linkUrl = String(info.linkUrl || '').trim();
-  const title = selection ? `选中文本：${capture.page.title}` : `网页链接：${capture.page.title}`;
-  const content = selection
-    ? `浏览器选中文本候选：${selection}\n来源：${capture.page.title}\nURL：${capture.page.url}`
-    : `浏览器链接候选：${linkUrl || capture.page.url}\n来源页面：${capture.page.title}\nURL：${capture.page.url}`;
-  const basePayload = captureToMemoryPayload(capture);
-  const payload = {
-    ...basePayload,
-    content,
-    concepts: [
-      ...basePayload.concepts,
-      selection ? 'browser-context:selection' : 'browser-context:link'
-    ]
+  return {
+    scanned: tabs.length,
+    synced: results.filter((item) => item.ok && !item.skipped).length,
+    skipped: results.filter((item) => item.ok && item.skipped).length,
+    failed: results.filter((item) => !item.ok).length,
+    results
   };
-  const result = await agentMemoryApi('/agentmemory/review', {
-    method: 'POST',
-    body: JSON.stringify({
-      kind: 'memory',
-      title,
-      content,
-      source: selection ? 'browser-extension-selection' : 'browser-extension-link',
-      page: capture.page,
-      payload
-    })
-  });
-  await rememberRecent(capture, 'review', result);
-  return { capture, result };
 }
 
 async function getRecentCaptures() {
@@ -241,21 +163,12 @@ async function getRecentCaptures() {
   return Array.isArray(stored[RECENT_KEY]) ? stored[RECENT_KEY] : [];
 }
 
-async function searchMemories(query) {
-  const text = String(query || '').trim();
-  if (text.length < 3) return { results: [] };
-  return agentMemoryApi('/agentmemory/search', {
-    method: 'POST',
-    body: JSON.stringify({ query: text, limit: 5, format: 'compact', token_budget: 900 })
-  });
-}
-
 async function setupContextMenus() {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
-      id: 'save-page-memory',
-      title: '保存到 Agent Memory Lab',
-      contexts: ['page', 'selection', 'link']
+      id: 'sync-page-conversation',
+      title: '同步到 Agent Memory Lab 工作台',
+      contexts: ['page']
     });
     chrome.contextMenus.create({
       id: 'open-workbench',
@@ -266,25 +179,36 @@ async function setupContextMenus() {
 }
 
 chrome.runtime.onInstalled.addListener(setupContextMenus);
-chrome.runtime.onStartup.addListener(setupContextMenus);
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.alarms.create(AUTO_SYNC_ALARM, { periodInMinutes: 1 });
+});
+chrome.runtime.onStartup.addListener(() => {
+  setupContextMenus();
+  chrome.alarms.create(AUTO_SYNC_ALARM, { periodInMinutes: 1 });
+});
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === AUTO_SYNC_ALARM) syncOpenAiConversationTabs().catch(() => {});
+});
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && isAiConversationTab(tab)) {
+    setTimeout(() => syncOpenAiConversationTabs().catch(() => {}), 2500);
+  }
+});
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === 'save-page-memory') {
-    if (info.selectionText || info.linkUrl) saveContextSelection(info, tab).catch(() => {});
-    else savePageMemory().catch(() => {});
+  if (info.menuItemId === 'sync-page-conversation') {
+    syncPageConversation().catch(() => {});
   }
   if (info.menuItemId === 'open-workbench') openViewer('dashboard').catch(() => {});
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   (async () => {
-    if (message.type === 'HEALTH') return agentMemoryApi('/agentmemory/health', { method: 'GET' });
+    if (message.type === 'HEALTH') return agentMemoryApi('/agentmemory/livez', { method: 'GET' });
     if (message.type === 'COLLECT_PAGE') return collectPage();
     if (message.type === 'RECENT_CAPTURES') return getRecentCaptures();
-    if (message.type === 'SAVE_PAGE_MEMORY') return savePageMemory();
-    if (message.type === 'SAVE_PAGE_LESSON') return savePageLesson(message.note || '');
-    if (message.type === 'SAVE_CANDIDATE') return saveCandidate(message.kind || 'memory', message.text || '', message.title || '', message.meta || {});
-    if (message.type === 'SEARCH_MEMORIES') return searchMemories(message.query || '');
+    if (message.type === 'SYNC_PAGE_CONVERSATION') return syncPageConversation();
+    if (message.type === 'SYNC_OPEN_AI_TABS') return syncOpenAiConversationTabs({ force: !!message.force });
     if (message.type === 'OPEN_SIDE_PANEL') return chrome.sidePanel.open({ windowId: message.windowId });
     if (message.type === 'OPEN_VIEWER') return openViewer(message.tab || 'dashboard', message.path || '');
     throw new Error('未知操作');

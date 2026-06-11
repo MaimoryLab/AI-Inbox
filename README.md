@@ -126,10 +126,10 @@ npm run build && npm run start:local-memory
 
 这个命令会使用 `你的本地记忆数据目录`，也就是之前积累本地记忆的那套数据目录。直接运行 `npm run start` 会使用当前仓库里的 `data/`，可能只看到一套新的空白记忆库。
 
-如果 `npx @agentmemory/agentmemory demo` 报 `worker not reachable on port 3111`，说明端口可能被残留的 iii-engine 占着，但 Agent Memory worker 没有挂上。先清理再启动：
+如果 `node dist/cli.mjs demo` 报 `worker not reachable on port 3111`，说明端口可能被残留的 iii-engine 占着，但 Agent Memory worker 没有挂上。先清理再启动：
 
 ```bash
-npx @agentmemory/agentmemory stop --force
+node dist/cli.mjs stop --force
 cd agentmemory-lab
 npm run start:local-memory
 ```
@@ -243,8 +243,8 @@ npm run check:release-public
 如果使用已发布包，也可以全局运行：
 
 ```bash
-npm install -g @agentmemory/agentmemory
-agentmemory viewer
+npm install -g @maimorylab/agentmemory-lab
+agentmemory-lab viewer
 ```
 
 ## 本地数据
@@ -312,7 +312,7 @@ MCP surface 当前提供 53 MCP tools；独立 MCP 入口显示为 53 tools, 6 r
 
 ## 来源说明
 
-本项目基于 [rohitg00/agentmemory](https://github.com/rohitg00/agentmemory) 的本地记忆基础能力继续实验。当前分支聚焦中文本地工作台、浏览器记忆同步、交互体验和 Skill 工作流。
+本项目由 MaimoryLab 维护，在开源 Agent Memory 基础能力上继续实验。当前分支聚焦中文本地工作台、浏览器记忆同步、交互体验和 Skill 工作流；试用与交付请以本仓库命令为准。
 
 ## 许可
 

@@ -4,11 +4,14 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from "node:http";
+import { createHash, randomUUID } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, join, dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { renderViewerDocument } from "./document.js";
+import type { CompressedObservation, Memory, ReviewQueueItem, Session } from "../types.js";
+import { KV } from "../state/schema.js";
 
 // Self-host the viewer favicon at /favicon.svg instead of an inline
 // data: URI so the viewer CSP can stay tight at `img-src 'self'`.
@@ -504,7 +507,7 @@ function readLocalSkillDetail(qs: string): Record<string, unknown> {
 
 const ALLOWED_ORIGINS = (
   process.env.VIEWER_ALLOWED_ORIGINS ||
-  "http://localhost:3111,http://localhost:3113,http://127.0.0.1:3111,http://127.0.0.1:3113"
+  "http://localhost:3111,http://localhost:3114,http://127.0.0.1:3111,http://127.0.0.1:3114"
 )
   .split(",")
   .map((o) => o.trim());
@@ -603,6 +606,426 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
+type ViewerKv = {
+  get<T = unknown>(scope: string, key: string): Promise<T | null>;
+  set<T = unknown>(scope: string, key: string, value: T): Promise<T>;
+  list<T = unknown>(scope: string): Promise<T[]>;
+};
+
+function asText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function stableHash(input: string): string {
+  return createHash("sha256").update(input).digest("hex").slice(0, 12);
+}
+
+function normalizeConcepts(values: unknown[]): string[] {
+  const seen = new Set<string>();
+  return values
+    .flatMap((value) => Array.isArray(value) ? value : [value])
+    .map((value) => asText(value))
+    .filter(Boolean)
+    .filter((value) => {
+      const key = value.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function validMemoryType(value: unknown): Memory["type"] {
+  const raw = asText(value);
+  return raw === "pattern" || raw === "preference" || raw === "architecture" || raw === "bug" || raw === "workflow" || raw === "fact"
+    ? raw
+    : "fact";
+}
+
+function browserSessionId(syncId: string): string {
+  return `browser_${syncId}`;
+}
+
+const MAX_BROWSER_SESSION_TURNS = 240;
+const MAX_BROWSER_TURN_TEXT_LENGTH = 12000;
+
+function normalizeBrowserTurnText(value: unknown): string {
+  return asText(value).replace(/\s+/g, " ").trim().slice(0, MAX_BROWSER_TURN_TEXT_LENGTH);
+}
+
+function isBrowserSyncCaptureAllowed(
+  page: Record<string, unknown>,
+  conversation: Record<string, unknown>,
+): { ok: true; turns: { role: string; text: string }[] } | { ok: false; error: string } {
+  const pageType = asText(page.type);
+  const provider = asText(conversation.provider);
+  const host = asText(page.host).toLowerCase();
+  const rawTurns = Array.isArray(conversation.turns) ? conversation.turns : [];
+  const turns = rawTurns
+    .map((turn) => turn && typeof turn === "object" ? turn as Record<string, unknown> : {})
+    .map((turn) => ({ role: asText(turn.role) || "unknown", text: normalizeBrowserTurnText(turn.text) }))
+    .filter((turn) => turn.text && turn.text.length >= 12)
+    .slice(-MAX_BROWSER_SESSION_TURNS);
+  if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".localhost")) {
+    return { ok: false, error: "local workbench pages are not browser conversation sources" };
+  }
+  if (pageType !== "ai-chat" || !provider) {
+    return { ok: false, error: "browser sync requires a supported AI conversation page" };
+  }
+  if (!turns.length) {
+    return { ok: false, error: "browser sync requires captured conversation turns" };
+  }
+  return { ok: true, turns };
+}
+
+async function recordBrowserSessionFallback(
+  kv: ViewerKv,
+  item: ReviewQueueItem,
+  syncId: string,
+): Promise<{ sessionId: string; observationCount: number }> {
+  const page = item.page || {};
+  const conversation = item.conversation || {};
+  const turns = Array.isArray(conversation.turns) ? conversation.turns.slice(-MAX_BROWSER_SESSION_TURNS) : [];
+  const provider = conversation.provider || page.host || "浏览器";
+  const sessionId = browserSessionId(syncId);
+  const now = item.updatedAt || new Date().toISOString();
+  const startedAt = item.createdAt || now;
+  const session: Session = {
+    id: sessionId,
+    project: provider,
+    cwd: `browser/${page.host || provider || "web"}`,
+    startedAt,
+    endedAt: now,
+    status: "completed",
+    observationCount: Math.max(1, turns.length + 1),
+    firstPrompt: page.title || item.title || "浏览器会话",
+    summary: item.content,
+    tags: ["browser", page.type || "", item.kind || ""].filter(Boolean),
+    agentId: provider,
+  };
+  const observations: CompressedObservation[] = [];
+  turns.forEach((turn, index) => {
+    const role = turn.role === "assistant" ? "AI" : turn.role === "user" ? "用户" : "对话";
+    const text = normalizeBrowserTurnText(turn.text);
+    if (!text) return;
+    observations.push({
+      id: `${sessionId}_turn_${index + 1}`,
+      sessionId,
+      timestamp: new Date(Date.parse(startedAt) + index * 1000).toISOString(),
+      type: "conversation",
+      title: `${role}发言`,
+      subtitle: page.title || item.title,
+      facts: [text],
+      narrative: text,
+      concepts: normalizeConcepts(["browser", provider, page.host, page.type]),
+      files: [],
+      importance: turn.role === "user" ? 0.72 : 0.58,
+      confidence: 0.75,
+      agentId: provider,
+    });
+  });
+  observations.push({
+    id: `${sessionId}_summary`,
+    sessionId,
+    timestamp: now,
+    type: "decision",
+    title: item.title || page.title || "浏览器同步摘要",
+    subtitle: item.status === "pending" ? "待工作台判断" : item.status === "approved" ? "已写入记忆" : "证据保留",
+    facts: [item.content].filter(Boolean),
+    narrative: item.content,
+    concepts: normalizeConcepts(["browser", provider, page.host, page.type, item.kind]),
+    files: [],
+    importance: item.status === "pending" ? 0.75 : 0.45,
+    confidence: item.confidence ?? 0.5,
+    agentId: provider,
+  });
+  session.observationCount = observations.length;
+  await kv.set(KV.sessions, sessionId, session);
+  for (const observation of observations) {
+    await kv.set(KV.observations(sessionId), observation.id, observation);
+  }
+  return { sessionId, observationCount: observations.length };
+}
+
+function extractBrowserFallbackContent(body: Record<string, unknown>): {
+  title: string;
+  content: string;
+  status: "pending" | "dismissed";
+  decision: "candidate" | "evidence_only";
+  confidence: number;
+  reason: string;
+  type: Memory["type"];
+} {
+  const page = body.page && typeof body.page === "object" ? body.page as Record<string, unknown> : {};
+  const conversation = body.conversation && typeof body.conversation === "object" ? body.conversation as Record<string, unknown> : {};
+  const rawTurns = Array.isArray(conversation.turns) ? conversation.turns : [];
+  const normalizedTurns = rawTurns
+    .map((turn) => turn && typeof turn === "object" ? turn as Record<string, unknown> : {})
+    .map((turn) => ({ role: asText(turn.role) || "unknown", text: normalizeBrowserTurnText(turn.text) }))
+    .filter((turn) => turn.text)
+    .slice(-MAX_BROWSER_SESSION_TURNS);
+  const userTurns = normalizedTurns
+    .filter((turn) => asText(turn.role).toLowerCase() === "user")
+    .map((turn) => asText(turn.text))
+    .filter(Boolean);
+  const firstUserTurn = userTurns[0] || normalizedTurns[0]?.text || "";
+  const title = firstUserTurn
+    ? firstUserTurn.slice(0, 42) + (firstUserTurn.length > 42 ? "..." : "")
+    : asText(body.title) || asText(page.title) || "浏览器会话";
+  return {
+    title,
+    content: [asText(page.title), rawTurns.length ? `已同步 ${rawTurns.length} 条网页 AI 会话。` : "已同步网页 AI 会话。"].filter(Boolean).join("\n"),
+    status: "dismissed",
+    decision: "evidence_only",
+    confidence: 0.25,
+    reason: "浏览器插件只同步原始会话；记忆和 Skill 在工作台后续整理。",
+    type: "fact",
+  };
+}
+
+async function handleReviewFallback(
+  req: IncomingMessage,
+  res: ServerResponse,
+  method: string,
+  qs: string,
+  kv: ViewerKv,
+): Promise<boolean> {
+  if (method === "GET") {
+    const params = parseViewerQuery(qs);
+    const status = params.status || "";
+    const limit = Math.max(1, Math.min(200, parseInt(params.limit || "50", 10) || 50));
+    const items = (await kv.list<ReviewQueueItem>(KV.reviewQueue))
+      .filter((item) => !status || item.status === status)
+      .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
+      .slice(0, limit);
+    json(res, 200, { items }, req);
+    return true;
+  }
+  if (method !== "POST") return false;
+  const raw = await readBody(req);
+  const body = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+  const now = new Date().toISOString();
+  const page = body.page && typeof body.page === "object" ? body.page as Record<string, unknown> : {};
+  const conversation = body.conversation && typeof body.conversation === "object" ? body.conversation as Record<string, unknown> : {};
+  if (body.mode === "sync" || body.source === "browser-sync") {
+    const allowed = isBrowserSyncCaptureAllowed(page, conversation);
+    if (!allowed.ok) {
+      json(res, 202, { success: true, skipped: true, reason: allowed.error }, req);
+      return true;
+    }
+  }
+  const fallback = extractBrowserFallbackContent(body);
+  const syncId = stableHash([
+    asText(page.url) || asText(page.title) || "browser",
+    asText(conversation.provider) || asText(page.host) || "browser",
+    fallback.content,
+  ].join("\n"));
+  const normalizedConversation = {
+    provider: asText(conversation.provider) || undefined,
+    turns: Array.isArray(conversation.turns)
+      ? conversation.turns
+          .map((turn) => turn && typeof turn === "object" ? turn as Record<string, unknown> : {})
+          .map((turn) => ({ role: asText(turn.role) || "unknown", text: normalizeBrowserTurnText(turn.text) }))
+          .filter((turn) => turn.text)
+          .slice(-MAX_BROWSER_SESSION_TURNS)
+      : [],
+  };
+  if (body.mode === "sync" || body.source === "browser-sync") {
+    const item: ReviewQueueItem = {
+      id: `browser_sync_${syncId}`,
+      createdAt: now,
+      updatedAt: now,
+      status: "dismissed",
+      kind: "memory",
+      title: fallback.title,
+      content: asText(body.content) || fallback.content,
+      source: "browser-sync",
+      decision: "evidence_only",
+      confidence: fallback.confidence,
+      reason: fallback.reason,
+      page: {
+        type: asText(page.type) || undefined,
+        typeLabel: asText(page.typeLabel) || undefined,
+        title: asText(page.title) || undefined,
+        url: asText(page.url) || undefined,
+        host: asText(page.host) || undefined,
+      },
+      conversation: normalizedConversation,
+      payload: {
+        ...(body.payload && typeof body.payload === "object" ? body.payload as Record<string, unknown> : {}),
+        browserSyncId: syncId,
+        decision: "evidence_only",
+        confidence: fallback.confidence,
+        reason: fallback.reason,
+        viewerFallback: true,
+      },
+    };
+    const browserSession = await recordBrowserSessionFallback(kv, item, syncId);
+    json(res, 201, {
+      success: true,
+      item: {
+        id: item.id,
+        source: item.source,
+        decision: item.decision,
+        title: item.title,
+        browserSessionId: browserSession.sessionId,
+        browserObservationCount: browserSession.observationCount,
+      },
+    }, req);
+    return true;
+  }
+  const itemId = body.mode === "sync" || body.source === "browser-sync"
+    ? `browser_sync_${syncId}`
+    : `review_${Date.now().toString(36)}_${randomUUID().replace(/-/g, "").slice(0, 10)}`;
+  const existing = await kv.get<ReviewQueueItem>(KV.reviewQueue, itemId);
+  const item: ReviewQueueItem = {
+    id: existing?.id || itemId,
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
+    status: existing?.status || fallback.status,
+    kind: body.kind === "lesson" ? "lesson" : "memory",
+    title: fallback.title,
+    content: asText(body.content) || fallback.content,
+    source: body.source === "browser-sync" ? "browser-sync" : "browser-extension",
+    decision: fallback.decision,
+    confidence: fallback.confidence,
+    reason: fallback.reason,
+    page: {
+      type: asText(page.type) || undefined,
+      typeLabel: asText(page.typeLabel) || undefined,
+      title: asText(page.title) || undefined,
+      url: asText(page.url) || undefined,
+      host: asText(page.host) || undefined,
+    },
+    conversation: {
+      provider: normalizedConversation.provider,
+      promptDraft: asText(conversation.promptDraft) || undefined,
+      turns: normalizedConversation.turns,
+    },
+    payload: {
+      ...(body.payload && typeof body.payload === "object" ? body.payload as Record<string, unknown> : {}),
+      browserSyncId: syncId,
+      decision: fallback.decision,
+      confidence: fallback.confidence,
+      reason: fallback.reason,
+      type: fallback.type,
+      viewerFallback: true,
+    },
+  };
+  const browserSession = await recordBrowserSessionFallback(kv, item, syncId);
+  item.payload = {
+    ...(item.payload || {}),
+    browserSessionId: browserSession.sessionId,
+    browserObservationCount: browserSession.observationCount,
+  };
+  await kv.set(KV.reviewQueue, item.id, item);
+  json(res, existing ? 200 : 201, { success: true, item }, req);
+  return true;
+}
+
+async function handleReviewApproveFallback(
+  req: IncomingMessage,
+  res: ServerResponse,
+  kv: ViewerKv,
+): Promise<boolean> {
+  const raw = await readBody(req);
+  const body = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+  const id = asText(body.id);
+  if (!id) {
+    json(res, 400, { error: "id is required" }, req);
+    return true;
+  }
+  const item = await kv.get<ReviewQueueItem>(KV.reviewQueue, id);
+  if (!item) {
+    json(res, 404, { error: "review item not found" }, req);
+    return true;
+  }
+  if (item.status !== "pending") {
+    json(res, 409, { error: "review item is not pending" }, req);
+    return true;
+  }
+  const now = new Date().toISOString();
+  const title = asText(body.title) || item.title;
+  const content = asText(body.content) || item.content;
+  const payload = item.payload || {};
+  const tags = typeof body.tags === "string"
+    ? body.tags.split(",").map((tag) => tag.trim()).filter(Boolean)
+    : Array.isArray(body.tags) ? body.tags.map((tag) => asText(tag)).filter(Boolean) : [];
+  const page = item.page || {};
+  const project = asText(body.project) || asText(payload.project) || "browser";
+  const memory: Memory = {
+    id: `mem_${Date.now().toString(36)}_${randomUUID().replace(/-/g, "").slice(0, 12)}`,
+    createdAt: now,
+    updatedAt: now,
+    type: validMemoryType(asText(body.type) || payload.type),
+    title: title.slice(0, 80),
+    content: title ? `${title}\n\n${content}` : content,
+    concepts: normalizeConcepts([
+      payload.concepts,
+      tags,
+      "browser-context",
+      page.host,
+      page.type ? `browser-page:${page.type}` : "",
+    ]),
+    files: [],
+    sessionIds: asText(payload.browserSessionId) ? [asText(payload.browserSessionId)] : [],
+    strength: 7,
+    version: 1,
+    sourceObservationIds: [],
+    isLatest: true,
+    project,
+  };
+  await kv.set(KV.memories, memory.id, memory);
+  item.status = "approved";
+  item.title = title;
+  item.content = content;
+  item.updatedAt = now;
+  item.reviewedAt = now;
+  item.resultId = memory.id;
+  item.payload = {
+    ...payload,
+    project,
+    tags,
+    type: memory.type,
+    viewerFallbackApproved: true,
+  };
+  await kv.set(KV.reviewQueue, item.id, item);
+  if (asText(payload.browserSessionId)) {
+    const session = await kv.get<Session>(KV.sessions, asText(payload.browserSessionId));
+    if (session) {
+      session.status = "completed";
+      session.endedAt = now;
+      session.summary = content;
+      await kv.set(KV.sessions, session.id, session);
+    }
+  }
+  json(res, 200, { success: true, item, result: { success: true, memory } }, req);
+  return true;
+}
+
+async function handleReviewDismissFallback(
+  req: IncomingMessage,
+  res: ServerResponse,
+  kv: ViewerKv,
+): Promise<boolean> {
+  const raw = await readBody(req);
+  const body = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+  const id = asText(body.id);
+  if (!id) {
+    json(res, 400, { error: "id is required" }, req);
+    return true;
+  }
+  const item = await kv.get<ReviewQueueItem>(KV.reviewQueue, id);
+  if (!item) {
+    json(res, 404, { error: "review item not found" }, req);
+    return true;
+  }
+  item.status = "dismissed";
+  item.updatedAt = new Date().toISOString();
+  await kv.set(KV.reviewQueue, item.id, item);
+  json(res, 200, { success: true, item }, req);
+  return true;
+}
+
 const MAX_VIEWER_PORT_RETRIES = 10;
 
 let boundViewerPort: number | null = null;
@@ -617,7 +1040,7 @@ export function getViewerSkipped(): boolean {
 
 export function startViewerServer(
   port: number,
-  _kv: unknown,
+  kv: unknown,
   _sdk: unknown,
   secret?: string,
   restPort?: number,
@@ -789,6 +1212,78 @@ export function startViewerServer(
 
     if (method === "GET" && pathname === "/agentmemory/delivery-status") {
       json(res, 200, readDeliveryStatus(), req);
+      return;
+    }
+
+    if (method === "GET" && pathname === "/agentmemory/livez") {
+      json(res, 200, {
+        status: "ok",
+        service: "agentmemory",
+        viewerPort: getBoundViewerPort() || requestedPort,
+        viewerSkipped: getViewerSkipped(),
+        proxy: true,
+      }, req);
+      return;
+    }
+
+    if (method === "GET" && pathname === "/agentmemory/health") {
+      json(res, 200, {
+        status: "ok",
+        service: "agentmemory",
+        viewerPort: getBoundViewerPort() || requestedPort,
+        viewerSkipped: getViewerSkipped(),
+        proxy: true,
+      }, req);
+      return;
+    }
+
+    if (pathname === "/agentmemory/review") {
+      try {
+        if (await handleReviewFallback(req, res, method, qs, kv as ViewerKv)) return;
+      } catch (err) {
+        console.error(`[viewer] review fallback error:`, err);
+        json(res, 500, { error: "review fallback error" }, req);
+        return;
+      }
+    }
+
+    if (pathname === "/agentmemory/review/approve" && method === "POST") {
+      try {
+        if (await handleReviewApproveFallback(req, res, kv as ViewerKv)) return;
+      } catch (err) {
+        console.error(`[viewer] review approve fallback error:`, err);
+        json(res, 500, { error: "review approve fallback error" }, req);
+        return;
+      }
+    }
+
+    if (pathname === "/agentmemory/review/dismiss" && method === "POST") {
+      try {
+        if (await handleReviewDismissFallback(req, res, kv as ViewerKv)) return;
+      } catch (err) {
+        console.error(`[viewer] review dismiss fallback error:`, err);
+        json(res, 500, { error: "review dismiss fallback error" }, req);
+        return;
+      }
+    }
+
+    if (method === "GET" && pathname === "/agentmemory/sessions") {
+      const sessions = await (kv as ViewerKv).list<Session>(KV.sessions);
+      sessions.sort((a, b) => (b.startedAt || "").localeCompare(a.startedAt || ""));
+      json(res, 200, { sessions }, req);
+      return;
+    }
+
+    if (method === "GET" && pathname === "/agentmemory/observations") {
+      const params = parseViewerQuery(qs);
+      const sessionId = params.sessionId || "";
+      if (!sessionId) {
+        json(res, 400, { error: "sessionId required" }, req);
+        return;
+      }
+      const observations = await (kv as ViewerKv).list<CompressedObservation>(KV.observations(sessionId));
+      observations.sort((a, b) => (a.timestamp || "").localeCompare(b.timestamp || ""));
+      json(res, 200, { observations }, req);
       return;
     }
 

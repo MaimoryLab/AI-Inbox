@@ -13,34 +13,34 @@ const popupJs = read('browser-extension/popup.js');
 const sidepanelHtml = read('browser-extension/sidepanel.html');
 const sidepanelJs = read('browser-extension/sidepanel.js');
 const serviceWorker = read('browser-extension/service-worker.js');
+const contentScript = read('browser-extension/content-script.js');
 
 for (const [name, html] of [['popup', popupHtml], ['sidepanel', sidepanelHtml]]) {
-  assert(html.includes('draftTitle'), `${name}: missing editable draft title input.`);
-  assert(html.includes('draftContent'), `${name}: missing editable draft content textarea.`);
-  assert(html.includes('draftProject'), `${name}: missing draft project selector.`);
-  assert(html.includes('draftTags'), `${name}: missing draft tags input.`);
-  assert(html.includes('draftAsLesson'), `${name}: missing lesson candidate toggle.`);
-  assert(html.includes('resetDraft'), `${name}: missing draft reset action.`);
+  assert(html.includes('draftAssist'), `${name}: missing sync status assist copy.`);
+  assert(html.includes('syncNow'), `${name}: missing manual retry sync action.`);
+  assert(html.includes('aria-label="打开工作台"'), `${name}: missing compact workbench icon.`);
+  for (const forbidden of ['draftTitle', 'draftContent', 'draftProject', 'draftTags', 'resetDraft', 'draftAsLesson', '加入待确认']) {
+    assert(!html.includes(forbidden), `${name}: extension should not expose manual memory-writing control ${forbidden}.`);
+  }
 }
 
-assert(popupHtml.includes('待确认内容'), 'popup: draft section must be visible to users.');
-assert(sidepanelHtml.includes('待确认内容'), 'sidepanel: draft section must be visible to users.');
+assert(popupJs.includes('已自动抓取'), 'popup: missing automatic sync status.');
+assert(sidepanelJs.includes('正在自动同步'), 'sidepanel: missing automatic sync status.');
+assert(popupHtml.includes('closePopup'), 'popup: missing compact close control.');
+assert(sidepanelHtml.includes('closePanel'), 'sidepanel: missing compact close control.');
+assert(!popupHtml.includes('打开工作台</button>') && !popupHtml.includes('查看会话</button>'), 'popup: should not expose a large workbench button.');
+assert(!sidepanelHtml.includes('工作台</button>') && !sidepanelHtml.includes('footer-actions'), 'sidepanel: should not expose a footer workbench button.');
+assert(contentScript.includes('scheduleConversationSync'), 'content script: missing automatic conversation sync scheduler.');
+assert(contentScript.includes('SYNC_PAGE_CONVERSATION'), 'content script: automatic sync must call SYNC_PAGE_CONVERSATION.');
+assert(popupJs.includes("send('SYNC_OPEN_AI_TABS'"), 'popup: manual retry must sync all open AI conversation tabs.');
+assert(sidepanelJs.includes("send('SYNC_OPEN_AI_TABS'"), 'sidepanel: manual retry must sync all open AI conversation tabs.');
+assert(!popupJs.includes("send('SAVE_CANDIDATE'"), 'popup: manual candidate saving should not be the primary extension flow.');
+assert(!sidepanelJs.includes("send('SAVE_CANDIDATE'"), 'sidepanel: manual candidate saving should not be the primary extension flow.');
+assert(!sidepanelHtml.includes('可复用经验'), 'sidepanel: reusable lesson/skill branch should stay out of the extension UX.');
 
-assert(popupJs.includes('buildDraft'), 'popup: missing default draft builder.');
-assert(popupJs.includes('getDraftMetaFields'), 'popup: missing editable draft metadata reader.');
-assert(popupJs.includes("send('SAVE_CANDIDATE'"), 'popup: edited draft must save via SAVE_CANDIDATE.');
-assert(popupJs.includes('title, text, meta'), 'popup: edited title, text, and metadata must be submitted together.');
+assert(serviceWorker.includes('async function syncPageConversation'), 'service worker: missing browser conversation sync handler.');
+assert(serviceWorker.includes('syncOpenAiConversationTabs'), 'service worker: missing open AI tabs sync handler.');
+assert(serviceWorker.includes("mode: 'sync'"), 'service worker: sync payload must mark browser sync mode.');
+assert(serviceWorker.includes("source: 'browser-sync'"), 'service worker: sync payload must use browser-sync source.');
 
-assert(sidepanelJs.includes('buildDefaultDraft'), 'sidepanel: missing default draft builder.');
-assert(sidepanelJs.includes('getDraftMetaFields'), 'sidepanel: missing editable draft metadata reader.');
-assert(sidepanelJs.includes('data-draft-kind'), 'sidepanel: candidates must fill the draft instead of saving immediately.');
-assert(sidepanelJs.includes("send('SAVE_CANDIDATE'"), 'sidepanel: edited draft must save via SAVE_CANDIDATE.');
-assert(sidepanelJs.includes('kind, title, text, meta'), 'sidepanel: edited kind, title, text, and metadata must be submitted together.');
-
-assert(serviceWorker.includes('async function saveCandidate(kind, text, title'), 'service worker: saveCandidate must accept edited titles.');
-assert(serviceWorker.includes('normalizeCandidateMeta'), 'service worker: saveCandidate must normalize draft metadata.');
-assert(serviceWorker.includes('message.meta'), 'service worker: SAVE_CANDIDATE message must pass draft metadata.');
-assert(serviceWorker.includes('title: draftTitle'), 'service worker: review queue title must use edited draft title.');
-assert(serviceWorker.includes('message.title'), 'service worker: SAVE_CANDIDATE message must pass edited title.');
-
-console.log('browser extension review draft checks ok');
+console.log('browser extension auto sync checks ok');
