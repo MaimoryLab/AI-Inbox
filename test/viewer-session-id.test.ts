@@ -708,7 +708,51 @@ describe("viewer session rendering", () => {
     expect(detail).not.toContain("加载会话详情中");
   });
 
-  it("hides polluted action review candidates while keeping readable drafts", () => {
+  it("manually refreshes actions and regenerates action candidates", async () => {
+    const { sandbox, getElement, dispatchDocumentClick } = loadViewerSandbox();
+    const urls: string[] = [];
+    sandbox.fetch = async (input: unknown) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes("review/actions/generate")) {
+        return { ok: true, json: async () => ({ success: true, count: 1 }) };
+      }
+      if (url.includes("review?status=pending")) {
+        return { ok: true, json: async () => ({ items: [] }) };
+      }
+      if (url.includes("frontier")) {
+        return { ok: true, json: async () => ({ frontier: [] }) };
+      }
+      if (url.includes("actions")) {
+        return { ok: true, json: async () => ({ actions: [] }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    };
+
+    sandbox.state.activeTab = "actions";
+    sandbox.state.actions = {
+      loaded: true,
+      items: [],
+      frontier: [],
+      statusFilter: "",
+      search: "",
+      reviewItems: [],
+    };
+    sandbox.renderActions();
+    expect(getElement("view-actions").innerHTML).toContain('data-action="refresh-actions"');
+
+    const target = Object.create(sandbox.Element.prototype);
+    target.getAttribute = (name: string) => (name === "data-action" ? "refresh-actions" : null);
+    target.closest = (selector: string) => (selector === "[data-action]" ? target : null);
+    dispatchDocumentClick(target);
+    await flushPromises(8);
+
+    expect(urls.some((url) => url.includes("actions"))).toBe(true);
+    expect(urls.some((url) => url.includes("review/actions/generate"))).toBe(true);
+    expect(getElement("view-actions").innerHTML).toContain("正在整理待办");
+  });
+
+  it("renders action reviews as compact decision cards while keeping tool pollution hidden", () => {
     const { sandbox, getElement } = loadViewerSandbox();
     sandbox.state.actions = {
       loaded: true,
@@ -760,9 +804,14 @@ describe("viewer session rendering", () => {
     const html = getElement("view-actions").innerHTML;
 
     expect(html).toContain("修复待办候选展示");
-    expect(html).toContain("1 条待审");
-    expect(html).not.toContain("待办生成链路与前端展示修复计划");
-    expect(html).not.toContain("## Summary");
+    expect(html).toContain("action-candidate-card");
+    expect(html).toContain("待确认");
+    expect(html).toContain("确认");
+    expect(html).toContain("忽略");
+    expect(html).toContain("查看原文");
+    expect(html).toContain("待办生成链路与前端展示修复计划");
+    expect(html.indexOf("## Summary")).toBeGreaterThan(html.indexOf("<summary>查看原文</summary>"));
     expect(html).not.toContain("src/functions/action-candidates.ts");
+    expect(html).not.toContain(">action-candidate<");
   });
 });

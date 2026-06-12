@@ -1687,7 +1687,7 @@
     }
     .action-overview {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 10px;
       margin-bottom: 12px;
     }
@@ -1700,6 +1700,10 @@
     }
     .action-overview-card {
       padding: 12px 14px;
+    }
+    .action-overview-card.primary {
+      border-color: var(--accent);
+      background: var(--bg-warm);
     }
     .action-overview-label {
       color: var(--ink-muted);
@@ -1738,18 +1742,50 @@
     .action-item-card {
       padding: 13px 14px;
     }
+    .action-item-card.action-candidate-card,
+    .action-item-card.action-approved-card {
+      display: grid;
+      grid-template-columns: 6px minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 12px;
+    }
+    .action-priority-rail {
+      width: 6px;
+      align-self: stretch;
+      min-height: 54px;
+      border-radius: 999px;
+      background: var(--border);
+    }
+    .action-priority-rail.high { background: var(--red); }
+    .action-priority-rail.normal { background: var(--accent); }
+    .action-priority-rail.low { background: var(--ink-faint); }
+    .action-candidate-main { min-width: 0; }
+    .action-candidate-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
     .action-item-title {
       color: var(--ink);
       font-family: var(--font-ui);
       font-size: 15px;
       line-height: 1.35;
       font-weight: 650;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
     .action-item-desc {
       margin-top: 5px;
       color: var(--ink-faint);
       font-size: 12px;
       line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
     .action-item-meta {
       display: flex;
@@ -1762,6 +1798,73 @@
       color: var(--ink-faint);
       font-size: 12px;
       line-height: 1.3;
+    }
+    .action-item-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .actions-filter-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .actions-filter-chips {
+      display: inline-flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .actions-filter-chip {
+      border: 1px solid var(--border-light);
+      background: #ffffff;
+      color: var(--ink-muted);
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 12px;
+      font-family: var(--font-ui);
+      cursor: pointer;
+    }
+    .actions-filter-chip.active {
+      border-color: var(--accent);
+      color: var(--ink);
+      background: var(--bg-warm);
+      font-weight: 650;
+    }
+    .action-original-disclosure {
+      margin-top: 7px;
+      color: var(--ink-muted);
+      font-size: 11px;
+    }
+    .action-original-disclosure summary {
+      cursor: pointer;
+      width: max-content;
+    }
+    .action-original-disclosure pre {
+      margin: 7px 0 0;
+      padding: 8px 10px;
+      max-height: 120px;
+      overflow: auto;
+      border: 1px solid var(--border-light);
+      background: var(--bg-alt);
+      color: var(--ink-muted);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+    @media (max-width: 760px) {
+      .action-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .action-item-card.action-candidate-card,
+      .action-item-card.action-approved-card {
+        grid-template-columns: 5px minmax(0, 1fr);
+      }
+      .action-item-actions {
+        grid-column: 2;
+        justify-self: start;
+      }
     }
     .lesson-section-head {
       display: flex;
@@ -4126,6 +4229,10 @@
     function isReviewItemDisplayable(item) {
       if (!item) return false;
       return !isReviewTextPolluted(item.title) && !isReviewTextPolluted(item.content);
+    }
+    function isActionReviewRenderable(item) {
+      if (!item) return false;
+      return isReviewItemDisplayable(item) || isMarkdownPlanText((item && item.content) || '');
     }
     function reviewKindLabel(kind) {
       if (kind === 'lesson') return '经验';
@@ -7615,7 +7722,7 @@
       var explicitActions = (results[0] && results[0].actions) || [];
       var frontier = (results[1] && (results[1].frontier || results[1].actions)) || [];
       var reviewItems = ((results[2] && results[2].items) || []).filter(function(item) {
-        return item && item.status === 'pending' && item.kind === 'action' && isReviewItemDisplayable(item);
+        return item && item.status === 'pending' && item.kind === 'action' && isActionReviewRenderable(item);
       });
 
       state.actions.items = explicitActions;
@@ -7628,7 +7735,7 @@
           if (!result || result.success !== true) return null;
           return apiGet('review?status=pending&limit=200').then(function(reviewResult) {
             state.actions.reviewItems = ((reviewResult && reviewResult.items) || []).filter(function(item) {
-              return item && item.status === 'pending' && item.kind === 'action' && isReviewItemDisplayable(item);
+              return item && item.status === 'pending' && item.kind === 'action' && isActionReviewRenderable(item);
             });
             if (state.activeTab === 'actions') {
               renderActions();
@@ -7644,24 +7751,31 @@
     function renderActions() {
       var el = document.getElementById('view-actions');
       var items = (state.actions.items || []).slice();
-      var reviewItems = (state.actions.reviewItems || []).filter(isReviewItemDisplayable);
+      var reviewItems = (state.actions.reviewItems || []).filter(isActionReviewRenderable);
       var search = state.actions.search.toLowerCase();
       var statusFilter = state.actions.statusFilter;
       var frontierIds = new Set((state.actions.frontier || []).map(function(a) { return a.id; }));
       var statusLabels = { pending: '待跟进', active: '正在做', done: '已完成', blocked: '卡住了', cancelled: '已取消' };
       var groupMeta = { active: '正在推进', blocked: '需要处理', pending: '待跟进', done: '已完成', cancelled: '已取消' };
+      var filterLabels = { pending: '待处理', review: '待确认', active: '进行中', done: '已完成', all: '全部' };
 
       if (search) {
         items = items.filter(function(a) {
-          return (a.title + ' ' + (a.description || '') + ' ' + (a.tags || []).join(' ')).toLowerCase().indexOf(search) >= 0;
+          return (a.title + ' ' + (a.description || '') + ' ' + (a.tags || []).join(' ') + ' ' + (a.project || '')).toLowerCase().indexOf(search) >= 0;
         });
         reviewItems = reviewItems.filter(function(item) {
-          return ((item.title || '') + ' ' + (item.content || '') + ' ' + reviewTags(item).join(' ')).toLowerCase().indexOf(search) >= 0;
+          return ((item.title || '') + ' ' + (item.content || '') + ' ' + (reviewProject(item) || '') + ' ' + reviewTags(item).join(' ')).toLowerCase().indexOf(search) >= 0;
         });
       }
-      if (statusFilter) {
+      if (statusFilter && statusFilter !== 'review' && statusFilter !== 'all') {
         items = items.filter(function(a) { return a.status === statusFilter; });
         if (statusFilter !== 'pending') reviewItems = [];
+      }
+      if (statusFilter === 'review') {
+        items = [];
+      }
+      if (statusFilter === 'all') {
+        statusFilter = '';
       }
 
       function actionAttentionText(a, isFrontier) {
@@ -7714,48 +7828,158 @@
         }
         return s;
       }
+      function priorityLabel(value) {
+        if (value === 'high' || Number(value) >= 8) return '重要';
+        if (value === 'normal' || Number(value) >= 5) return '普通';
+        return '不急';
+      }
+      function priorityClass(value) {
+        if (value === 'high' || Number(value) >= 8) return 'high';
+        if (value === 'normal' || Number(value) >= 5) return 'normal';
+        return 'low';
+      }
+      function compactActionTitle(text) {
+        var s = String(text || '未命名待办').replace(/^(TODO|FIXME)\s*[:：-]\s*/i, '').trim();
+        var headingMatch = s.match(/#{1,6}\s*([^#\n]+?)(?=\s+#{1,6}\s|$)/);
+        if (headingMatch && !/^(Summary|Key Changes|Test Plan|Assumptions|Public API|Implementation)\b/i.test(headingMatch[1].trim())) {
+          s = headingMatch[1].trim();
+        }
+        s = s
+          .replace(/#{1,6}\s*(Summary|Key Changes|Test Plan|Assumptions|Public API|Implementation)\b[\s\S]*$/i, '')
+          .replace(/#{1,6}\s*/g, '')
+          .replace(/\b(Summary|Key Changes|Test Plan|Assumptions|Public API|Implementation)\b[\s\S]*$/i, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        var first = s.split(/[。！？\n]/u)[0] || s;
+        return truncate(actionTitleText(first.replace(/[。！？；;,.，]+$/u, '').trim() || '未命名待办'), 72);
+      }
+      function stripMarkdownPlanText(text) {
+        return String(text || '')
+          .replace(/\s+(#{1,6}\s+)/g, '\n$1')
+          .split(/\n+/)
+          .filter(function(line) {
+            var trimmed = line.trim();
+            if (!trimmed) return false;
+            if (/^#{1,6}\s/.test(trimmed)) return false;
+            if (/^\s*[-*]\s+/.test(line)) return false;
+            if (/^(Summary|Key Changes|Test Plan|Assumptions|Public API|Implementation)\b/i.test(trimmed)) return false;
+            if (/^(执行步骤|验证命令|停止条件|修改范围)[:：]?/u.test(trimmed)) return false;
+            return true;
+          })
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+      function candidatePreviewText(item) {
+        var title = compactActionTitle(item && item.title);
+        var content = String((item && item.content) || '').trim();
+        if (!content) return '';
+        var isStructured = isMarkdownPlanText(content);
+        var cleaned = isStructured ? stripMarkdownPlanText(content) : content;
+        if (isStructured) {
+          var sentence = (cleaned.match(/(?:TODO|FIXME|下一步|后续|待办|修复|补充|实现|调整|验证|提交|创建|更新|移除|处理)[^。！？\n]{4,80}[。！？]?/u) || [])[0];
+          cleaned = sentence || '';
+        }
+        cleaned = cleaned
+          .replace(/^(TODO|FIXME)\s*[:：-]\s*/i, '')
+          .replace(/^(下一步|后续|待办)\s*[:：-]?\s*/u, '')
+          .replace(/^(请|需要|必须)\s*/u, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (!cleaned || cleaned === title || cleaned.indexOf(title) === 0) return '';
+        return truncate(actionDescriptionText(cleaned), 96);
+      }
+      function actionMetricCards(counts, reviewCount) {
+        var metrics = [
+          { label: '待确认', value: reviewCount, primary: reviewCount > 0 },
+          { label: '待跟进', value: counts.pending + counts.blocked, primary: reviewCount === 0 && (counts.pending + counts.blocked) > 0 },
+          { label: '进行中', value: counts.active, primary: false },
+          { label: '已完成', value: counts.done, primary: false }
+        ];
+        var html = '<div class="action-overview">';
+        metrics.forEach(function(m) {
+          html += '<div class="action-overview-card' + (m.primary ? ' primary' : '') + '"><div class="action-overview-label">' + esc(m.label) + '</div><div class="action-overview-value">' + m.value + '</div></div>';
+        });
+        html += '</div>';
+        return html;
+      }
+      function renderActionFilters() {
+        var chips = [
+          { value: 'pending', label: filterLabels.pending },
+          { value: 'review', label: filterLabels.review },
+          { value: 'active', label: filterLabels.active },
+          { value: 'done', label: filterLabels.done },
+          { value: '', label: filterLabels.all }
+        ];
+        var html = '<div class="actions-filter-row">';
+        html += '<input id="actions-search" class="search-input" type="text" placeholder="搜索待办..." value="' + esc(state.actions.search) + '" style="flex:1;min-width:200px" />';
+        html += '<div class="actions-filter-chips" role="group" aria-label="待办状态筛选">';
+        chips.forEach(function(chip) {
+          var active = (state.actions.statusFilter || '') === chip.value;
+          html += '<button class="actions-filter-chip' + (active ? ' active' : '') + '" data-action="filter-actions-status" data-status="' + esc(chip.value) + '" type="button">' + esc(chip.label) + '</button>';
+        });
+        html += '</div>';
+        html += '<span style="font-size:12px;color:var(--ink-faint);align-self:center;">' + reviewItems.length + ' 条待确认 · ' + items.length + ' 件已确认</span>';
+        html += '<button class="btn" data-action="refresh-actions" type="button" style="margin-left:auto;">刷新</button>';
+        html += '</div>';
+        return html;
+      }
+      function renderActionCandidateCard(item) {
+        var priority = reviewActionPriority(item);
+        var project = reviewProject(item);
+        var title = compactActionTitle(item.title || '未命名待办候选');
+        var preview = candidatePreviewText(item);
+        var raw = String(item.content || '').trim();
+        var showOriginal = raw && isMarkdownPlanText(raw);
+        var html = '<article class="action-item-card action-candidate-card">';
+        html += '<div class="action-priority-rail ' + priorityClass(priority) + '"></div>';
+        html += '<div class="action-candidate-main">';
+        html += '<div class="action-candidate-head"><span class="badge badge-green">待确认</span><span class="badge badge-muted">' + esc(priorityLabel(priority)) + '</span></div>';
+        html += '<div class="action-item-title" style="margin-top:6px;">' + esc(title) + '</div>';
+        if (preview) html += '<div class="action-item-desc">' + esc(preview) + '</div>';
+        html += '<div class="action-item-meta">';
+        if (project) html += '<span class="badge badge-muted">' + esc(projectDisplayName(project)) + '</span>';
+        html += '</div>';
+        if (showOriginal) {
+          html += '<details class="action-original-disclosure"><summary>查看原文</summary><pre>' + esc(truncate(raw, 1200)) + '</pre></details>';
+        }
+        html += '</div>';
+        html += '<div class="action-item-actions"><button class="btn btn-primary" data-action="edit-review" data-review-id="' + esc(item.id) + '">确认</button><button class="btn" data-action="dismiss-review" data-review-id="' + esc(item.id) + '">忽略</button></div>';
+        html += '</article>';
+        return html;
+      }
+      function renderActionCard(a, isFrontier) {
+        var html = '<article class="action-item-card action-approved-card">';
+        html += '<div class="action-priority-rail ' + priorityClass(a.priority) + '"></div>';
+        html += '<div class="action-candidate-main">';
+        html += '<div class="action-item-title">' + esc(compactActionTitle(a.title)) + '</div>';
+        var actionDesc = actionDescriptionText(a.description);
+        if (actionDesc) html += '<div class="action-item-desc">' + esc(truncate(actionDesc, 120)) + '</div>';
+        html += '<div class="action-item-meta">';
+        var attention = actionAttentionText(a, isFrontier);
+        if (attention) html += '<span class="badge ' + (attention === '下一步' ? 'badge-green' : 'badge-yellow') + '">' + esc(attention) + '</span>';
+        html += '<span class="badge badge-muted">' + esc(priorityLabel(a.priority)) + '</span>';
+        var sourceText = actionSourceText(a);
+        if (sourceText) html += '<span class="action-meta-text">来自 ' + esc(sourceText) + '</span>';
+        (a.tags || []).slice(0, 2).forEach(function(t) { html += '<span class="tag">' + esc(t) + '</span>'; });
+        if (a.updatedAt) html += '<span class="action-meta-text">更新 ' + esc(shortTime(a.updatedAt)) + '</span>';
+        html += '</div></div>';
+        html += statusIconMarkup(a.status, statusLabels[a.status] || a.status);
+        html += '</article>';
+        return html;
+      }
       var statusCounts = { active: 0, blocked: 0, pending: 0, done: 0, cancelled: 0 };
       items.forEach(function(a) { if (statusCounts[a.status] !== undefined) statusCounts[a.status] += 1; });
 
-      var html = '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">';
-      html += '<input id="actions-search" class="search-input" type="text" placeholder="搜索待办..." value="' + esc(state.actions.search) + '" style="flex:1;min-width:200px" />';
-      html += '<select id="actions-status-filter" style="padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--ink);">';
-      html += '<option value="">全部</option>';
-      ['pending','active','done','blocked','cancelled'].forEach(function(s) {
-        html += '<option value="' + s + '"' + (statusFilter === s ? ' selected' : '') + '>' + statusLabels[s] + '</option>';
-      });
-      html += '</select>';
-      html += '<span style="font-size:12px;color:var(--ink-faint);align-self:center;">' + items.length + ' 件事 · ' + reviewItems.length + ' 条待审</span>';
-      html += '</div>';
-
-      html += '<div class="action-overview">';
-      html += '<div class="action-overview-card"><div class="action-overview-label">待跟进</div><div class="action-overview-value">' + (statusCounts.pending + statusCounts.blocked) + '</div></div>';
-      html += '<div class="action-overview-card"><div class="action-overview-label">正在做</div><div class="action-overview-value">' + statusCounts.active + '</div></div>';
-      html += '<div class="action-overview-card"><div class="action-overview-label">已完成</div><div class="action-overview-value">' + statusCounts.done + '</div></div>';
-      html += '</div>';
-      html += '<div class="memory-summary" style="background:#ffffff;margin-bottom:12px;"><div><div class="memory-summary-title">从会话整理</div><div class="memory-summary-sub">这里放需要继续推进、复盘或确认的事情。</div></div></div>';
+      var html = renderActionFilters();
+      html += actionMetricCards(statusCounts, reviewItems.length);
 
       if (reviewItems.length) {
         html += '<section class="card memory-section" style="padding:14px 16px;margin-bottom:14px;background:#ffffff;">';
-        html += '<div class="memory-section-head"><div><div class="memory-section-title">待审阅待办</div><div class="memory-summary-sub" style="margin-top:3px;">明确待办会先在这里确认，批准后才进入真实 Action。</div></div><span class="memory-section-count">' + reviewItems.length + ' 条</span></div>';
+        html += '<div class="memory-section-head"><div><div class="memory-section-title">待确认</div></div><span class="memory-section-count">' + reviewItems.length + ' 条</span></div>';
         html += '<div class="action-card-list">';
         reviewItems.forEach(function(item) {
-          var payload = reviewPayload(item);
-          var tags = reviewTags(item);
-          var project = reviewProject(item);
-          html += '<article class="action-item-card">';
-          html += '<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">';
-          html += '<div style="min-width:0;"><div class="action-item-title">' + esc(actionTitleText(item.title || '待处理行动')) + '</div>';
-          if (item.content) html += '<div class="action-item-desc">' + esc(truncate(actionDescriptionText(item.content), 160)) + '</div>';
-          html += '</div><span class="badge badge-yellow">待审阅</span></div>';
-          html += '<div class="action-item-meta">';
-          html += '<span class="badge badge-green">行动候选</span>';
-          if (project) html += '<span class="action-meta-text">' + esc(projectDisplayName(project)) + '</span>';
-          if (payload.actionCandidate && payload.actionCandidate.reason) html += '<span class="tag">' + esc(payload.actionCandidate.reason) + '</span>';
-          tags.slice(0, 3).forEach(function(tag) { html += '<span class="tag">' + esc(tag) + '</span>'; });
-          html += '</div>';
-          html += '<div class="memory-card-actions"><button class="btn btn-primary" data-action="edit-review" data-review-id="' + esc(item.id) + '">审阅保存</button><button class="btn" data-action="dismiss-review" data-review-id="' + esc(item.id) + '">忽略</button></div>';
-          html += '</article>';
+          html += renderActionCandidateCard(item);
         });
         html += '</div></section>';
       }
@@ -7779,23 +8003,7 @@
           html += '<div class="action-card-list">';
           group.forEach(function(a) {
             var isFrontier = frontierIds.has(a.id);
-            html += '<article class="action-item-card">';
-            html += '<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">';
-            html += '<div style="min-width:0;"><div class="action-item-title">' + esc(actionTitleText(a.title)) + '</div>';
-            var actionDesc = actionDescriptionText(a.description);
-            if (actionDesc) html += '<div class="action-item-desc">' + esc(truncate(actionDesc, 140)) + '</div>';
-            html += '</div>';
-            html += statusIconMarkup(a.status, statusLabels[a.status] || a.status);
-            html += '</div>';
-            html += '<div class="action-item-meta">';
-            var attention = actionAttentionText(a, isFrontier);
-            if (attention) html += '<span class="badge ' + (attention === '下一步' ? 'badge-green' : 'badge-yellow') + '">' + esc(attention) + '</span>';
-            var sourceText = actionSourceText(a);
-            if (sourceText) html += '<span class="action-meta-text">来自 ' + esc(sourceText) + '</span>';
-            (a.tags || []).slice(0, 2).forEach(function(t) { html += '<span class="tag">' + esc(t) + '</span>'; });
-            if (a.updatedAt) html += '<span class="action-meta-text">更新 ' + esc(shortTime(a.updatedAt)) + '</span>';
-            html += '</div>';
-            html += '</article>';
+            html += renderActionCard(a, isFrontier);
           });
           html += '</div></section>';
         });
@@ -7805,8 +8013,6 @@
       el.innerHTML = html;
       var __as = document.getElementById('actions-search');
       if (__as) bindImeSafeSearch(__as, 200, function(v){ state.actions.search = v; renderActions(); });
-      var __af = document.getElementById('actions-status-filter');
-      if (__af) __af.addEventListener('change', function(){ state.actions.statusFilter = this.value; renderActions(); });
       restoreSearchFocus(__focus);
     }
 
@@ -8527,6 +8733,11 @@
         loadActivity();
         return;
       }
+      if (action === 'refresh-actions') {
+        state.actions.loaded = false;
+        loadActions({ generate: true });
+        return;
+      }
       if (action === 'refresh-sessions') {
         state.sessions.loaded = false;
         loadSessions({ showLoading: true, reason: 'manual' });
@@ -8614,6 +8825,11 @@
       if (action === 'filter-skill-root') {
         state.lessons.skillRootFilter = target.getAttribute('data-root') || 'all';
         renderLessons();
+        return;
+      }
+      if (action === 'filter-actions-status') {
+        state.actions.statusFilter = target.getAttribute('data-status') || '';
+        renderActions();
         return;
       }
       if (action === 'close-modal') {
