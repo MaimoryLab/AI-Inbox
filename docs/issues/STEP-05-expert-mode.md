@@ -1,7 +1,7 @@
 # STEP-05：专家模式开关（收纳被砍视图）
 
 - 线:A（前端三栏）
-- 状态:⬜ 未开始
+- 状态:✅ 单测+浏览器实证绿,待开 PR
 - 依赖:STEP-01
 - 对应 PR:`Claude/expert-mode`
 
@@ -38,8 +38,19 @@ revert 单 PR；专家入口消失，主三栏不受影响。
 
 ## 实际反馈（执行后由你回填）
 
-- 构建:
-- 测试:
-- 行为:
+- 构建:✅ `npm run build` 通过。
+- 测试:✅ `npm test` **127 文件 / 1352 用例全绿,0 回归**。新增 `test/viewer-expert-mode.test.ts` 5 用例(默认关→折回主三栏且无进阶组、`?expert=1` 放行隐藏 tab、localStorage 开渲染 9 个进阶按钮、`?expert=0` 覆盖 localStorage、renderExpertTabs 幂等不重复)。
+- 浏览器实证:`preview_eval` + `preview_inspect` 实跑——开启后 `#tab-expert-group` 渲染 9 个标签(记忆/经验/图谱/时间线/实时/档案/审计/回放/结晶),逐个 `switchTab` 到 9 个隐藏视图**均不抛错**、console 无 error;关闭后进阶组被移除(getElementById 返回 null)。
+- 实际改动（仅 `src/viewer/index.html`）:
+  1. 新增 `EXPERT_TABS`(9 项 id+label)、`expertModeEnabled()`(读 `?expert=1/0` 优先,否则 localStorage `viewer_expert_mode`)、`setExpertMode()`。
+  2. `normalizeTab`:专家模式开 + tab 属 EXPERT_TABS → 放行;否则维持 TAB_REDIRECTS 折回。**TAB_IDS/TAB_REDIRECTS 常量未改**(默认行为零变化)。
+  3. `renderExpertTabs()`:幂等渲染进阶按钮组到 `.tab-main`;`toggleExpertMode()`:翻转+重渲染,关闭时若停在隐藏视图则折回 dashboard。
+  4. 导航 `.tab-side-meta` 加「专家」开关按钮(`#expert-toggle`,`aria-pressed`);tab-bar 点击委托新增 `#expert-toggle` 分支。
+  5. boot 处调 `renderExpertTabs()`。
+- **清理(STEP-01 遗留死代码)**:删除 `switchTab` 里对已不存在的 `tab-extra`/`tab-extra-toggle` DOM 的死引用块、未用的 `advancedTabs` 局部变量;tab-bar 点击委托里移除旧 `#tab-extra-toggle` 分支(整段替换为 `#expert-toggle`)。
 - 与预测的差异:
-- 下一步影响:
+  - 预测「放行隐藏视图可能首次暴露既有运行时错误」——**实测 9 个视图 switchTab 均不抛错、无 console error**,数据格式未漂移。比预期顺利。
+  - 一处源码健壮性修复:`renderExpertTabs` 移除旧组时加 `existing.parentNode` 判空(原 `existing.parentNode.removeChild` 在 parentNode 缺失时会炸),顺带让 STEP-03/04 等共用沙箱测试的 boot 期 `renderExpertTabs()` 不受影响。
+- 下一步影响(下游待更新清单):
+  - 无对 STEP-06 的代码影响。
+  - 被收纳视图里若展示 Agent 文本,可复用 STEP-04 的 `renderMarkdownSafe`(目前未接,各视图维持原渲染)。
