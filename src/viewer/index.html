@@ -1799,6 +1799,27 @@
       font-size: 12px;
       line-height: 1.3;
     }
+    .action-evidence-link {
+      appearance: none;
+      border: none;
+      background: none;
+      padding: 0;
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.3;
+      color: var(--accent, #2563eb);
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .action-evidence-link:hover { text-decoration: underline; }
+    .obs-jump-highlight {
+      animation: obs-jump-pulse 2.4s ease-out;
+      border-radius: 6px;
+    }
+    @keyframes obs-jump-pulse {
+      0% { background: var(--accent-soft, rgba(37,99,235,0.18)); box-shadow: 0 0 0 4px var(--accent-soft, rgba(37,99,235,0.18)); }
+      100% { background: transparent; box-shadow: 0 0 0 4px transparent; }
+    }
     .action-item-actions {
       display: inline-flex;
       align-items: center;
@@ -3710,7 +3731,7 @@
       graph: { loaded: false, nodes: [], edges: [], stats: null, filters: {}, selectedNode: null },
       memories: { loaded: false, items: [], reviewItems: [], search: '', typeFilter: '', sourceFilter: '' },
 	      timeline: { loaded: false, observations: [], sessionId: '', projectKey: '', sessions: [], minImportance: 0, page: 0, pageSize: 50, mode: 'episodes', episodeFilter: 'all', expandedEpisodes: {} },
-      sessions: { loaded: false, items: [], selectedId: null, groupMode: 'folder', folderKey: 'all', sourceKey: 'all', warnings: [], highlightsById: {}, detailSectionsById: {}, detailCacheById: {}, stale: false, requestSeq: 0, detailRequestSeq: 0 },
+      sessions: { loaded: false, items: [], selectedId: null, groupMode: 'folder', folderKey: 'all', sourceKey: 'all', warnings: [], highlightsById: {}, detailSectionsById: {}, detailCacheById: {}, stale: false, requestSeq: 0, detailRequestSeq: 0, pendingHighlightObsId: null },
       audit: { loaded: false, entries: [], opFilter: '' },
       activity: { loaded: false, observations: [], sessions: [], typeFilter: '', loadingPhase: '', warnings: [] },
       lessons: { loaded: false, items: [], search: '', skillSearch: '', skillRootFilter: 'all', mode: 'explicit', projects: [] },
@@ -7290,7 +7311,7 @@
         timelineObs.forEach(function(o) {
           var display = observationDisplay(o);
           var type = o.type || o.hookType || 'other';
-          html += '<div style="display:grid;grid-template-columns:72px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-light);">';
+          html += '<div' + (o && o.id ? ' id="obs-anchor-' + esc(o.id) + '"' : '') + ' style="display:grid;grid-template-columns:72px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-light);">';
           html += '<div style="font-size:12px;color:var(--ink-faint);font-family:var(--font-ui);">' + esc(shortTime(o.timestamp)) + '</div>';
           html += '<div><div style="font-size:14px;color:var(--ink);font-weight:600;line-height:1.35;white-space:pre-wrap;">' + esc(display.title || observationTypeLabel(type)) + '</div>';
           if (display.body) html += '<div style="font-size:13px;color:var(--ink-muted);line-height:1.45;margin-top:3px;white-space:pre-wrap;overflow-wrap:anywhere;">' + esc(display.body) + '</div>';
@@ -7357,6 +7378,7 @@
       }
       html += '</div></div>';
       panel.innerHTML = html;
+      applyPendingHighlight();
     }
 
     async function endSession(id) {
@@ -7741,6 +7763,80 @@
       }
     }
 
+    // 待办→证据跳转:待办卡指向裸 obs_id,证据栏按 session 组织,
+    // 后端无 obs_id→session 反查端点。遍历已加载会话,缓存优先、未命中才请求,命中即停。
+    async function resolveObsSession(obsId) {
+      if (!obsId) return null;
+      var sessions = state.sessions.items || [];
+      for (var i = 0; i < sessions.length; i++) {
+        var s = sessions[i];
+        var id = sessionId(s);
+        if (!id) continue;
+        var obs = null;
+        var cached = state.sessions.detailCacheById && state.sessions.detailCacheById[id];
+        if (cached && Array.isArray(cached.observations)) {
+          obs = cached.observations;
+        } else if (Array.isArray(s.embeddedObservations) && s.embeddedObservations.length) {
+          obs = s.embeddedObservations;
+        }
+        if (obs && obs.some(function(o) { return o && o.id === obsId; })) return id;
+        if (obs) continue;
+        try {
+          var res = await apiGet('observations?sessionId=' + encodeURIComponent(id));
+          var list = (res && res.observations) || [];
+          if (list.some(function(o) { return o && o.id === obsId; })) return id;
+        } catch (e) { /* 单个会话取失败不阻断扫描 */ }
+      }
+      return null;
+    }
+
+    async function jumpToEvidence(obsId) {
+      if (!obsId) return;
+      if (!state.sessions.loaded) await loadSessions({ showLoading: false, reason: 'jump' });
+      var targetSessionId = await resolveObsSession(obsId);
+      if (!targetSessionId) {
+        flashHint('未找到这条待办的来源会话（可能尚未同步或已被过滤）');
+        return;
+      }
+      state.sessions.selectedId = targetSessionId;
+      state.sessions.pendingHighlightObsId = obsId;
+      // 来源观测画在「完整对话过程」区,默认折叠 → 跳转前强制展开,否则锚点不存在
+      if (!state.sessions.detailSectionsById) state.sessions.detailSectionsById = {};
+      var sec = state.sessions.detailSectionsById[targetSessionId] || { highlights: true, process: false };
+      sec.process = true;
+      state.sessions.detailSectionsById[targetSessionId] = sec;
+      switchTab('sessions');
+      renderSessions();
+      await renderSessionDetail();
+    }
+
+    function flashHint(message) {
+      var el = document.getElementById('jump-hint');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'jump-hint';
+        el.setAttribute('role', 'status');
+        el.setAttribute('aria-live', 'polite');
+        el.style.cssText = 'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--ink,#1a1a1a);color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.2);max-width:80vw;';
+        (document.body || document.documentElement).appendChild(el);
+      }
+      el.textContent = message;
+      el.style.opacity = '1';
+      if (flashHint._t) clearTimeout(flashHint._t);
+      flashHint._t = setTimeout(function() { if (el) el.style.opacity = '0'; }, 2600);
+    }
+
+    function applyPendingHighlight() {
+      var obsId = state.sessions.pendingHighlightObsId;
+      if (!obsId) return;
+      state.sessions.pendingHighlightObsId = null;
+      var anchor = document.getElementById('obs-anchor-' + obsId);
+      if (!anchor) return;
+      if (typeof anchor.scrollIntoView === 'function') anchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      anchor.classList.add('obs-jump-highlight');
+      setTimeout(function() { anchor.classList.remove('obs-jump-highlight'); }, 2400);
+    }
+
     function renderActions() {
       var el = document.getElementById('view-actions');
       var items = (state.actions.items || []).slice();
@@ -7954,6 +8050,8 @@
         html += '<span class="badge badge-muted">' + esc(priorityLabel(a.priority)) + '</span>';
         var sourceText = actionSourceText(a);
         if (sourceText) html += '<span class="action-meta-text">来自 ' + esc(sourceText) + '</span>';
+        var jumpObsId = Array.isArray(a.sourceObservationIds) ? a.sourceObservationIds.find(function(id) { return typeof id === 'string' && id.length > 0; }) : '';
+        if (jumpObsId) html += '<button class="action-evidence-link" type="button" data-action="jump-to-evidence" data-obs-id="' + esc(jumpObsId) + '">看原文 →</button>';
         (a.tags || []).slice(0, 2).forEach(function(t) { html += '<span class="tag">' + esc(t) + '</span>'; });
         if (a.updatedAt) html += '<span class="action-meta-text">更新 ' + esc(shortTime(a.updatedAt)) + '</span>';
         html += '</div></div>';
@@ -8741,6 +8839,10 @@
         if (openSessionId) state.sessions.selectedId = openSessionId;
         state.sessions.loaded = false;
         switchTab('sessions');
+        return;
+      }
+      if (action === 'jump-to-evidence') {
+        jumpToEvidence(target.getAttribute('data-obs-id') || '');
         return;
       }
       if (action === 'toggle-session-detail-section') {
