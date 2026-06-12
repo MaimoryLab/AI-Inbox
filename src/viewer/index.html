@@ -875,6 +875,7 @@
       font-weight: 650;
     }
     .session-source-chip {
+      position: relative;
       display: grid;
       grid-template-columns: 1fr auto;
       gap: 8px;
@@ -888,6 +889,25 @@
       font: inherit;
       text-align: left;
       cursor: pointer;
+    }
+    .session-source-chip .folder-hover-preview {
+      grid-column: 1 / -1;
+      max-height: 0;
+      color: var(--ink-muted);
+      font-size: 12px;
+      line-height: 1.45;
+      opacity: 0;
+      overflow: hidden;
+      transition: max-height 0.15s ease, opacity 0.15s ease, margin-top 0.15s ease;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+    }
+    .session-source-chip:hover .folder-hover-preview,
+    .session-source-chip.active .folder-hover-preview {
+      max-height: 58px;
+      margin-top: 2px;
+      opacity: 1;
     }
     .session-source-chip:hover,
     .session-source-chip.active {
@@ -3594,7 +3614,7 @@
       graph: { loaded: false, nodes: [], edges: [], stats: null, filters: {}, selectedNode: null },
       memories: { loaded: false, items: [], reviewItems: [], search: '', typeFilter: '', sourceFilter: '' },
 	      timeline: { loaded: false, observations: [], sessionId: '', projectKey: '', sessions: [], minImportance: 0, page: 0, pageSize: 50, mode: 'episodes', episodeFilter: 'all', expandedEpisodes: {} },
-      sessions: { loaded: false, items: [], selectedId: null, sourceKey: 'all', warnings: [], highlightsById: {}, detailSectionsById: {}, detailCacheById: {}, stale: false, requestSeq: 0, detailRequestSeq: 0 },
+      sessions: { loaded: false, items: [], selectedId: null, groupMode: 'folder', folderKey: 'all', sourceKey: 'all', warnings: [], highlightsById: {}, detailSectionsById: {}, detailCacheById: {}, stale: false, requestSeq: 0, detailRequestSeq: 0 },
       audit: { loaded: false, entries: [], opFilter: '' },
       activity: { loaded: false, observations: [], sessions: [], typeFilter: '', loadingPhase: '', warnings: [] },
       lessons: { loaded: false, items: [], search: '', skillSearch: '', skillRootFilter: 'all', mode: 'explicit', projects: [] },
@@ -6849,33 +6869,67 @@
         if (state.sessions.warnings && state.sessions.warnings.length) html += '<div style="margin-top:10px;"><button class="btn btn-primary" data-action="refresh-sessions">重试加载</button></div>';
         html += '</div>';
       } else {
+        var groupMode = state.sessions.groupMode === 'source' ? 'source' : 'folder';
+        state.sessions.groupMode = groupMode;
+        var projectGroups = groupSessionsByProject(items);
         var sourceGroups = sessionSourceGroups(items);
-        var activeSourceKey = state.sessions.sourceKey || 'all';
-        if (!sourceGroups.some(function(g) { return g.key === activeSourceKey; })) activeSourceKey = 'all';
-        state.sessions.sourceKey = activeSourceKey;
-        var activeSource = sourceGroups.find(function(g) { return g.key === activeSourceKey; }) || sourceGroups[0];
-        var visibleItems = activeSourceKey === 'all' ? items : items.filter(function(s) { return sessionSourceKey(s) === activeSourceKey; });
+        var folderGroups = [{
+          key: 'all',
+          name: '全部会话',
+          sessions: items,
+          count: items.length,
+          latest: projectGroups[0] ? projectGroups[0].latest : '',
+          observations: items.reduce(function(sum, s) { return sum + (s.observationCount || 0); }, 0),
+          sources: {},
+          hasMissingId: false
+        }].concat(projectGroups);
+        var groups = groupMode === 'source' ? sourceGroups.map(function(g) {
+          return {
+            key: g.key,
+            name: g.name,
+            count: g.count,
+            latest: g.latest,
+            observations: g.observations,
+            sessions: g.key === 'all' ? items : items.filter(function(s) { return sessionSourceKey(s) === g.key; })
+          };
+        }) : folderGroups;
+        var activeGroupKey = groupMode === 'source' ? (state.sessions.sourceKey || 'all') : (state.sessions.folderKey || 'all');
+        if (!groups.some(function(g) { return g.key === activeGroupKey; })) activeGroupKey = 'all';
+        if (groupMode === 'source') state.sessions.sourceKey = activeGroupKey;
+        else state.sessions.folderKey = activeGroupKey;
+        var activeGroup = groups.find(function(g) { return g.key === activeGroupKey; }) || groups[0];
+        var visibleItems = activeGroup.sessions || [];
         var totalObs = items.reduce(function(sum, s) { return sum + (s.observationCount || 0); }, 0);
         html += '<div class="session-hero">';
-        html += '<div><div class="session-hero-title">会话收件箱</div><div class="session-hero-note">浏览器和本地 Agent 的会话会自动汇入这里，再从这里整理记忆、待办或 Skill。</div></div>';
-        html += '<div class="session-hero-meta">' + items.length + ' 段会话 · ' + (sourceGroups.length - 1) + ' 个来源 · ' + totalObs + ' 条记录</div>';
+        html += '<div><div class="session-hero-title">会话</div><div class="session-hero-note">浏览器和本地 Agent 的会话会汇入这里，可以按文件夹或来源查看。</div></div>';
+        html += '<div class="session-hero-meta">' + items.length + ' 段会话 · ' + projectGroups.length + ' 个文件夹 · ' + (sourceGroups.length - 1) + ' 个来源 · ' + totalObs + ' 条记录</div>';
         html += '</div>';
         html += '<div id="session-detail"></div>';
 
         html += '<section class="session-section">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">';
+        html += '<span class="mode-switch" aria-label="会话分组方式">';
+        html += '<button type="button" class="' + (groupMode === 'folder' ? 'active' : '') + '" data-action="session-group-mode" data-mode="folder">按文件夹</button>';
+        html += '<button type="button" class="' + (groupMode === 'source' ? 'active' : '') + '" data-action="session-group-mode" data-mode="source">按来源</button>';
+        html += '</span>';
+        html += '<button class="btn" data-action="refresh-sessions">刷新</button>';
+        html += '</div>';
         html += '<div class="session-inbox">';
-        html += '<aside class="session-source-rail" aria-label="会话来源">';
-        html += '<div class="session-source-label">来源</div>';
-        sourceGroups.forEach(function(g) {
-          html += '<button type="button" class="session-source-chip' + (g.key === activeSourceKey ? ' active' : '') + '" data-action="select-session-source" data-source-key="' + esc(g.key) + '">';
+        html += '<aside class="session-source-rail" aria-label="会话分组">';
+        html += '<div class="session-source-label">' + (groupMode === 'source' ? '来源' : '文件夹') + '</div>';
+        groups.forEach(function(g) {
+          var latest = g.sessions && g.sessions[0];
+          var preview = latest ? sessionBodyPreview(latest, sessionTitleText(latest)) : '';
+          html += '<button type="button" class="session-source-chip' + (g.key === activeGroupKey ? ' active' : '') + '" data-action="select-session-group" data-group-key="' + esc(g.key) + '" title="' + esc(g.key) + '">';
           html += '<span class="session-source-name">' + esc(g.name) + '</span><span class="session-source-count">' + g.count + '</span>';
+          if (preview) html += '<span class="folder-hover-preview">' + esc(truncate(preview, 150)) + '</span>';
           html += '</button>';
         });
         html += '</aside>';
         html += '<div class="session-inbox-main">';
-        html += '<div class="session-inbox-head"><div><div class="session-inbox-title">' + esc(activeSource ? activeSource.name : '全部会话') + '</div><div class="session-inbox-note">' + visibleItems.length + ' 段会话 · ' + ((activeSource && activeSource.observations) || 0) + ' 条记录</div></div><button class="btn" data-action="refresh-sessions">刷新</button></div>';
+        html += '<div class="session-inbox-head"><div><div class="session-inbox-title">' + esc(activeGroup ? activeGroup.name : '全部会话') + '</div><div class="session-inbox-note">' + visibleItems.length + ' 段会话 · ' + ((activeGroup && activeGroup.observations) || 0) + ' 条记录</div></div></div>';
         if (!visibleItems.length) {
-          html += '<div class="session-empty-filter">这个来源下暂时没有会话。</div>';
+          html += '<div class="session-empty-filter">这个' + (groupMode === 'source' ? '来源' : '文件夹') + '下暂时没有会话。</div>';
         } else {
           visibleItems.forEach(function(s) {
             var id = sessionId(s);
@@ -8635,8 +8689,16 @@
         if (sessionId) selectSession(sessionId);
         return;
       }
-      if (action === 'select-session-source') {
-        state.sessions.sourceKey = target.getAttribute('data-source-key') || 'all';
+      if (action === 'session-group-mode') {
+        var sessionMode = target.getAttribute('data-mode') === 'source' ? 'source' : 'folder';
+        state.sessions.groupMode = sessionMode;
+        renderSessions();
+        return;
+      }
+      if (action === 'select-session-group') {
+        var groupKey = target.getAttribute('data-group-key') || 'all';
+        if (state.sessions.groupMode === 'source') state.sessions.sourceKey = groupKey;
+        else state.sessions.folderKey = groupKey;
         renderSessions();
         return;
       }
