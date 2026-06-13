@@ -1,8 +1,20 @@
 # 线 C 方案:Agent→用户异步收件箱(待回应 / 已完成)
 
-> 状态:**草案 v1,待人工审阅**。产出形态为方案文档,本轮**不改代码**。
+> 状态:**v2,已审阅通过、开工中**。第一轮审阅 5 点已落实(§0.5),边界已锁定(Agent 主动写→工作台收,本轮不接飞书)。
 > 日期:2026-06-13 · 基线:`@agentmemory/agentmemory` v0.9.24 · 前置:线 A(三栏)已交付。
 > 方法论沿用线 A 验证有效的工作流(见 `dev/workflow-review-cn.md`):一步一 PR、预测后回填、preview 实证、文档零 CI。
+
+## 进度看板(2026-06-13)
+
+| STEP | 内容 | 状态 |
+|---|---|---|
+| **C1** | inbox 后端原语(5 函数 + 5 REST + 2 MCP 工具 + KV + audit) | ✅ **已合并** [PR#19](https://github.com/MaimoryLab/agentmemory-lab/pull/19)(main baa5771) |
+| **C1.5** | Agent 主动发送+整理接入点(`ask-user`/`organize-todos` skill,⭐核心) | ⬜ 待开工(C1 已就绪,可立即开始) |
+| **C2** | viewer「待回应/通知」区接真数据 | ⬜ 待开工(依赖 C1✅) |
+| **C3** | 动作:回应 / 知道了 / 转待处理 / 看原文 | ⬜ 待开工(依赖 C2) |
+| **C4** | 「已完成」区(只读 done,可与 C3 并行) | ⬜ 待开工(独立) |
+
+> **里程碑**:C1 后端原语已落地——inbox 这条链路的「能写、能列、能答、能消解」后端语义已全部就绪、CI 4 格绿(128 文件/1362 用例)。下一步 **C1.5**(让 Agent 真的往里写)是闭环命门,优先开工。
 
 ---
 
@@ -129,6 +141,12 @@ interface InboxItem {
   - `test/inbox.test.ts`(新):ask/notify/list/answer/dismiss + 状态机 + 「list 不要 agentId」守卫 + kind 过滤。
 - **结果预测**:build 通过;`npm test` 维持绿 + 新增 inbox 用例;`consistency.test` 因新增 MCP 工具/REST 端点会要求同步计数——**必须按 §5 清单全改,否则计数断言红**。
 - **风险**:一致性铁律是本步最大风险(改 8+3 处 + KV2 + audit1)。先跑 `npm run check:consistency-local` 秒级自检,再 build/test。
+- ✅ **实际反馈([PR#19](https://github.com/MaimoryLab/agentmemory-lab/pull/19) 已合并,main baa5771)**:
+  - 落地 `src/functions/inbox.ts`(142 行):`mem::inbox-ask`/`-notify`/`-list`/`-answer`/`-dismiss` 共 5 函数。`list` 确认**无需 agentId**、可按 `status`/`kind` 过滤、按 `createdAt` 倒序、默认 limit 50、过期项过滤。`answer` 空 answer = briefing 已读(`answer` 留 undefined)。
+  - KV scope `mem:inbox`(schema + types,2 处);5 REST 端点 `/agentmemory/inbox/{ask,notify,answer,dismiss}` + `GET /agentmemory/inbox`(端点数 **131→136**);2 写侧 MCP 工具 `memory_inbox_ask`/`memory_inbox_notify`(工具数 **53→55**,读/答消解走 REST+viewer);audit op 加 `inbox_ask`/`inbox_notify`/`inbox_answer`/`inbox_dismiss`(实际 4 个,比预测多 dismiss)。
+  - `test/inbox.test.ts` 9 例全绿;一致性铁律全套连带已改。
+  - **踩坑**:`test/session-highlights-api.test.ts` **硬编码** `endpointCount===131`(独立于 `consistency.test`),`check-consistency-local.mjs` 只比跨文档一致、不扫测试硬编码字面量,**漏报**——已手动改 136。教训:本地 check 脚本对「测试内硬编码计数」是盲区,后续可增强扫描。
+  - 最终基线:**128 文件 / 1362 用例 0 失败**;CI 4 格(ubuntu/macos × node 20/22)全绿;PR CLEAN/MERGEABLE,已 `--merge --delete-branch`。
 
 ### STEP-C1.5 — Agent 主动发送+整理的接入点(⭐ 核心,原 C5 升级)
 - **为什么必做**:这是「收件箱有没有数据」的产品闭环命门。没有 Agent 主动往里写,inbox 永远空、线 C 价值无从兑现。审阅已拍板把它从旁路提为核心。
@@ -155,21 +173,40 @@ interface InboxItem {
 - **结果预测**:build + 单测;零后端改动;preview 实证折叠/展开。
 - **风险**:极低。纯前端筛现有数据。
 
-## 5. 一致性铁律连带清单(C1 必守,见 `dev/` 记忆)
+## 5. 一致性铁律连带清单(C1 已守完,留作 C1.5+ 参照)
 
-新增 MCP 工具(每个工具 8 处)+ REST 端点(3 处)+ KV scope(2 处)+ audit op(1 处):
+> C1 新增 MCP 工具/REST/KV/audit 时已按下表全改,`consistency.test` 绿 = 已对齐。**C1.5 起若再动工具/端点计数,仍按此表逐项过。**
 
-- [ ] `src/mcp/tools-registry.ts`(定义 + getAllTools)
-- [ ] `src/mcp/server.ts`(handler case)
-- [ ] `src/triggers/api.ts`(REST 孪生)
-- [ ] `src/index.ts`(function 注册 + 端点计数日志,131→新值)
-- [ ] `test/mcp-standalone.test.ts`(工具计数断言)
-- [ ] `README.md`(MCP 工具数 + REST 端点数,consistency.test 锁定)
-- [ ] `AGENTS.md`(REST 端点数 "N REST endpoints")
-- [ ] `plugin/.claude-plugin/plugin.json` + `plugin/plugin.json`(工具计数)
-- [ ] `src/state/schema.ts` + `src/types.ts`(KV scope)
-- [ ] `src/types.ts` `AuditEntry.operation`(audit op)
-- [ ] 推前跑 `npm run check:consistency-local`(秒级)→ `npm run pre-pr`
+C1 落实情况(✅ 已改):
+- [x] `src/mcp/tools-registry.ts`(`INBOX_TOOLS` 定义 + getAllTools)
+- [x] `src/mcp/server.ts`(`memory_inbox_ask`/`memory_inbox_notify` 合并 case)
+- [x] `src/triggers/api.ts`(5 REST 孪生 `/agentmemory/inbox*`)
+- [x] `src/index.ts`(`registerInboxFunction` 注册 + 端点计数 131→**136**)
+- [x] `test/mcp-standalone.test.ts`(工具计数 → **55**)
+- [x] `README.md`(MCP 工具 53→55 + REST 端点 131→136,consistency.test 锁定)
+- [x] `AGENTS.md`(REST "136 REST endpoints" + Current Stats)
+- [x] `plugin/.claude-plugin/plugin.json`(工具数 55,description)
+- [x] `src/state/schema.ts` + `src/types.ts`(KV scope `mem:inbox` + `InboxItem`)
+- [x] `src/types.ts` `AuditEntry.operation`(`inbox_ask`/`inbox_notify`/`inbox_answer`/`inbox_dismiss`)
+- [x] ⚠️ **额外踩坑**:`test/session-highlights-api.test.ts` 硬编码端点数 131,本地 check 脚本扫不到,手动改 136
+- [x] 推前 `npm run check:consistency-local` → `npm run pre-pr`(均绿)
+
+> **C1.5 提示**:新增 skill **不**触发 MCP/REST/KV 连带,但 skill 计数 12→14 建议同步 `AGENTS.md` Current Stats + `plugin/.claude-plugin/plugin.json` description(skill 计数不被 consistency.test 锁,纯文档)。
+
+## 5.5 C1 落地的 wire 契约(C2/C3 直接消费,免回查源码)
+
+C2/C3 前端按此对接,无需再读 `inbox.ts`:
+
+```text
+POST /agentmemory/inbox/ask      body: {body, fromAgent?, project?, sourceObservationIds?, sourceSessionId?, priority?, expiresInMs?}  → 201 {success, item}
+POST /agentmemory/inbox/notify   body: 同上                                                                                          → 201 {success, item}
+GET  /agentmemory/inbox          query: ?status=awaiting&kind=question&limit=50  (全可选,无需 agentId)                              → 200 {success, items[]}
+POST /agentmemory/inbox/answer   body: {id, answer?}   (空 answer = briefing 已读/ack)                                              → 200 {success, item}
+POST /agentmemory/inbox/dismiss  body: {id}                                                                                         → 200 {success, item}
+```
+- `item` = `InboxItem`(见 §2):`{id, kind, body, status, priority?, fromAgent?, project?, sourceObservationIds?, sourceSessionId?, answer?, createdAt, answeredAt?, expiresAt?}`。
+- `list` 默认按 `createdAt` 倒序、滤掉过期项;**C2 拉 `?status=awaiting` 即得待回应+待读通知两类**,前端按 `kind` 分区。
+- 写侧 MCP 工具仅 `memory_inbox_ask` / `memory_inbox_notify`(给 Agent);**读/答/消解走 REST**(viewer 用)。
 
 ## 6. 验证(沿用线 A 配方)
 - 每步 `npm run pre-pr`(自检 + build + test)。
@@ -189,9 +226,13 @@ C1.5 紧跟 C1:原语一就绪就让 Agent 能往里写,避免「前端接好了
 - ✅ 1 认可新建 inbox · ✅ 2 三动作流转正确 · ⭐ 3 Agent 主动发送+整理升级为核心(C1.5)· ⏸️ 4 优先级本轮不处理 · ⛔ 5 飞书本轮不做。
 
 ### 仍需你确认
-1. **§0.5 第 3/5 边界澄清**:本轮「Agent 直接通知用户」= 写入**工作台收件箱**(本地、打开即见),**不含**手机/桌面主动推送(那依赖飞书,排后线 D)。这个理解对吗?——若你期望本轮就有「真·推送到手机」,那第 5 点要重新讨论(会显著扩大范围)。
-2. **§4 C1.5 skill 触发判据**:`ask-user`(何时该问)与 `organize-todos`(何时该主动整理汇报)的措辞,要让 Agent 在「真该问/真该报」时才写,避免收件箱被噪音淹没。这是产品体验成败关键,建议你过一眼 skill 文案(开工时一并出)。
+1. **§0.5 第 3/5 边界澄清**:本轮「Agent 直接通知用户」= 写入**工作台收件箱**(本地、打开即见),**不含**手机/桌面主动推送(那依赖飞书,排后线 D)。这个理解对吗?——若你期望本轮就有「真·推送到手机」,那第 5 点要重新讨论(会显著扩大范围)。**(已按此边界开工 C1)**
+2. **§4 C1.5 skill 触发判据**:`ask-user`(何时该问)与 `organize-todos`(何时该主动整理汇报)的措辞,要让 Agent 在「真该问/真该报」时才写,避免收件箱被噪音淹没。这是产品体验成败关键——**C1.5 开工时出 skill 文案,请重点过这一眼**。
 3. **briefing 自动触发**:`organize-todos` 本轮靠 skill 引导 Agent **主动**调,不做会话结束 hook 自动触发(避免误触)。认可先手动引导、自动化排后?
-4. **范围**:本轮只出本规划文档待审(已确认),审阅通过后按 C1→C1.5→C2→C3→C4 开工。
+
+### 进展(2026-06-13)
+- ✅ 规划文档审阅通过、边界锁定(Agent 主动写→工作台收,不接飞书)。
+- ✅ **C1 已交付合并**([PR#19](https://github.com/MaimoryLab/agentmemory-lab/pull/19),main baa5771)——后端 inbox 原语全套就绪、CI 全绿。
+- ▶️ **下一步:C1.5**(Agent 接入点 skill `ask-user`/`organize-todos`)——闭环命门,开工时连带出 skill 文案供审。
 
 
