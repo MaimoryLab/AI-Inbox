@@ -752,7 +752,7 @@ describe("viewer session rendering", () => {
     expect(getElement("view-actions").innerHTML).toContain("正在整理待办");
   });
 
-  it("renders the STEP-06 待回应 placeholder section with an honest empty state", () => {
+  it("renders the 待回应 section with an honest empty state when the inbox is empty (STEP-C2)", () => {
     const { sandbox, getElement } = loadViewerSandbox();
     sandbox.state.activeTab = "actions";
     sandbox.state.actions = {
@@ -763,14 +763,17 @@ describe("viewer session rendering", () => {
       search: "",
       reviewItems: [],
     };
+    sandbox.state.inbox = { loaded: true, items: [] };
     sandbox.renderActions();
     const html = getElement("view-actions").innerHTML;
     // 分区存在且标题为「待回应」
     expect(html).toContain("awaiting-reply-section");
     expect(html).toContain("待回应");
-    // 诚实空态:不冒充真实数据,明确标注尚未接通后端
+    // 诚实空态:无待回应条目时显示空态文案
     expect(html).toContain("暂无待回应");
-    expect(html).toContain("尚未接通");
+    // STEP-C2 已接通后端,不再出现「尚未接通」「即将上线」
+    expect(html).not.toContain("尚未接通");
+    expect(html).not.toContain("即将上线");
     // 「待回应」出现在「完整对话过程」等 action 分组之前(顶部)
     const idxAwaiting = html.indexOf("awaiting-reply-section");
     const idxGroups = html.indexOf("action-group");

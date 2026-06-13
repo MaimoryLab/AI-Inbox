@@ -9,12 +9,12 @@
 | STEP | 内容 | 状态 |
 |---|---|---|
 | **C1** | inbox 后端原语(5 函数 + 5 REST + 2 MCP 工具 + KV + audit) | ✅ **已合并** [PR#19](https://github.com/MaimoryLab/agentmemory-lab/pull/19)(main baa5771) |
-| **C1.5** | Agent 主动发送+整理接入点(`ask-user`/`organize-todos` skill,⭐核心) | ⬜ 待开工(C1 已就绪,可立即开始) |
-| **C2** | viewer「待回应/通知」区接真数据 | ⬜ 待开工(依赖 C1✅) |
-| **C3** | 动作:回应 / 知道了 / 转待处理 / 看原文 | ⬜ 待开工(依赖 C2) |
+| **C1.5** | Agent 主动发送+整理接入点(`ask-user`/`organize-todos` skill,⭐核心) | ✅ **已合并** [PR#21](https://github.com/MaimoryLab/agentmemory-lab/pull/21)(main a22e411)+ 真实触发场景端到端测试 |
+| **C2** | viewer「待回应/通知」区接真数据 | ✅ **已实现**(viewer 接 `GET /inbox?status=awaiting`,question/briefing 双卡,preview 实证)|
+| **C3** | 动作:回应 / 知道了 / 转待处理 / 看原文 | ⬜ 待开工(依赖 C2✅)|
 | **C4** | 「已完成」区(只读 done,可与 C3 并行) | ⬜ 待开工(独立) |
 
-> **里程碑**:C1 后端原语已落地——inbox 这条链路的「能写、能列、能答、能消解」后端语义已全部就绪、CI 4 格绿(128 文件/1362 用例)。下一步 **C1.5**(让 Agent 真的往里写)是闭环命门,优先开工。
+> **里程碑**:C1 后端原语 + C1.5 Agent 接入点 + C2 viewer 接真已就位——「Agent 写→落库→用户在工作台看到」整条本地闭环已贯通。C2 把 STEP-06 空壳接上真实 inbox 数据(question🔴 / briefing📋 双卡、复用「看原文 →」、空态去掉「尚未接通」)。下一步 **C3**(让用户能回应/知道了/转待处理)。
 
 ---
 
@@ -157,11 +157,23 @@ interface InboxItem {
   - (可选)hook 探索:会话结束 hook 自动触发整理通知——本步先不做自动,先靠 skill 引导 Agent 主动调,避免误触发。
 - **结果预测**:纯文档/skill,零 CI 成本(`plugin/**` 非 paths-ignore 的需确认;若触发 CI 则 build+test 应不受影响)。
 - **风险**:产品风险而非技术风险——skill 措辞要让 Agent 在「真该问/真该汇报」时才写,避免 inbox 被噪音淹没。审阅时重点看 skill 的触发判据措辞。
+- ✅ **实际反馈([PR#21](https://github.com/MaimoryLab/agentmemory-lab/pull/21) 已合并,main a22e411)**:
+  - 两个 skill 均 `user-invocable: false`(Agent 自主触发,非用户 `/` 调):`ask-user`(kind=question,三条高门槛全满足才发:①确实受阻 ②确属用户决策 ③inline 已失败)、`organize-todos`(kind=briefing,非trivial+自然停顿点+有料可报,每停顿点至多一条)。均带 MCP→REST fallback。
+  - 连带:`AGENTS.md` 加 skill 连带规则(skill→3 处)+ Current Stats 12→14;`plugin/.claude-plugin/plugin.json` description 8→14(校正旧漂移);`test/copilot-plugin.test.ts` `KNOWN_SKILL_DIRS` 加两目录。
+  - **补**:加 `test/inbox-skill-trigger.test.ts`(7 例端到端)——补 skill 真正写入链路的覆盖:主路径 `memory_inbox_ask`/`notify` MCP 工具经 `mcp::tools::call` dispatch、fallback `POST /agentmemory/inbox/{ask,notify}` REST,断言条目真落进 `mem:inbox` 且 `inbox-list` 能查到(模拟用户打开工作台),含空 body 拒绝、MCP+REST 汇入同一收件箱、createdAt desc 排序。此前 `inbox.test.ts` 只测最底层 function,这两层零覆盖。
+  - 基线:CI 4 格全绿。
 
 ### STEP-C2 — viewer「待回应/通知」区接真数据
 - **改动面**:仅 `src/viewer/index.html`。`renderAwaitingReplySection()`(STEP-06 占位)改为 `loadInbox()` 拉 `/agentmemory/inbox?status=awaiting` → 按 `kind` 分呈现(question 卡 + briefing 卡);空态去掉「尚未接通」。复用 `renderMarkdownSafe` 渲染 `body`;按 `createdAt` 倒序(不按 priority)。
 - **结果预测**:build 通过;新增 viewer 渲染单测(参考 STEP-06 的 viewer-session-id 用例);preview 实证两种卡片渲染。
 - **风险**:demo 数据需造 inbox 项(本地 API 直接 ask/notify 几条)。
+- ✅ **实际反馈(已实现,待开 PR)**:
+  - 仅改 `src/viewer/index.html`:`state` 加 `inbox: { loaded, items }`;`loadActions()` 并行批加一条 `apiGet('inbox?status=awaiting&limit=50')`,结果存 `state.inbox.items`。
+  - `renderAwaitingReplySection()` 由空壳改为读 `state.inbox`:按 `kind` 分两子区——`question`(🔴 卡 + 「Agent 在等你回」徽标 + 标题计数)与 `briefing`(📋「Agent 整理」子区,知悉即可),均 `createdAt` 倒序。`body` 走 `renderMarkdownSafe`(XSS 安全);有 `sourceObservationIds` 才渲「看原文 →」,复用 STEP-03 `data-action="jump-to-evidence"`,零新增跳转逻辑。空态去掉「尚未接通」「即将上线」,改诚实「目前没有待回应的条目」。
+  - 动作(回应/知道了/转待处理)**本步不做**,留待 C3——C2 只把卡片形态接真 + 看原文。
+  - 新增 `test/viewer-inbox-section.test.ts`(7 例,VM sandbox 直调 `renderAwaitingReplySection()`):空态、question 卡、briefing 子区、看原文按钮有/无、混合分区顺序、XSS 转义;改 `test/viewer-session-id.test.ts` 原 STEP-06 占位守卫为 C2 接真后行为(去「尚未接通」、seed `state.inbox`)。
+  - **preview 实证**:本地 daemon 经 `POST /inbox/ask`+`/notify` 造 1 question+1 briefing → viewer actions 页 DOM 实测 `questionCards:1, briefingCards:1, evidenceBtns:1, hasOldText:false, rendersCode:true`,实证后已 dismiss 清理 demo 数据。
+  - 基线:`npm run pre-pr` 130 文件 / 1376 用例全绿。
 
 ### STEP-C3 — 动作:回应 / 知道了 / 转待处理 / 看原文
 - **改动面**:`src/viewer/index.html`。question 卡:「回应」行内输入 → `inbox-answer`;briefing 卡:「知道了」→ `inbox-answer`(空 answer,标已读)。两者通用:「转待处理」→ `inbox-dismiss` + `action-create`;「看原文」复用 STEP-03 `jumpToEvidence`。
@@ -233,6 +245,8 @@ C1.5 紧跟 C1:原语一就绪就让 Agent 能往里写,避免「前端接好了
 ### 进展(2026-06-13)
 - ✅ 规划文档审阅通过、边界锁定(Agent 主动写→工作台收,不接飞书)。
 - ✅ **C1 已交付合并**([PR#19](https://github.com/MaimoryLab/agentmemory-lab/pull/19),main baa5771)——后端 inbox 原语全套就绪、CI 全绿。
-- ▶️ **下一步:C1.5**(Agent 接入点 skill `ask-user`/`organize-todos`)——闭环命门,开工时连带出 skill 文案供审。
+- ✅ **C1.5 已交付合并**([PR#21](https://github.com/MaimoryLab/agentmemory-lab/pull/21),main a22e411)——`ask-user`/`organize-todos` 两个 Agent 自主 skill + 真实触发场景端到端测试。
+- ✅ **C2 已实现**——viewer 待回应区接真 inbox 数据(question/briefing 双卡、看原文、preview 实证),待开 PR。
+- ▶️ **下一步:C3**(动作:回应 / 知道了 / 转待处理 / 看原文交互)——依赖 C2 的卡片形态。
 
 
