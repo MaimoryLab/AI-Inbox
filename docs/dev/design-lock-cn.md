@@ -3,7 +3,7 @@
 状态:v1，**待你审查并锁定**。
 作用:把「重构开始前，产品确切是什么样」冻结成一份权威事实。重构每一步都以此为对照；任何「原来不是这样」的发现记入对应 STEP 的「实际反馈」，不直接改本文件。锁定后若需变更，须在 PR 中显式标注 `[design-lock change]`。
 
-本文件只描述 **现状（as-is）**，不描述目标形态（目标见 `../product-restructure-plan-cn.md`）。
+本文件只描述 **现状（as-is）**，不描述目标形态（目标见 `../archive/product-restructure-plan-cn.md`）。
 
 ---
 

@@ -6,7 +6,9 @@
 
 ```text
 docs/
-├── product-restructure-plan-cn.md   ← 产品方案(为什么/做什么，方向源头)
+├── archive/                         ← 已交付/历史规划文档(分类索引见 archive/README.md)
+│   └── product-restructure-plan-cn.md  线A三栏重构方案(已交付,STEP-01–07 全合并)
+├── line-c-plan-cn.md                ← 线C方案(Agent→用户异步收件箱,待审阅)
 ├── dev/                             ← 开发环境文档(怎么做/在哪做)
 │   ├── README.md                    本文件:索引 + 工作流约定
 │   ├── environment.md               开发环境、命令、CI 实情、基线状态
@@ -23,7 +25,8 @@ docs/
 
 | 文档 | 回答的问题 | 改动频率 |
 |---|---|---|
-| `product-restructure-plan-cn.md` | 为什么重构、最终形态是什么 | 低（方向变才改） |
+| `archive/product-restructure-plan-cn.md` | 线A为什么重构、最终形态(已交付归档) | 冻结(历史) |
+| `line-c-plan-cn.md` | 线C为什么做、做什么(待审阅) | 评审期 |
 | `dev/design-lock-cn.md` | 当前基线**确切**是什么样（被冻结的事实） | 🔒 冻结，走变更流程 |
 | `dev/environment.md` | 在什么环境、用什么命令、CI 怎么跑 | 中 |
 | `dev/tooling-and-skills-cn.md` | 用什么工具/Skill/MCP 提效、怎么固化 | 中 |
