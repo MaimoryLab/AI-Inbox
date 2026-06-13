@@ -47,7 +47,9 @@
     "check:ai-validation-table": "node scripts/sync-ai-validation-table.mjs --check",
     "status:delivery": "node scripts/delivery-status.mjs",
     "check:remote-delivery": "node scripts/check-remote-delivery.mjs",
-    "check:maimorylab-branding": "node scripts/check-maimorylab-branding.mjs"
+    "check:maimorylab-branding": "node scripts/check-maimorylab-branding.mjs",
+    "check:consistency-local": "node scripts/check-consistency-local.mjs",
+    "pre-pr": "npm run check:consistency-local && npm run build && npm test"
   },
   "keywords": [
     "ai",
