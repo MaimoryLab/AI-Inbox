@@ -1794,6 +1794,28 @@
     }
     .awaiting-reply-empty-title { font-size: 14px; font-weight: 600; color: var(--ink-muted, #6b7280); margin-bottom: 6px; }
     .awaiting-reply-empty-lead { font-size: 12.5px; color: var(--ink-faint, #9aa0a6); line-height: 1.5; max-width: 460px; margin: 0 auto; }
+    .inbox-card-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+    .inbox-card {
+      border: 1px solid var(--line, #e3e6ea);
+      border-radius: 8px;
+      padding: 11px 13px;
+      background: var(--surface-soft, #f8f9fa);
+    }
+    .inbox-card-question { border-left: 3px solid var(--danger, #dc2626); }
+    .inbox-card-briefing { border-left: 3px solid var(--accent, #2563eb); }
+    .inbox-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+    .inbox-card-marker { font-size: 13px; flex-shrink: 0; }
+    .inbox-card-from { font-size: 12px; font-weight: 600; color: var(--ink-muted, #6b7280); }
+    .inbox-card-time { font-size: 11px; color: var(--ink-faint, #9aa0a6); margin-left: auto; }
+    .inbox-card-body { font-size: 13px; color: var(--ink, #1f2329); line-height: 1.5; overflow-wrap: anywhere; }
+    .inbox-card-actions { margin-top: 8px; }
+    .inbox-subhead {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 12.5px; font-weight: 600; color: var(--ink-muted, #6b7280);
+      margin: 14px 0 0;
+    }
+    .inbox-subhead-marker { font-size: 12px; }
+    .inbox-subhead-note { font-size: 11px; font-weight: 400; color: var(--ink-faint, #9aa0a6); }
     .action-item-card {
       padding: 13px 14px;
     }
@@ -3871,6 +3893,7 @@
       activity: { loaded: false, observations: [], sessions: [], typeFilter: '', loadingPhase: '', warnings: [] },
       lessons: { loaded: false, items: [], search: '', skillSearch: '', skillRootFilter: 'all', mode: 'explicit', projects: [] },
       actions: { loaded: false, items: [], reviewItems: [], frontier: [], statusFilter: '', search: '' },
+      inbox: { loaded: false, items: [] },
       crystals: { loaded: false, items: [], search: '', lessonMap: {} },
       profile: { loaded: false, projects: [], selectedProject: '', data: null },
       replay: { loaded: false, sessions: [], selectedId: '', timeline: null, cursor: 0, playing: false, speed: 1, timer: null, startAt: 0, offsetAt: 0 },
@@ -7916,7 +7939,8 @@
       var results = await Promise.all([
         apiGet('actions'),
         apiGet('frontier'),
-        apiGet('review?status=pending&limit=200')
+        apiGet('review?status=pending&limit=200'),
+        apiGet('inbox?status=awaiting&limit=50')
       ]);
       var explicitActions = (results[0] && results[0].actions) || [];
       var frontier = (results[1] && (results[1].frontier || results[1].actions)) || [];
@@ -7928,6 +7952,8 @@
       state.actions.reviewItems = reviewItems;
       state.actions.frontier = frontier;
       state.actions.loaded = true;
+      state.inbox.items = (results[3] && results[3].items) || [];
+      state.inbox.loaded = true;
       renderActions();
       if (generationPromise) {
         generationPromise.then(function(result) {
@@ -8021,18 +8047,72 @@
       setTimeout(function() { anchor.classList.remove('obs-jump-highlight'); }, 2400);
     }
 
-    // STEP-06 待回应分区(前端占位)。后端尚无「Agent 抛问题、等用户回应」语义,
-    // 不用近似数据冒充——只立 UI 形态 + 诚实空态,投递出口(lark-cli+飞书)后续接。
+    // STEP-C2 待回应分区:接真实 inbox 数据(GET /agentmemory/inbox?status=awaiting)。
+    // 按 kind 分两子区——question(🔴 Agent 在等你回)与 briefing(📋 Agent 主动整理),
+    // 均按 createdAt 倒序(本轮不按 priority)。动作(回应/知道了/转待处理)留待 C3,
+    // 本步先把卡片形态接真 + 复用 STEP-03「看原文 →」。
+    function inboxFromLabel(item) {
+      var from = item && item.fromAgent ? String(item.fromAgent) : '';
+      return from ? '来自 ' + esc(from) : '';
+    }
+    function inboxEvidenceButton(item) {
+      var ids = (item && item.sourceObservationIds) || [];
+      if (!ids.length) return '';
+      return '<button type="button" class="btn inbox-evidence-link" style="font-size:10px;padding:2px 8px;" ' +
+        'data-action="jump-to-evidence" data-obs-id="' + esc(ids[0]) + '">看原文 →</button>';
+    }
+    function renderInboxCard(item, kind) {
+      var marker = kind === 'question' ? '🔴' : '📋';
+      var from = inboxFromLabel(item);
+      var html = '<article class="inbox-card inbox-card-' + kind + '">';
+      html += '<div class="inbox-card-head">';
+      html += '<span class="inbox-card-marker" aria-hidden="true">' + marker + '</span>';
+      if (from) html += '<span class="inbox-card-from">' + from + '</span>';
+      if (item && item.createdAt) html += '<span class="inbox-card-time">' + esc(shortTime(item.createdAt)) + '</span>';
+      html += '</div>';
+      html += '<div class="md-body inbox-card-body">' + renderMarkdownSafe((item && item.body) || '') + '</div>';
+      var evidence = inboxEvidenceButton(item);
+      if (evidence) html += '<div class="inbox-card-actions">' + evidence + '</div>';
+      html += '</article>';
+      return html;
+    }
     function renderAwaitingReplySection() {
+      var items = (state.inbox.items || []).slice().sort(function(a, b) {
+        return new Date((b && b.createdAt) || 0).getTime() - new Date((a && a.createdAt) || 0).getTime();
+      });
+      var questions = items.filter(function(i) { return i && i.kind === 'question'; });
+      var briefings = items.filter(function(i) { return i && i.kind === 'briefing'; });
+
       var html = '<section class="card memory-section awaiting-reply-section" style="padding:14px 16px;margin-bottom:14px;background:#ffffff;">';
       html += '<div class="memory-section-head"><div>';
-      html += '<div class="memory-section-title"><span class="awaiting-dot" aria-hidden="true"></span>待回应</div>';
-      html += '<div class="memory-summary-sub" style="margin-top:3px;">Agent 运行中抛给你的、时间敏感的问题会汇集到这里。</div>';
-      html += '</div><span class="badge badge-muted">即将上线</span></div>';
-      html += '<div class="awaiting-reply-empty">';
-      html += '<div class="awaiting-reply-empty-title">暂无待回应</div>';
-      html += '<div class="awaiting-reply-empty-lead">这一类需要后端「Agent→你」的异步通道(规划经 lark-cli + 飞书机器人投递),尚未接通。先把位置和形态立好,接通后真实问题会出现在这里。</div>';
+      html += '<div class="memory-section-title"><span class="awaiting-dot" aria-hidden="true"></span>待回应';
+      if (questions.length) html += ' (' + questions.length + ')';
       html += '</div>';
+      html += '<div class="memory-summary-sub" style="margin-top:3px;">Agent 运行中抛给你的、时间敏感的问题会汇集到这里。</div>';
+      html += '</div>';
+      if (questions.length) html += '<span class="badge badge-muted">Agent 在等你回</span>';
+      html += '</div>';
+
+      if (!items.length) {
+        html += '<div class="awaiting-reply-empty">';
+        html += '<div class="awaiting-reply-empty-title">暂无待回应</div>';
+        html += '<div class="awaiting-reply-empty-lead">Agent 在会话中抛给你、在等你回的问题会出现在这里。目前没有待回应的条目。</div>';
+        html += '</div>';
+        html += '</section>';
+        return html;
+      }
+
+      if (questions.length) {
+        html += '<div class="inbox-card-list">';
+        questions.forEach(function(it) { html += renderInboxCard(it, 'question'); });
+        html += '</div>';
+      }
+      if (briefings.length) {
+        html += '<div class="inbox-subhead"><span class="inbox-subhead-marker" aria-hidden="true">📋</span>Agent 整理 (' + briefings.length + ')<span class="inbox-subhead-note">知悉即可</span></div>';
+        html += '<div class="inbox-card-list">';
+        briefings.forEach(function(it) { html += renderInboxCard(it, 'briefing'); });
+        html += '</div>';
+      }
       html += '</section>';
       return html;
     }
