@@ -38,16 +38,19 @@ origin/main 起干净 Claude/<name> 分支
 
 审查中发现多处 doc-drift，**会误导未来决策**，应择机校正:
 
-| 漂移项 | 文档说 | 实际 | 影响 |
-|---|---|---|---|
-| 版本号 | AGENTS.md: v0.9.16 | package.json: v0.9.24 | 中——Current Stats 整段过时 |
-| MCP 工具数 | AGENTS.md: 53；design-lock: 53 | 实际 51（getAllTools 动态） | 中——改工具时基数错 |
-| Skill 数 | AGENTS.md: 4 | 实际 12（plugin/skills/） | 低 |
-| REST 端点 | 硬编码 "131"（src/index.ts、AGENTS、README） | consistency.test 动态数比对 | 高——三处文本不一致就 CI 红 |
-| 版本改动文件数 | AGENTS.md: 7 处 | CONTRIBUTING: 8 处（多算 lock） | 低——两文档自相矛盾 |
-| 基线失败 | （旧 memory）8 个失败 | STEP-00 已修，128/1384 全绿 | 已在本轮 memory 沉淀中删除 |
+> **审查更正(2026-06-13)**:初稿这张表高估了漂移面。逐项实证(`grep api_path`、跑 `check-consistency-local`、核 README)后,**真实漂移只有两项**(版本号、skill 数);其余「53 工具/131 端点/12 hooks」经核查都正确,且被 `test/consistency.test.ts` 锁定(npm test 绿即一致)。保留此表并标注更正,作为「审查要先实证、别照搬印象」的样本。
 
-**判断**:这些不在任何 STEP 范围内、又确实会绊脚。建议单独一个**文档校正 PR**（零 CI 成本）统一对齐 AGENTS.md Current Stats + design-lock C 节计数 + CONTRIBUTING 版本文件数。注意 `READMEs/README.*.md` × 11 是上游 fork 资产，不动（rebase 冲突风险）。
+| 漂移项 | 文档说 | 实际 | 结论 |
+|---|---|---|---|
+| 版本号 | AGENTS.md Current Stats: v0.9.16 | package.json: v0.9.24 | ✅ **真漂移**,已校正 |
+| Skill 数 | AGENTS.md: 4 skills | plugin/skills/ 实际 12 | ✅ **真漂移**,已校正 |
+| MCP 工具数 | AGENTS.md / design-lock: 53 | 实际 53(README 被 consistency.test 锁定) | ❌ 初稿误写 51;**无漂移** |
+| REST 端点 | 131（index/AGENTS/README） | api.ts 实测 131 | ❌ 初稿误判;三处一致、test 锁定,**无漂移** |
+| design-lock C 节计数 | 53/131/12/15 | 同实际 | ❌ 初稿误说「C 节错」;**C 节正确**(仅其注脚误称 131 是旧值) |
+| 版本改动文件数 | AGENTS.md: 7 处 | CONTRIBUTING: 8 处（多算 lock） | ⚠️ 两文档口径差一(算不算 lockfile),低优先 |
+| 基线失败 | （旧 memory）8 个失败 | STEP-00 已修,128/1384 全绿 | ✅ 已在 memory 沉淀中删除该过时项 |
+
+**判断**:真漂移仅版本号 + skill 数两项,已随本审查的文档 PR 校正(AGENTS.md Current Stats: v0.9.16→v0.9.24、4 skills→12 skills)。design-lock C 节注脚那句「131 endpoints 是旧值」本身不准(131 是现值),顺带订正。`READMEs/README.*.md` × 11 是上游 fork 资产,不动(rebase 冲突风险)。
 
 ## 4. 从用户视角看产品工作流（个人重度 Agent 用户）
 
@@ -67,14 +70,14 @@ origin/main 起干净 Claude/<name> 分支
 
 ## 5. 改进建议（按性价比排序）
 
-1. **加 `npm run pre-pr` 聚合命令**（build + test）写进 CONTRIBUTING——把口头约定变命令。低成本、每步都受益。
-2. **本地一致性自检**（`scripts/check-consistency-local.mjs` 或 PreToolUse hook）——碰 MCP/REST/版本时秒级提示要同步的 N 处，不必等 CI。
-3. **文档校正 PR**（§3 漂移项，零 CI 成本）——一次对齐计数与版本。
-4. **viewer preview 代理脚本入仓 + launch.json 固化**（见 tooling-and-skills-cn.md §4）。
-5. **下一产品方向定位**:把「待回应后端语义 + 飞书投递出口」作为下一条线（线 C？），这是用户视角的真痛点；线 A 已交付工作台形态，该往「异步触达」走了。
+1. ✅ **`npm run pre-pr` 聚合命令**（自检 + build + test，~12s）写进 CONTRIBUTING——已落地（PR#15）。
+2. ✅ **本地一致性自检**（`scripts/check-consistency-local.mjs`，~40ms）——已落地（PR#15）。碰 MCP/REST/版本时秒级暴露计数不一致，不必等 CI。
+3. ✅ **文档校正 PR**（仅版本号 + skill 数两项真漂移）——本 PR 已校正 AGENTS.md Current Stats。
+4. ⬜ **viewer preview 代理脚本入仓 + launch.json 固化**（见 tooling-and-skills-cn.md §4）——待做。
+5. ⬜ **下一产品方向定位**:把「待回应后端语义 + 飞书投递出口」作为下一条线（线 C？），这是用户视角的真痛点；线 A 已交付工作台形态，该往「异步触达」走了。
 
 ## 6. 下一步建议（供拍板）
 
-- **流程侧**:落地 §5.1–§5.4（都是小、独立、可零 CI 成本的改进），把这次重构验证的工作流固化下来。
+- **流程侧**:§5.1–§5.3 已落地（pre-pr 命令、本地一致性自检、文档校正）。剩 §5.4 viewer 代理入仓（小、独立、零风险），可顺手做。
 - **产品侧**:规划「线 C:Agent→用户异步触达」——后端定义待回应/已完成语义 + REST 端点，前端把 STEP-06 空壳接真实数据，并接 lark-cli/openclaw 飞书投递。这是从用户视角看最该做的下一件事。
 - 沉淀已完成:工作方法论已写入 memory（[[agentmemory-restructure-workflow]] / [[agentmemory-consistency-rules]]），下次可直接复用。

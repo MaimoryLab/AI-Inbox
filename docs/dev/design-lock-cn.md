@@ -43,7 +43,7 @@ graph→dashboard · profile→dashboard · audit→dashboard · replay→dashbo
 | LLM Provider | 6 家 + 熔断/降级/回退 | `src/providers/` |
 | 测试文件 | 131 个（1384 用例） | `test/` |
 
-> 注:README/AGENTS.md 标注的 v0.9.16 / 131 endpoints 是旧值；package 已 v0.9.24。计数以实测为准。
+> 注:package 为 v0.9.24。AGENTS.md Current Stats 原标 v0.9.16/4 skills 已过时,本轮文档校正 PR 已对齐为 v0.9.24/12 skills；53 工具、131 端点、12 hooks 经核查与实测一致,且被 `test/consistency.test.ts` 锁定。计数以实测为准。
 
 ## D. 待办 / 证据链路（冻结，重构核心依赖）
 
