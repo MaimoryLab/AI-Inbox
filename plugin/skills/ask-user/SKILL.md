@@ -39,4 +39,14 @@ After posting, tell the user briefly that you've queued the question to their wo
 - "Should I proceed?" / "Is this okay?" busywork. Only post real blocking decisions.
 - Multiple trivial questions as separate items — batch into one if they're related.
 
+### 禁止触发的具体反例(评测校准,务必照此收紧)
+
+这些**绝不该**发到收件箱 —— 它们会淹没真正要紧的问题,直接自己处理:
+
+- ❌「新模块变量命名用 camelCase 还是 snake_case?」→ 有约定/跟随现有代码风格,自己定。
+- ❌「我改完登录页样式了,继续做注册页吗?」→ 典型 "我继续吗" busywork,继续做就是。
+- ❌「README 第 3 段有个 typo,要修吗?」→ 琐碎且可逆,直接修。
+
+对照**该发**的样子(全部满足高门槛三条):不可逆操作(删生产数据)、真歧义且实现分叉大(导出格式 CSV vs JSON)、需要你独有的资源(缺 `STRIPE_SECRET_KEY`)、影响面巨大的架构选择(换状态库动 40 文件)。拿不准时:能自己定的默认就定 + 说明,只把**真卡住、真归你拍板**的发出来。
+
 If `memory_inbox_ask` isn't available, the agentmemory MCP server didn't start: fall back to `POST $AGENTMEMORY_URL/agentmemory/inbox/ask` with body `{ "body": "...", "fromAgent": "...", "project": "..." }` and `Authorization: Bearer $AGENTMEMORY_SECRET` when set. If neither works, ask inline as a last resort.

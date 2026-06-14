@@ -40,6 +40,16 @@ A good briefing is skimmable in five seconds:
 - Don't use this for blocking questions — those go through `ask-user` as `question`, not `briefing`.
 - Don't pad. If there's nothing material to report, stay silent.
 
+### 禁止触发的具体反例(评测校准,务必照此收紧)
+
+这些**绝不该**发成 briefing —— 它们会把收件箱变成 transcript / 噪音:
+
+- ❌ 流水账复述全程:「我先打开了 auth.ts,然后看了 middleware.ts,接着 grep…改第一个时报错,查文档,修好跑测试又报错…」→ 用户不需要过程,只要结果。最碍眼的一类。
+- ❌ 无料状态:「跑了下测试,过了。」→ 没有实质进展可报,这只配会话末尾顺口一句,不配进收件箱。
+- ❌ mid-flight:「正在改第 3 个文件,还有 2 个没改完,稍后继续。」→ 没到自然停顿点,别推。
+
+对照**合格**的样子:到了自然停顿点(功能交付/PR 开/一批修完),五秒可读,有 ✅完成 / ⏳还欠着 / ⚠️需你定 的实质内容。每个停顿点至多一条。宁可不发,也不要发流水账或无料汇报。
+
 This briefing is `kind: briefing` (知悉即可,可一键已读), distinct from `ask-user`'s `kind: question` (Agent 在等你回). Keep the two roles clean.
 
 If `memory_inbox_notify` isn't available, fall back to `POST $AGENTMEMORY_URL/agentmemory/inbox/notify` with body `{ "body": "...", "fromAgent": "...", "project": "..." }` and `Authorization: Bearer $AGENTMEMORY_SECRET` when set.
