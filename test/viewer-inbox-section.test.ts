@@ -396,4 +396,55 @@ describe("STEP-C2 viewer 待回应分区接真数据", () => {
     expect(calls).toEqual(["actions", "inbox/dismiss"]);
     expect(sandbox.state.inbox.pendingById.q9).toBeUndefined();
   });
+
+  // --- P1 搜索过滤:搜索框作用于待回应区 ---
+
+  it("搜索词过滤 inbox 项(匹配 body 或 fromAgent)", () => {
+    const { sandbox } = loadViewerSandbox();
+    sandbox.state.inbox = {
+      loaded: true, replyingId: null, pendingById: {},
+      items: [
+        { id: "q1", kind: "question", body: "要不要加鉴权", fromAgent: "auth-refactor", status: "awaiting", createdAt: "2026-06-13T09:00:00Z" },
+        { id: "q2", kind: "question", body: "导出格式选哪个", fromAgent: "export-fmt", status: "awaiting", createdAt: "2026-06-13T09:01:00Z" },
+        { id: "b1", kind: "briefing", body: "鉴权批量加固完成", fromAgent: "auth-batch", status: "awaiting", createdAt: "2026-06-13T09:02:00Z" },
+      ],
+    };
+    // 搜 fromAgent
+    sandbox.state.actions.search = "auth-refactor";
+    let html = sandbox.renderAwaitingReplySection();
+    expect(html).toContain("要不要加鉴权");
+    expect(html).not.toContain("导出格式选哪个");
+    expect(html).not.toContain("鉴权批量加固完成");
+    // 搜 body 关键词(跨 question/briefing)
+    sandbox.state.actions.search = "鉴权";
+    html = sandbox.renderAwaitingReplySection();
+    expect(html).toContain("要不要加鉴权");
+    expect(html).toContain("鉴权批量加固完成");
+    expect(html).not.toContain("导出格式选哪个");
+  });
+
+  it("搜索无命中时整区不渲染(返回空串)", () => {
+    const { sandbox } = loadViewerSandbox();
+    sandbox.state.inbox = {
+      loaded: true, replyingId: null, pendingById: {},
+      items: [{ id: "q1", kind: "question", body: "abc", fromAgent: "x", status: "awaiting", createdAt: "2026-06-13T09:00:00Z" }],
+    };
+    sandbox.state.actions.search = "zzz-no-match";
+    expect(sandbox.renderAwaitingReplySection()).toBe("");
+  });
+
+  it("无搜索词时照常渲染全部", () => {
+    const { sandbox } = loadViewerSandbox();
+    sandbox.state.inbox = {
+      loaded: true, replyingId: null, pendingById: {},
+      items: [
+        { id: "q1", kind: "question", body: "问一", fromAgent: "a", status: "awaiting", createdAt: "2026-06-13T09:00:00Z" },
+        { id: "b1", kind: "briefing", body: "报一", fromAgent: "b", status: "awaiting", createdAt: "2026-06-13T09:01:00Z" },
+      ],
+    };
+    sandbox.state.actions.search = "";
+    const html = sandbox.renderAwaitingReplySection();
+    expect(html).toContain("问一");
+    expect(html).toContain("报一");
+  });
 });

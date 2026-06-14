@@ -8130,11 +8130,20 @@
       return html;
     }
     function renderAwaitingReplySection() {
+      var search = (state.actions.search || '').toLowerCase();
       var items = (state.inbox.items || []).slice().sort(function(a, b) {
         return new Date((b && b.createdAt) || 0).getTime() - new Date((a && a.createdAt) || 0).getTime();
       });
+      if (search) {
+        items = items.filter(function(i) {
+          return ((i.body || '') + ' ' + (i.fromAgent || '')).toLowerCase().indexOf(search) >= 0;
+        });
+      }
       var questions = items.filter(function(i) { return i && i.kind === 'question'; });
       var briefings = items.filter(function(i) { return i && i.kind === 'briefing'; });
+
+      // 搜索时无命中:整区不渲染,避免空壳占位干扰搜索结果。
+      if (search && !items.length) return '';
 
       var html = '<section class="card memory-section awaiting-reply-section" style="padding:14px 16px;margin-bottom:14px;background:#ffffff;">';
       html += '<div class="memory-section-head"><div>';
