@@ -209,4 +209,57 @@ describe("STEP-C2 viewer 待回应分区接真数据", () => {
     expect(html).not.toContain("<img src=x onerror");
     expect(html).toContain("&lt;img");
   });
+
+  // --- STEP-C3 动作按钮 + 行内回应 ---
+
+  it("question 卡渲染 回应/转待处理/知道了 三动作,绑定 data-inbox-id", () => {
+    const { sandbox } = loadViewerSandbox();
+    sandbox.state.inbox = {
+      loaded: true, replyingId: null,
+      items: [{ id: "q9", kind: "question", body: "要加鉴权吗?", status: "awaiting", createdAt: "2026-06-13T09:00:00Z" }],
+    };
+    const html = sandbox.renderAwaitingReplySection();
+    expect(html).toContain('data-action="inbox-reply"');
+    expect(html).toContain('data-action="inbox-to-todo"');
+    expect(html).toContain('data-action="inbox-ack"');
+    expect(html).toContain('data-inbox-id="q9"');
+  });
+
+  it("briefing 卡只有 知道了/转待处理,无 回应", () => {
+    const { sandbox } = loadViewerSandbox();
+    sandbox.state.inbox = {
+      loaded: true, replyingId: null,
+      items: [{ id: "b9", kind: "briefing", body: "完成 3 件", status: "awaiting", createdAt: "2026-06-13T09:00:00Z" }],
+    };
+    const html = sandbox.renderAwaitingReplySection();
+    expect(html).toContain('data-action="inbox-ack"');
+    expect(html).toContain('data-action="inbox-to-todo"');
+    expect(html).not.toContain('data-action="inbox-reply"');
+  });
+
+  it("回应输入框仅在 replyingId 命中该卡时渲染", () => {
+    const { sandbox } = loadViewerSandbox();
+    const base = { id: "q5", kind: "question", body: "问", status: "awaiting", createdAt: "2026-06-13T09:00:00Z" };
+    sandbox.state.inbox = { loaded: true, replyingId: null, items: [base] };
+    expect(sandbox.renderAwaitingReplySection()).not.toContain("inbox-reply-input-q5");
+    sandbox.state.inbox.replyingId = "q5";
+    const opened = sandbox.renderAwaitingReplySection();
+    expect(opened).toContain('id="inbox-reply-input-q5"');
+    expect(opened).toContain('data-action="inbox-reply-submit"');
+    expect(opened).toContain('data-action="inbox-reply-cancel"');
+  });
+
+  it("removeInboxItemLocal 本地剔除该项并清回应态", () => {
+    const { sandbox } = loadViewerSandbox();
+    sandbox.state.inbox = {
+      loaded: true, replyingId: "q1",
+      items: [
+        { id: "q1", kind: "question", body: "a", status: "awaiting", createdAt: "2026-06-13T09:00:00Z" },
+        { id: "q2", kind: "question", body: "b", status: "awaiting", createdAt: "2026-06-13T09:01:00Z" },
+      ],
+    };
+    sandbox.removeInboxItemLocal("q1");
+    expect(sandbox.state.inbox.items.map((i: { id: string }) => i.id)).toEqual(["q2"]);
+    expect(sandbox.state.inbox.replyingId).toBeNull();
+  });
 });

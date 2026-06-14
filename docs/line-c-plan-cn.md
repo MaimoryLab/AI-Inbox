@@ -10,11 +10,12 @@
 |---|---|---|
 | **C1** | inbox 后端原语(5 函数 + 5 REST + 2 MCP 工具 + KV + audit) | ✅ **已合并** [PR#19](https://github.com/MaimoryLab/agentmemory-lab/pull/19)(main baa5771) |
 | **C1.5** | Agent 主动发送+整理接入点(`ask-user`/`organize-todos` skill,⭐核心) | ✅ **已合并** [PR#21](https://github.com/MaimoryLab/agentmemory-lab/pull/21)(main a22e411)+ 真实触发场景端到端测试 |
-| **C2** | viewer「待回应/通知」区接真数据 | ✅ **已实现**(viewer 接 `GET /inbox?status=awaiting`,question/briefing 双卡,preview 实证)|
-| **C3** | 动作:回应 / 知道了 / 转待处理 / 看原文 | ⬜ 待开工(依赖 C2✅)|
+| **C2** | viewer「待回应/通知」区接真数据 | ✅ **已合并** [PR#22](https://github.com/MaimoryLab/agentmemory-lab/pull/22)(main fd6be27,question/briefing 双卡,preview 实证)|
+| **C3** | 动作:回应 / 知道了 / 转待处理 / 看原文 | ✅ **已实现**(回应→inbox-answer、知道了→空 answer、转待处理→action-create+dismiss、看原文复用 STEP-03,preview 三流实证)|
 | **C4** | 「已完成」区(只读 done,可与 C3 并行) | ⬜ 待开工(独立) |
 
-> **里程碑**:C1 后端原语 + C1.5 Agent 接入点 + C2 viewer 接真已就位——「Agent 写→落库→用户在工作台看到」整条本地闭环已贯通。C2 把 STEP-06 空壳接上真实 inbox 数据(question🔴 / briefing📋 双卡、复用「看原文 →」、空态去掉「尚未接通」)。下一步 **C3**(让用户能回应/知道了/转待处理)。
+> **里程碑**:C1→C1.5→C2→C3 已就位——「Agent 写→落库→用户在工作台看到→**用户回应/消解**」整条交互闭环贯通。C3 给两类卡片接上动作:question 可回应(行内输入)/转待处理/知道了,briefing 可知道了/转待处理,均乐观更新+失败 flashHint 提示。剩 **C4**(已完成只读区,独立、纯前端)。
+> 另:[PR#23](https://github.com/MaimoryLab/agentmemory-lab/pull/23)(main 0f2d7f9)收口 review 的 inbox REST 端点字段白名单 + 空白正文 400(C1 遗留债)。
 
 ---
 
@@ -179,6 +180,15 @@ interface InboxItem {
 - **改动面**:`src/viewer/index.html`。question 卡:「回应」行内输入 → `inbox-answer`;briefing 卡:「知道了」→ `inbox-answer`(空 answer,标已读)。两者通用:「转待处理」→ `inbox-dismiss` + `action-create`;「看原文」复用 STEP-03 `jumpToEvidence`。
 - **结果预测**:build + 单测(动作分发);preview 实证回应/已读后卡片归档、转待处理后落入待处理区。
 - **风险**:`inbox-dismiss` + `action-create` 两步要原子感(失败回滚提示),前端串行调用。
+- ✅ **实际反馈(已实现,待开 PR)**:
+  - 仅改 `src/viewer/index.html`。`renderInboxCard` 加动作按钮(question:回应…/转待处理/知道了;briefing:知道了/转待处理),`state.inbox` 加 `replyingId` 驱动行内输入框的展开。
+  - 四个 async handler:`submitInboxReply`(`POST inbox/answer {id,answer}`,空回应前端拦 flashHint)、`ackInboxItem`(空 answer = 已读)、`convertInboxToTodo`、`openInboxReply`/`cancelInboxReply`(切换 replyingId)。
+  - **转待处理的两步原子感**:**先** `POST actions {title: body.slice(0,120)}` 成功**再** `POST inbox/dismiss`;若 dismiss 失败 → 不剔除本地项 + flashHint「已建待办,但收件箱项未消解,请手动知道了」,避免「dismiss 了却没建 action」的丢条目。顺序刻意是 create-then-dismiss(宁可多一条待办,不可丢)。
+  - **乐观更新**:动作成功后 `removeInboxItemLocal` 本地剔除该项 + `renderActions()` 重渲,不全量 loadActions 抖动;转待处理额外触发 `loadActions({generate:false})` 让新待办进待处理区。
+  - 「看原文」复用 STEP-03 `data-action="jump-to-evidence"`,零新增。
+  - 测试:`test/viewer-inbox-section.test.ts` 加 5 例(动作按钮存在性、briefing 无回应、replyingId 驱动输入框、removeInboxItemLocal 剔除+清回应态)。**preview 三流实证**:回应→后端 `answered` + 回应文本入库 + 卡片移除;转待处理→后端 inbox `dismissed` + 新 action 标题取 body + 卡片移除;空态正确。实证后已清理 demo(action 置 cancelled)。
+  - **踩坑**:Edit 替换 `renderActions(){` 时把函数声明行一并吞掉,导致 viewer JS 语法断裂——但 tsdown 把 HTML 当字符串资产打包、**不做 JS 解析,build 仍绿**,是 viewer 测试的 VM sandbox 才暴露(`Unexpected token`)。教训:viewer 改动光看 build 过不够,必须跑 viewer 测试或 preview。
+  - 基线:`npm run pre-pr` 130 文件 / 1382 用例全绿。
 
 ### STEP-C4 — 「已完成」区(只读 done,可与 C3 并行)
 - **改动面**:`src/viewer/index.html`。新增折叠区,筛 `state.actions.items` 里 `status==="done"` 且当天 `updatedAt`。
@@ -246,7 +256,9 @@ C1.5 紧跟 C1:原语一就绪就让 Agent 能往里写,避免「前端接好了
 - ✅ 规划文档审阅通过、边界锁定(Agent 主动写→工作台收,不接飞书)。
 - ✅ **C1 已交付合并**([PR#19](https://github.com/MaimoryLab/agentmemory-lab/pull/19),main baa5771)——后端 inbox 原语全套就绪、CI 全绿。
 - ✅ **C1.5 已交付合并**([PR#21](https://github.com/MaimoryLab/agentmemory-lab/pull/21),main a22e411)——`ask-user`/`organize-todos` 两个 Agent 自主 skill + 真实触发场景端到端测试。
-- ✅ **C2 已实现**——viewer 待回应区接真 inbox 数据(question/briefing 双卡、看原文、preview 实证),待开 PR。
-- ▶️ **下一步:C3**(动作:回应 / 知道了 / 转待处理 / 看原文交互)——依赖 C2 的卡片形态。
+- ✅ **C2 已交付合并**([PR#22](https://github.com/MaimoryLab/agentmemory-lab/pull/22),main fd6be27)——viewer 待回应区接真 inbox 数据(question/briefing 双卡、看原文、preview 实证)。
+- ✅ **inbox REST 收口合并**([PR#23](https://github.com/MaimoryLab/agentmemory-lab/pull/23),main 0f2d7f9)——review [P2/P3]:写端点字段白名单 + 空白正文 400。
+- ✅ **C3 已实现**——四动作(回应/知道了/转待处理/看原文)接 inbox-answer/dismiss + action-create,乐观更新,preview 三流实证,待开 PR。
+- ▶️ **下一步:C4**(已完成只读区,筛 action.status==='done' 当天项,纯前端、独立)——线 C 收尾步。
 
 

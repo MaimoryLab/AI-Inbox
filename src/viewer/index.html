@@ -1816,6 +1816,22 @@
     }
     .inbox-subhead-marker { font-size: 12px; }
     .inbox-subhead-note { font-size: 11px; font-weight: 400; color: var(--ink-faint, #9aa0a6); }
+    .inbox-reply-box { margin-top: 9px; }
+    .inbox-reply-input {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid var(--line, #e3e6ea);
+      border-radius: 6px;
+      padding: 7px 9px;
+      font-size: 13px;
+      font-family: inherit;
+      line-height: 1.45;
+      resize: vertical;
+      background: var(--surface, #fff);
+      color: var(--ink, #1f2329);
+    }
+    .inbox-reply-input:focus { outline: none; border-color: var(--accent, #2563eb); }
+    .inbox-reply-actions { display: flex; gap: 8px; margin-top: 7px; }
     .action-item-card {
       padding: 13px 14px;
     }
@@ -3893,7 +3909,7 @@
       activity: { loaded: false, observations: [], sessions: [], typeFilter: '', loadingPhase: '', warnings: [] },
       lessons: { loaded: false, items: [], search: '', skillSearch: '', skillRootFilter: 'all', mode: 'explicit', projects: [] },
       actions: { loaded: false, items: [], reviewItems: [], frontier: [], statusFilter: '', search: '' },
-      inbox: { loaded: false, items: [] },
+      inbox: { loaded: false, items: [], replyingId: null },
       crystals: { loaded: false, items: [], search: '', lessonMap: {} },
       profile: { loaded: false, projects: [], selectedProject: '', data: null },
       replay: { loaded: false, sessions: [], selectedId: '', timeline: null, cursor: 0, playing: false, speed: 1, timer: null, startAt: 0, offsetAt: 0 },
@@ -8047,10 +8063,11 @@
       setTimeout(function() { anchor.classList.remove('obs-jump-highlight'); }, 2400);
     }
 
-    // STEP-C2 待回应分区:接真实 inbox 数据(GET /agentmemory/inbox?status=awaiting)。
+    // STEP-C2/C3 待回应分区:接真实 inbox 数据(GET /agentmemory/inbox?status=awaiting)。
     // 按 kind 分两子区——question(🔴 Agent 在等你回)与 briefing(📋 Agent 主动整理),
-    // 均按 createdAt 倒序(本轮不按 priority)。动作(回应/知道了/转待处理)留待 C3,
-    // 本步先把卡片形态接真 + 复用 STEP-03「看原文 →」。
+    // 均按 createdAt 倒序(本轮不按 priority)。C3 加动作:question 可「回应」(行内输入
+    // → inbox-answer)/「转待处理」(inbox-dismiss + action-create)/「知道了」(空 answer);
+    // briefing 可「知道了」/「转待处理」。「看原文 →」复用 STEP-03。
     function inboxFromLabel(item) {
       var from = item && item.fromAgent ? String(item.fromAgent) : '';
       return from ? '来自 ' + esc(from) : '';
@@ -8064,15 +8081,35 @@
     function renderInboxCard(item, kind) {
       var marker = kind === 'question' ? '🔴' : '📋';
       var from = inboxFromLabel(item);
-      var html = '<article class="inbox-card inbox-card-' + kind + '">';
+      var id = (item && item.id) || '';
+      var html = '<article class="inbox-card inbox-card-' + kind + '" data-inbox-id="' + esc(id) + '">';
       html += '<div class="inbox-card-head">';
       html += '<span class="inbox-card-marker" aria-hidden="true">' + marker + '</span>';
       if (from) html += '<span class="inbox-card-from">' + from + '</span>';
       if (item && item.createdAt) html += '<span class="inbox-card-time">' + esc(shortTime(item.createdAt)) + '</span>';
       html += '</div>';
       html += '<div class="md-body inbox-card-body">' + renderMarkdownSafe((item && item.body) || '') + '</div>';
-      var evidence = inboxEvidenceButton(item);
-      if (evidence) html += '<div class="inbox-card-actions">' + evidence + '</div>';
+
+      html += '<div class="inbox-card-actions">';
+      if (kind === 'question') {
+        html += '<button type="button" class="btn btn-primary" style="font-size:10px;padding:2px 10px;" data-action="inbox-reply" data-inbox-id="' + esc(id) + '">回应…</button>';
+        html += '<button type="button" class="btn" style="font-size:10px;padding:2px 8px;" data-action="inbox-to-todo" data-inbox-id="' + esc(id) + '">转待处理</button>';
+        html += '<button type="button" class="btn" style="font-size:10px;padding:2px 8px;" data-action="inbox-ack" data-inbox-id="' + esc(id) + '">知道了</button>';
+      } else {
+        html += '<button type="button" class="btn btn-primary" style="font-size:10px;padding:2px 10px;" data-action="inbox-ack" data-inbox-id="' + esc(id) + '">知道了</button>';
+        html += '<button type="button" class="btn" style="font-size:10px;padding:2px 8px;" data-action="inbox-to-todo" data-inbox-id="' + esc(id) + '">转待处理</button>';
+      }
+      html += inboxEvidenceButton(item);
+      html += '</div>';
+
+      if (kind === 'question' && state.inbox.replyingId === id) {
+        html += '<div class="inbox-reply-box">';
+        html += '<textarea class="inbox-reply-input" id="inbox-reply-input-' + esc(id) + '" rows="2" placeholder="回一句…"></textarea>';
+        html += '<div class="inbox-reply-actions">';
+        html += '<button type="button" class="btn btn-primary" style="font-size:10px;padding:3px 12px;" data-action="inbox-reply-submit" data-inbox-id="' + esc(id) + '">提交</button>';
+        html += '<button type="button" class="btn" style="font-size:10px;padding:3px 8px;" data-action="inbox-reply-cancel" data-inbox-id="' + esc(id) + '">取消</button>';
+        html += '</div></div>';
+      }
       html += '</article>';
       return html;
     }
@@ -8115,6 +8152,66 @@
       }
       html += '</section>';
       return html;
+    }
+
+    // STEP-C3 收件箱动作。每个动作改后端状态后,从 state.inbox.items 本地剔除该项 +
+    // 重渲染(乐观更新),避免全量 loadActions 抖动;失败用 flashHint 提示。
+    function removeInboxItemLocal(id) {
+      state.inbox.items = (state.inbox.items || []).filter(function(i) { return i && i.id !== id; });
+      if (state.inbox.replyingId === id) state.inbox.replyingId = null;
+    }
+    function findInboxItem(id) {
+      return (state.inbox.items || []).filter(function(i) { return i && i.id === id; })[0] || null;
+    }
+    function openInboxReply(id) {
+      state.inbox.replyingId = (state.inbox.replyingId === id) ? null : id;
+      renderActions();
+      if (state.inbox.replyingId === id) {
+        var input = document.getElementById('inbox-reply-input-' + id);
+        if (input && typeof input.focus === 'function') input.focus();
+      }
+    }
+    function cancelInboxReply() {
+      state.inbox.replyingId = null;
+      renderActions();
+    }
+    async function submitInboxReply(id) {
+      var input = document.getElementById('inbox-reply-input-' + id);
+      var answer = input ? String(input.value || '').trim() : '';
+      if (!answer) { flashHint('回应内容不能为空'); if (input && input.focus) input.focus(); return; }
+      var res = await apiPost('inbox/answer', { id: id, answer: answer });
+      if (!res || res.success !== true) { flashHint('回应未送达,请确认本地 worker 在运行'); return; }
+      removeInboxItemLocal(id);
+      renderActions();
+      flashHint('已回应,Agent 会看到');
+    }
+    async function ackInboxItem(id) {
+      // 空 answer = 已读/ack(briefing 或无需回的 question)。
+      var res = await apiPost('inbox/answer', { id: id });
+      if (!res || res.success !== true) { flashHint('操作未送达,请确认本地 worker 在运行'); return; }
+      removeInboxItemLocal(id);
+      renderActions();
+      flashHint('已标记知道了');
+    }
+    async function convertInboxToTodo(id) {
+      // 转待处理:先建 action(标题取 body),成功后再 dismiss inbox 项;
+      // 串行 + 失败回滚提示,避免「dismiss 了却没建 action」的丢条目。
+      var item = findInboxItem(id);
+      if (!item) return;
+      var title = String(item.body || '').trim().slice(0, 120) || '(来自收件箱)';
+      var created = await apiPost('actions', { title: title, createdBy: 'inbox', project: item.project });
+      if (!created || created.success !== true) { flashHint('转待处理失败:未能创建待办'); return; }
+      var dismissed = await apiPost('inbox/dismiss', { id: id });
+      if (!dismissed || dismissed.success !== true) {
+        flashHint('已建待办,但收件箱项未消解,请手动「知道了」');
+        state.actions.loaded = false;
+        loadActions({ generate: false });
+        return;
+      }
+      removeInboxItemLocal(id);
+      state.actions.loaded = false;
+      loadActions({ generate: false });
+      flashHint('已转入待处理');
     }
 
     function renderActions() {
@@ -9119,6 +9216,26 @@
       }
       if (action === 'jump-to-evidence') {
         jumpToEvidence(target.getAttribute('data-obs-id') || '');
+        return;
+      }
+      if (action === 'inbox-reply') {
+        openInboxReply(target.getAttribute('data-inbox-id') || '');
+        return;
+      }
+      if (action === 'inbox-reply-submit') {
+        submitInboxReply(target.getAttribute('data-inbox-id') || '');
+        return;
+      }
+      if (action === 'inbox-reply-cancel') {
+        cancelInboxReply();
+        return;
+      }
+      if (action === 'inbox-ack') {
+        ackInboxItem(target.getAttribute('data-inbox-id') || '');
+        return;
+      }
+      if (action === 'inbox-to-todo') {
+        convertInboxToTodo(target.getAttribute('data-inbox-id') || '');
         return;
       }
       if (action === 'toggle-session-detail-section') {
