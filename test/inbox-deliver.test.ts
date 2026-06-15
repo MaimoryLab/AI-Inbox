@@ -5,14 +5,20 @@ vi.mock("../src/logger.js", () => ({
 }));
 
 // Config gate is toggled per-test via these mocks (env-free, deterministic).
-const mockGate = { enabled: false, config: null as null | { userId: string; urgentQuestion: boolean } };
+const mockGate = {
+  enabled: false,
+  replyLoop: false,
+  config: null as null | { userId: string; urgentQuestion: boolean },
+};
 vi.mock("../src/config.js", () => ({
   isLarkDeliveryEnabled: () => mockGate.enabled,
+  isLarkReplyLoopEnabled: () => mockGate.replyLoop,
   getLarkConfig: () => mockGate.config,
 }));
 
 import { registerInboxDeliverFunction } from "../src/functions/inbox-deliver.js";
 import { KV } from "../src/state/schema.js";
+import { PENDING_REPLY_KEY } from "../src/functions/lark-reply-consumer.js";
 import type { DeliveryRecord, InboxItem } from "../src/types.js";
 import type { DeliveryOutcome } from "../src/functions/lark-adapter.js";
 
@@ -73,6 +79,7 @@ describe("Inbox delivery primitive (Line D / STEP-D1)", () => {
     kv = mockKV();
     deliver = vi.fn(async (): Promise<DeliveryOutcome> => ({ ok: true, messageId: "om_x", urgent: true }));
     mockGate.enabled = false;
+    mockGate.replyLoop = false;
     mockGate.config = null;
     registerInboxDeliverFunction(sdk as never, kv as never, deliver as never);
   });
@@ -159,5 +166,42 @@ describe("Inbox delivery primitive (Line D / STEP-D1)", () => {
     const rec = await kv.get<DeliveryRecord>(KV.delivery, "inbox_b");
     expect(rec?.status).toBe("sent");
     expect(rec?.urgent).toBe(false);
+  });
+
+  // --- STEP-D5a: reply-loop pending pointer is set on question delivery ---
+
+  it("reply loop ON: sent question sets the pending-reply pointer", async () => {
+    mockGate.enabled = true;
+    mockGate.replyLoop = true;
+    mockGate.config = { userId: "ou_abc", urgentQuestion: true };
+    await sdk.call("mem::inbox-deliver", { item: makeItem({ id: "inbox_q", kind: "question" }) });
+    const ptr = await kv.get<{ itemId: string }>(KV.delivery, PENDING_REPLY_KEY);
+    expect(ptr?.itemId).toBe("inbox_q");
+  });
+
+  it("reply loop ON: sent briefing does NOT set the pointer", async () => {
+    mockGate.enabled = true;
+    mockGate.replyLoop = true;
+    mockGate.config = { userId: "ou_abc", urgentQuestion: false };
+    deliver.mockResolvedValueOnce({ ok: true, messageId: "om_b", urgent: false });
+    await sdk.call("mem::inbox-deliver", { item: makeItem({ id: "inbox_b2", kind: "briefing" }) });
+    expect(await kv.get(KV.delivery, PENDING_REPLY_KEY)).toBeNull();
+  });
+
+  it("reply loop OFF: sent question does NOT set the pointer", async () => {
+    mockGate.enabled = true;
+    mockGate.replyLoop = false;
+    mockGate.config = { userId: "ou_abc", urgentQuestion: true };
+    await sdk.call("mem::inbox-deliver", { item: makeItem({ id: "inbox_q3", kind: "question" }) });
+    expect(await kv.get(KV.delivery, PENDING_REPLY_KEY)).toBeNull();
+  });
+
+  it("failed question delivery does NOT set the pointer", async () => {
+    mockGate.enabled = true;
+    mockGate.replyLoop = true;
+    mockGate.config = { userId: "ou_abc", urgentQuestion: true };
+    deliver.mockResolvedValueOnce({ ok: false, error: "boom" });
+    await sdk.call("mem::inbox-deliver", { item: makeItem({ id: "inbox_q4", kind: "question" }) });
+    expect(await kv.get(KV.delivery, PENDING_REPLY_KEY)).toBeNull();
   });
 });

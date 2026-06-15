@@ -2,9 +2,11 @@ import type { ISdk } from "iii-sdk";
 import type { StateKV } from "../state/kv.js";
 import { KV } from "../state/schema.js";
 import type { DeliveryRecord, InboxItem } from "../types.js";
-import { getLarkConfig, isLarkDeliveryEnabled } from "../config.js";
+import { getLarkConfig, isLarkDeliveryEnabled, isLarkReplyLoopEnabled } from "../config.js";
 import { safeAudit } from "./audit.js";
 import { deliverViaLark as defaultDeliver, type LarkDeliverFn } from "./lark-adapter.js";
+import { setPendingReplyTarget } from "./lark-reply-consumer.js";
+import { logger } from "../logger.js";
 
 // Line D — delivery primitive. Fired fire-and-forget after an inbox item is
 // persisted (STEP-D3 wires the trigger). Pure backend, default OFF:
@@ -62,6 +64,21 @@ export function registerInboxDeliverFunction(
           kind: item.kind,
           urgent: !!outcome.urgent,
         });
+        // Reply-loop mapping (method A): a successfully delivered question
+        // becomes the current pending-reply target so the user's next Feishu
+        // reply answers it. Briefings need no reply, so they never set it.
+        // Guarded by the reply-loop switch — pointer is meaningless without
+        // the D5b consumer running.
+        if (item.kind === "question" && isLarkReplyLoopEnabled()) {
+          try {
+            await setPendingReplyTarget(kv, item.id);
+          } catch (err) {
+            logger.warn("failed to set pending reply target", {
+              itemId: item.id,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
         return { success: true, record };
       }
 
