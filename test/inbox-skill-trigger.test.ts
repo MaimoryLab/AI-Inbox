@@ -240,4 +240,37 @@ describe("STEP-C1.5 skill → inbox end-to-end", () => {
     expect(items[0]?.body).toBe("second via REST");
     expect(items[1]?.body).toBe("first via MCP");
   });
+
+  // --- STEP-D4: GET /inbox joins the mem:delivery ledger onto each item. ---
+
+  it("inbox-list joins delivery status onto the matching item (read-only)", async () => {
+    const res = await callRest("POST", "/agentmemory/inbox/ask", { body: "要不要加鉴权?" });
+    const id = res.body.item!.id;
+    // Simulate the delivery primitive having recorded a sent push.
+    await h.kv.set("mem:delivery", id, {
+      id, channel: "lark", status: "sent", messageId: "om_abc",
+      urgent: false, attempts: 1, createdAt: "2026-06-15T10:00:00Z",
+      deliveredAt: "2026-06-15T10:00:05Z",
+    });
+
+    const list = await callRest("GET", "/agentmemory/inbox", undefined, {});
+    const item = (list.body.items ?? []).find((i) => i.id === id) as
+      InboxItem & { delivery?: { channel: string; status: string; messageId?: string } };
+    expect(item.delivery).toBeTruthy();
+    expect(item.delivery!.status).toBe("sent");
+    expect(item.delivery!.channel).toBe("lark");
+    expect(item.delivery!.messageId).toBe("om_abc");
+    // The persisted inbox item itself is untouched (no delivery field in KV).
+    const stored = await h.kv.get<InboxItem & { delivery?: unknown }>("mem:inbox", id);
+    expect(stored!.delivery).toBeUndefined();
+  });
+
+  it("items without a delivery record have no delivery field", async () => {
+    const res = await callRest("POST", "/agentmemory/inbox/ask", { body: "没投递的问题" });
+    const id = res.body.item!.id;
+    const list = await callRest("GET", "/agentmemory/inbox", undefined, {});
+    const item = (list.body.items ?? []).find((i) => i.id === id) as
+      InboxItem & { delivery?: unknown };
+    expect(item.delivery).toBeUndefined();
+  });
 });

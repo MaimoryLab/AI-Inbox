@@ -1,5 +1,5 @@
 import type { ISdk, ApiRequest } from "iii-sdk";
-import type { Action, Session, CompressedObservation, HookPayload, CommitLink, ReviewQueueItem } from "../types.js";
+import type { Action, Session, CompressedObservation, HookPayload, CommitLink, ReviewQueueItem, InboxItem, DeliveryRecord } from "../types.js";
 import { withKeyedLock } from "../state/keyed-mutex.js";
 import { KV } from "../state/schema.js";
 import { StateKV } from "../state/kv.js";
@@ -3080,12 +3080,32 @@ export function registerApiTriggers(
     async (req: ApiRequest): Promise<Response> => {
       const authErr = checkAuth(req, secret);
       if (authErr) return authErr;
-      const result = await sdk.trigger({ function_id: "mem::inbox-list", payload: {
+      const result = await sdk.trigger<unknown, { success: boolean; items?: InboxItem[] }>({ function_id: "mem::inbox-list", payload: {
         status: req.query_params?.["status"],
         kind: req.query_params?.["kind"],
         limit: parseOptionalInt(req.query_params?.["limit"]),
       } });
-      return { status_code: 200, body: result };
+      // Join the delivery ledger (mem:delivery) onto each item as a read-only
+      // `delivery` field so the viewer can show push status. The inbox item's
+      // persisted shape is untouched — this lives only in the API response.
+      const items = result.items ?? [];
+      const joined = await Promise.all(items.map(async (item) => {
+        const rec = await kv.get<DeliveryRecord>(KV.delivery, item.id).catch(() => null);
+        if (!rec) return item;
+        return {
+          ...item,
+          delivery: {
+            channel: rec.channel,
+            status: rec.status,
+            messageId: rec.messageId,
+            urgent: rec.urgent,
+            error: rec.error,
+            attempts: rec.attempts,
+            deliveredAt: rec.deliveredAt,
+          },
+        };
+      }));
+      return { status_code: 200, body: { ...result, items: joined } };
     },
   );
   sdk.registerTrigger({
