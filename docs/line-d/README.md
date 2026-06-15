@@ -11,7 +11,7 @@
 | STEP | 内容 | 状态 |
 |---|---|---|
 | **D1** | 投递原语后端:`mem::inbox-deliver` 函数 + 投递配置 + audit + 去重 | ✅ **已合并** [PR#34](https://github.com/MaimoryLab/agentmemory-lab/pull/34)(main 658e7b4,纯后端默认关,7 例测试 + CI 4 格绿;适配器 D1 桩、D2 实接) |
-| **D2** | lark-cli 适配器:把 InboxItem 渲染成飞书消息(卡片/markdown)并发出 | ⬜ 待开工(依赖 D1) |
+| **D2** | lark-cli 适配器:把 InboxItem 渲染成飞书消息(卡片/markdown)并发出 | ✅ **已合并** [PR#35](https://github.com/MaimoryLab/agentmemory-lab/pull/35)(main 6a837f4,真 execFile 实接、9 例测试 + CI 4 格绿;**真发验证**:question 卡片 + briefing 各一条 `ok:true`,urgent 缺 scope 正确降级) |
 | **D3** | 挂接 inbox 写路径:ask/notify 后 fire-and-forget 触发投递 | ⬜ 待开工(依赖 D1/D2) |
 | **D4** | 投递状态回写 + viewer 呈现(已推送/推送失败标记) | ⬜ 待开工(依赖 D3) |
 | **D5** | **飞书内回复闭环**:bot 订阅收信 → 回复映射回 inbox-answer(**本轮必做**) | ⬜ 待开工(依赖 D3,见 §9) |
@@ -145,6 +145,15 @@ interface DeliveryRecord {
   - 安全:参数数组形式、数据走 stdin、识别 exit 10 不静默 `--yes`、不打印密钥(lark-shared 全套铁律)。
 - **结果预测**:单测覆盖消息体构造(给定 item → 期望 argv + stdin JSON 形状),**execFile 用 mock/注入**;真发飞书走手动实跑验证(见 §5)。
 - **风险**:中。飞书消息体格式、卡片 schema、加急 scope 需实跑校准。这步最可能反复。
+- ✅ **实际反馈([PR#35](https://github.com/MaimoryLab/agentmemory-lab/pull/35) 已合并,main 6a837f4,CI 4 格绿)**:
+  - 真接 `execFile` lark-cli,注入式 `CliRunner`(测试 mock,默认 `realRunner` 真发)。**永不抛错** → `{ ok:false, error }`。
+  - **3 处实跑校正(开工前用户真测推翻原计划假设)**:① `--content` **不接受 stdin `-`**(报 `--content is not valid JSON: -`),正文必须作为 argv 参数 `--content JSON.stringify(card)`;② `--markdown` 被 CLI 包装成 `msg_type=post`(非 text);③ lark-cli 遇本地代理会告警 → `realRunner` 设 `LARK_CLI_NO_PROXY=1` 并清理 proxy env,直连飞书。
+  - question→`--msg-type interactive --content <card-json>`;briefing→`--markdown`;均带 `--idempotency-key item.id --json`。urgent_app **接受** `--data -`(stdin body `{user_id_list:[userId]}`)。
+  - **urgent 失败降级**:`urgent_app` 失败(如缺 `im:message.urgent` scope)→ 记 warn、返 `urgent:false`,**投递仍成功**,不是投递失败。
+  - **真发验证(本地手动,非 CI)**:向真实用户各发一条——question 卡片 `om_x100b6dcd1bfdcca8b2fd1303b959040`、briefing `om_x100b6dcd1b800ca4b2571c568b75ae6`,均 `ok:true`;`urgent_app` 返 access-denied(bot 未授予 `im:message.urgent`),**正确降级 `urgent:false`**——印证降级路径符合设计。
+  - `test/lark-adapter.test.ts` 9 例 mock CliRunner 零飞书依赖;不新增 MCP/REST → 不触发一致性 8/3 连带。
+
+> **D2 渲染最终形态修正**:原计划 §D2 写「briefing→text markdown」,实跑证明 `--markdown` 出 `msg_type=post`;urgent scope(`im:message.urgent`)bot 当前未授予,降级路径已覆盖,后续如需真加急需在飞书开放平台补该 scope。
 
 ### STEP-D3 — 挂接 inbox 写路径(fire-and-forget)
 - **改动面**:`src/functions/inbox.ts`。`mem::inbox-ask`(`:27` kv.set 后)与 `mem::inbox-notify`(`:50` 后)各加:
