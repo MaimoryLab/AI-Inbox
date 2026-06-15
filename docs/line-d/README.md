@@ -12,7 +12,7 @@
 |---|---|---|
 | **D1** | 投递原语后端:`mem::inbox-deliver` 函数 + 投递配置 + audit + 去重 | ✅ **已合并** [PR#34](https://github.com/MaimoryLab/agentmemory-lab/pull/34)(main 658e7b4,纯后端默认关,7 例测试 + CI 4 格绿;适配器 D1 桩、D2 实接) |
 | **D2** | lark-cli 适配器:把 InboxItem 渲染成飞书消息(卡片/markdown)并发出 | ✅ **已合并** [PR#35](https://github.com/MaimoryLab/agentmemory-lab/pull/35)(main 6a837f4,真 execFile 实接、9 例测试 + CI 4 格绿;**真发验证**:question 卡片 + briefing 各一条 `ok:true`,urgent 缺 scope 正确降级) |
-| **D3** | 挂接 inbox 写路径:ask/notify 后 fire-and-forget 触发投递 | ⬜ 待开工(依赖 D1/D2) |
+| **D3** | 挂接 inbox 写路径:ask/notify 后 fire-and-forget 触发投递 | ✅ **已合并** [PR#36](https://github.com/MaimoryLab/agentmemory-lab/pull/36)(main 9cecd5c,只改 inbox.ts、4 新测试 + CI 4 格绿;**第一条完整链路贯通**:Agent 写 inbox → 自动触发 delivery → 飞书收到) |
 | **D4** | 投递状态回写 + viewer 呈现(已推送/推送失败标记) | ⬜ 待开工(依赖 D3) |
 | **D5** | **飞书内回复闭环**:bot 订阅收信 → 回复映射回 inbox-answer(**本轮必做**) | ⬜ 待开工(依赖 D3,见 §9) |
 
@@ -166,6 +166,13 @@ interface DeliveryRecord {
   仿 `events.ts:51/66` 的 `triggerVoid` + try/catch-only-log 范式。**投递失败绝不冒泡到 inbox 写**。
 - **结果预测**:`test/inbox.test.ts` 现有 9 例不受影响(默认关);加 1-2 例验「开启时触发 deliver、关闭时不触发」(mock triggerVoid)。
 - **风险**:低。一处薄挂接,有开关保护。
+- ✅ **实际反馈([PR#36](https://github.com/MaimoryLab/agentmemory-lab/pull/36) 已合并,main 9cecd5c,CI 4 格绿)**:
+  - **只改 `src/functions/inbox.ts`**(+ test):新增 `dispatchDelivery(sdk, item)` helper——`isLarkDeliveryEnabled()` 开关保护、`triggerVoid("mem::inbox-deliver",{item})` 包 try/catch、失败只 `logger.warn` 吞掉。在 ask/notify 各自 `kv.set`+`recordAudit` **之后**调用。
+  - **`mem::inbox-deliver` 是注册的 function**(非 trigger),`triggerVoid` 按 id 直接 fire-and-forget,无需额外 trigger 包装——核实 events.ts:51 `triggerVoid("mem::slot-reflect")` 同样是触发 function。
+  - 测试:原 9 例行为不变(默认关 → guard 在 triggerVoid 前短路,mock sdk 加 `triggerVoid` spy 不被调用)。新增 4 例:关闭不触发 / 开启 ask 用持久化 item 触发 / 开启 notify 触发 / triggerVoid 抛错仍 success 且 item 落库。
+  - **不新增 MCP/REST/KV scope/audit op → 不触发一致性连带。**
+  - **🎉 第一条完整链路贯通**:Agent 写 inbox(ask-user/organize-todos skill)→ inbox-deliver 自动触发 → lark-adapter 真发 → 飞书 bot 私聊收到。剩 D4(viewer 状态回写)+ D5(飞书回复闭环)。
+  - **真加急 scope 仍未挡**:缺 `im:message.urgent` 只是 `urgent:false` 降级,推送链路已可用;若要 question 带飞书加急横幅,去开放平台补 scope 即可(非阻塞)。
 
 ### STEP-D4 — 投递状态回写 viewer
 - **改动面**:`src/triggers/api.ts`(inbox-list 响应里 join DeliveryRecord,或新增 `GET /agentmemory/delivery`)+ `src/viewer/index.html`(卡片角标「已推送 ✓ / 推送失败 ⚠ + 原因」)。
