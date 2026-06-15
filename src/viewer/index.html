@@ -1820,6 +1820,10 @@
     .inbox-card-marker { font-size: 13px; flex-shrink: 0; }
     .inbox-card-from { font-size: 12px; font-weight: 600; color: var(--ink-muted, #6b7280); }
     .inbox-card-time { font-size: 11px; color: var(--ink-faint, #9aa0a6); margin-left: auto; }
+    .inbox-delivery { font-size: 10px; padding: 1px 7px; border-radius: 9px; flex-shrink: 0; white-space: nowrap; }
+    .inbox-delivery-sent { color: var(--ok, #18794e); background: var(--ok-bg, rgba(24,121,78,0.10)); }
+    .inbox-delivery-failed { color: var(--danger, #b42318); background: var(--danger-bg, rgba(180,35,24,0.10)); display: inline-flex; gap: 5px; align-items: baseline; max-width: 60%; overflow: hidden; }
+    .inbox-delivery-err { font-weight: 400; opacity: 0.85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .inbox-card-body { font-size: 13px; color: var(--ink, #1f2329); line-height: 1.5; overflow-wrap: anywhere; }
     .inbox-card-actions { margin-top: 8px; }
     .inbox-subhead {
@@ -8103,6 +8107,25 @@
       return '<button type="button" class="btn inbox-evidence-link" style="font-size:10px;padding:2px 8px;" ' +
         'data-action="jump-to-evidence" data-obs-id="' + esc(ids[0]) + '">看原文 →</button>';
     }
+    // STEP-D4 飞书投递状态徽标(只读,低干扰)。数据来自 GET /inbox 里 join 的 delivery
+    // 台账(mem:delivery)。sent→已推送✓;failed→推送失败⚠+短错误摘要;skipped(投递
+    // 未开启/无配置)默认不显示,避免污染 UI。
+    function inboxDeliveryBadge(item) {
+      var d = item && item.delivery;
+      if (!d || !d.status) return '';
+      if (d.status === 'sent') {
+        var u = d.urgent ? ' · 加急' : '';
+        return '<span class="inbox-delivery inbox-delivery-sent" title="已推送到飞书' + esc(u) + '">已推送 ✓' + esc(u) + '</span>';
+      }
+      if (d.status === 'failed') {
+        var err = d.error ? String(d.error) : '';
+        if (err.length > 60) err = err.slice(0, 60) + '…';
+        var titleErr = d.error ? ' title="' + esc(String(d.error)) + '"' : '';
+        return '<span class="inbox-delivery inbox-delivery-failed"' + titleErr + '>推送失败 ⚠' +
+          (err ? ' <span class="inbox-delivery-err">' + esc(err) + '</span>' : '') + '</span>';
+      }
+      return ''; // skipped → silent
+    }
     function renderInboxCard(item, kind) {
       var marker = kind === 'question' ? '🔴' : '📋';
       var from = inboxFromLabel(item);
@@ -8112,6 +8135,7 @@
       html += '<span class="inbox-card-marker" aria-hidden="true">' + marker + '</span>';
       if (from) html += '<span class="inbox-card-from">' + from + '</span>';
       if (item && item.createdAt) html += '<span class="inbox-card-time">' + esc(shortTime(item.createdAt)) + '</span>';
+      html += inboxDeliveryBadge(item);
       html += '</div>';
       html += '<div class="md-body inbox-card-body">' + renderMarkdownSafe((item && item.body) || '') + '</div>';
 

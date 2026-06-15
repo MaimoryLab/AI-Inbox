@@ -491,4 +491,107 @@ describe("STEP-C2 viewer 待回应分区接真数据", () => {
     expect(html).toContain('aria-expanded="true"');
     expect(html).toContain("鉴权加固完成");
   });
+
+  // --- STEP-D4 飞书投递状态徽标(只读,join 自 mem:delivery) ---
+
+  it("delivery sent → 显示「已推送 ✓」徽标", () => {
+    const { sandbox } = loadViewerSandbox();
+    sandbox.state.inbox = {
+      loaded: true, replyingId: null, pendingById: {},
+      items: [{
+        id: "q1", kind: "question", body: "问", status: "awaiting", createdAt: "2026-06-13T09:00:00Z",
+        delivery: { channel: "lark", status: "sent", messageId: "om_x", urgent: false, attempts: 1, deliveredAt: "2026-06-13T09:00:05Z" },
+      }],
+    };
+    const html = sandbox.renderAwaitingReplySection();
+    expect(html).toContain("inbox-delivery-sent");
+    expect(html).toContain("已推送 ✓");
+    expect(html).not.toContain("推送失败");
+  });
+
+  it("delivery sent + urgent → 徽标带「加急」", () => {
+    const { sandbox } = loadViewerSandbox();
+    sandbox.state.inbox = {
+      loaded: true, replyingId: null, pendingById: {},
+      items: [{
+        id: "q1", kind: "question", body: "问", status: "awaiting", createdAt: "2026-06-13T09:00:00Z",
+        delivery: { channel: "lark", status: "sent", messageId: "om_x", urgent: true, attempts: 1 },
+      }],
+    };
+    const html = sandbox.renderAwaitingReplySection();
+    expect(html).toContain("已推送 ✓");
+    expect(html).toContain("加急");
+  });
+
+  it("delivery failed → 显示「推送失败 ⚠」+ 短错误摘要", () => {
+    const { sandbox } = loadViewerSandbox();
+    sandbox.state.inbox = {
+      loaded: true, replyingId: null, pendingById: {},
+      items: [{
+        id: "q1", kind: "question", body: "问", status: "awaiting", createdAt: "2026-06-13T09:00:00Z",
+        delivery: { channel: "lark", status: "failed", error: "missing scope im:message", attempts: 1 },
+      }],
+    };
+    const html = sandbox.renderAwaitingReplySection();
+    expect(html).toContain("inbox-delivery-failed");
+    expect(html).toContain("推送失败 ⚠");
+    expect(html).toContain("missing scope im:message");
+  });
+
+  it("delivery failed 超长错误被截断到 ≤61 字符(含省略号)", () => {
+    const { sandbox } = loadViewerSandbox();
+    const longErr = "x".repeat(200);
+    sandbox.state.inbox = {
+      loaded: true, replyingId: null, pendingById: {},
+      items: [{
+        id: "q1", kind: "question", body: "问", status: "awaiting", createdAt: "2026-06-13T09:00:00Z",
+        delivery: { channel: "lark", status: "failed", error: longErr, attempts: 2 },
+      }],
+    };
+    const html = sandbox.renderAwaitingReplySection();
+    // 截断后的可见摘要不含完整 200 长串
+    const m = html.match(/inbox-delivery-err">([^<]*)</);
+    expect(m).toBeTruthy();
+    expect(m![1].length).toBeLessThanOrEqual(61); // 60 + '…'
+    expect(m![1].endsWith("…")).toBe(true);
+  });
+
+  it("delivery skipped → 不显示任何徽标(不污染 UI)", () => {
+    const { sandbox } = loadViewerSandbox();
+    sandbox.state.inbox = {
+      loaded: true, replyingId: null, pendingById: {},
+      items: [{
+        id: "q1", kind: "question", body: "问", status: "awaiting", createdAt: "2026-06-13T09:00:00Z",
+        delivery: { channel: "lark", status: "skipped", attempts: 0 },
+      }],
+    };
+    const html = sandbox.renderAwaitingReplySection();
+    expect(html).not.toContain("inbox-delivery");
+    expect(html).not.toContain("已推送");
+    expect(html).not.toContain("推送失败");
+  });
+
+  it("无 delivery 字段 → 不显示徽标(向后兼容 D3 前的数据)", () => {
+    const { sandbox } = loadViewerSandbox();
+    sandbox.state.inbox = {
+      loaded: true, replyingId: null, pendingById: {},
+      items: [{ id: "q1", kind: "question", body: "问", status: "awaiting", createdAt: "2026-06-13T09:00:00Z" }],
+    };
+    const html = sandbox.renderAwaitingReplySection();
+    expect(html).not.toContain("inbox-delivery");
+  });
+
+  it("failed 错误摘要经 esc 转义,杜绝 XSS", () => {
+    const { sandbox } = loadViewerSandbox();
+    sandbox.state.inbox = {
+      loaded: true, replyingId: null, pendingById: {},
+      items: [{
+        id: "q1", kind: "question", body: "问", status: "awaiting", createdAt: "2026-06-13T09:00:00Z",
+        delivery: { channel: "lark", status: "failed", error: "<img src=x onerror=alert(1)>", attempts: 1 },
+      }],
+    };
+    const html = sandbox.renderAwaitingReplySection();
+    expect(html).not.toContain("<img src=x onerror");
+    expect(html).toContain("&lt;img");
+  });
 });
