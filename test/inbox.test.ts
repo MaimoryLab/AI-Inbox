@@ -37,14 +37,18 @@ function mockKV() {
 
 function mockSdk() {
   const functions = new Map<string, Function>();
-  const triggerVoid = vi.fn();
+  // Real iii-sdk has no triggerVoid; fire-and-forget is
+  // trigger({ function_id, payload, action }). Mock trigger and let tests
+  // assert against it. Returns a resolved promise so the no-await dispatch
+  // and its .catch() are exercised.
+  const trigger = vi.fn(async () => ({ ok: true }));
   return {
     registerFunction: (idOrOpts: string | { id: string }, handler: Function) => {
       const id = typeof idOrOpts === "string" ? idOrOpts : idOrOpts.id;
       functions.set(id, handler);
     },
     registerTrigger: () => {},
-    triggerVoid,
+    trigger,
     call: async (id: string, payload?: unknown) => {
       const fn = functions.get(id);
       if (!fn) throw new Error(`No function: ${id}`);
@@ -139,36 +143,52 @@ describe("Inbox Functions (Line C)", () => {
     it("delivery OFF (default): ask/notify do NOT trigger deliver", async () => {
       await sdk.call("mem::inbox-ask", { body: "q" });
       await sdk.call("mem::inbox-notify", { body: "b" });
-      expect(sdk.triggerVoid).not.toHaveBeenCalled();
+      expect(sdk.trigger).not.toHaveBeenCalled();
     });
 
-    it("delivery ON: ask triggers mem::inbox-deliver with the persisted item", async () => {
+    it("delivery ON: ask triggers mem::inbox-deliver (fire-and-forget, with item)", async () => {
       mockGate.enabled = true;
       const r = await sdk.call("mem::inbox-ask", { body: "要不要加鉴权?" });
       expect(r.success).toBe(true);
-      expect(sdk.triggerVoid).toHaveBeenCalledTimes(1);
-      expect(sdk.triggerVoid).toHaveBeenCalledWith("mem::inbox-deliver", { item: r.item });
+      expect(sdk.trigger).toHaveBeenCalledTimes(1);
+      const arg = sdk.trigger.mock.calls[0][0];
+      expect(arg.function_id).toBe("mem::inbox-deliver");
+      expect(arg.payload).toEqual({ item: r.item });
+      // fire-and-forget form: an action is supplied (TriggerAction.Void()).
+      expect(arg.action).toBeTruthy();
     });
 
-    it("delivery ON: notify triggers mem::inbox-deliver with the persisted item", async () => {
+    it("delivery ON: notify triggers mem::inbox-deliver (fire-and-forget, with item)", async () => {
       mockGate.enabled = true;
       const r = await sdk.call("mem::inbox-notify", { body: "今天完成了 3 件" });
       expect(r.success).toBe(true);
-      expect(sdk.triggerVoid).toHaveBeenCalledTimes(1);
-      expect(sdk.triggerVoid).toHaveBeenCalledWith("mem::inbox-deliver", { item: r.item });
+      expect(sdk.trigger).toHaveBeenCalledTimes(1);
+      const arg = sdk.trigger.mock.calls[0][0];
+      expect(arg.function_id).toBe("mem::inbox-deliver");
+      expect(arg.payload).toEqual({ item: r.item });
+      expect(arg.action).toBeTruthy();
     });
 
-    it("triggerVoid throwing does NOT break the inbox write (still success)", async () => {
+    it("trigger throwing (sync) does NOT break the inbox write (still success)", async () => {
       mockGate.enabled = true;
-      sdk.triggerVoid.mockImplementationOnce(() => {
+      sdk.trigger.mockImplementationOnce(() => {
         throw new Error("dispatch boom");
       });
       const r = await sdk.call("mem::inbox-ask", { body: "q" });
       expect(r.success).toBe(true);
       expect(r.item.status).toBe("awaiting");
-      // and the item was still persisted
       const stored = await kv.get<InboxItem>("mem:inbox", r.item.id);
       expect(stored?.id).toBe(r.item.id);
+    });
+
+    it("trigger rejecting (async) does NOT break the inbox write (still success)", async () => {
+      mockGate.enabled = true;
+      sdk.trigger.mockRejectedValueOnce(new Error("async dispatch boom"));
+      const r = await sdk.call("mem::inbox-ask", { body: "q" });
+      expect(r.success).toBe(true);
+      expect(r.item.status).toBe("awaiting");
+      // allow the swallowed rejection's microtask to flush without surfacing
+      await Promise.resolve();
     });
   });
 });

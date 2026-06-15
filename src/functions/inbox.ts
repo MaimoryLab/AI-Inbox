@@ -1,4 +1,4 @@
-import type { ISdk } from "iii-sdk";
+import { TriggerAction, type ISdk } from "iii-sdk";
 import type { StateKV } from "../state/kv.js";
 import { KV, generateId } from "../state/schema.js";
 import type { InboxItem } from "../types.js";
@@ -9,13 +9,29 @@ import { logger } from "../logger.js";
 // Fire-and-forget cross-device delivery (Line D / STEP-D3). Called after an
 // inbox item is persisted+audited. Guarded by the delivery config gate so the
 // inbox behaves exactly as Line C when delivery is OFF (the default). The
-// dispatch is best-effort: any failure is logged and swallowed so it can never
-// affect the inbox write's return value. (mem::inbox-deliver applies its own
-// config gate + dedup; this guard just avoids dispatching when clearly off.)
+// dispatch is best-effort: any failure (sync throw OR async rejection) is
+// logged and swallowed so it can never affect the inbox write's return value.
+// (mem::inbox-deliver applies its own config gate + dedup; this guard just
+// avoids dispatching when clearly off.)
+//
+// Uses sdk.trigger({ ..., action: TriggerAction.Void() }) — the iii-sdk
+// fire-and-forget form (the old sdk.triggerVoid was removed). We do NOT await:
+// delivery runs out-of-band and must not delay or affect the inbox write.
 function dispatchDelivery(sdk: ISdk, item: InboxItem): void {
   if (!isLarkDeliveryEnabled()) return;
   try {
-    sdk.triggerVoid("mem::inbox-deliver", { item });
+    void sdk
+      .trigger({
+        function_id: "mem::inbox-deliver",
+        payload: { item },
+        action: TriggerAction.Void(),
+      })
+      .catch((err: unknown) => {
+        logger.warn("inbox delivery dispatch failed (async)", {
+          itemId: item.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
   } catch (err) {
     logger.warn("inbox delivery dispatch failed", {
       itemId: item.id,
