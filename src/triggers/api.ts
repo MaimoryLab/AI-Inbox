@@ -1490,6 +1490,14 @@ export function registerApiTriggers(
       if (approvedKind === "action") {
         const priorityValue = parseOptionalFiniteNumber(body.priority) ?? parseOptionalFiniteNumber(actionCandidate.priority) ?? 5;
         const priority = typeof priorityValue === "number" ? Math.max(1, Math.min(10, Math.floor(priorityValue))) : 5;
+        const todoExtraction = payload.todoExtraction && typeof payload.todoExtraction === "object"
+          ? payload.todoExtraction as Record<string, unknown>
+          : {};
+        const typeBucket = typeof todoExtraction.typeBucket === "string" ? todoExtraction.typeBucket : "";
+        const actionStatus =
+          typeBucket === "done" ? "done" :
+          typeBucket === "in_progress" || typeBucket === "processing" ? "active" :
+          undefined;
         const sourceObservationIds = Array.isArray(actionCandidate.sourceObservationIds)
           ? actionCandidate.sourceObservationIds.filter((id): id is string => typeof id === "string" && id.length > 0)
           : [];
@@ -1503,6 +1511,8 @@ export function registerApiTriggers(
             project: project || (typeof payload.project === "string" ? payload.project : undefined),
             tags: tags || (Array.isArray(payload.tags) ? payload.tags : sourceTags),
             sourceObservationIds,
+            status: actionStatus,
+            metadata: Object.keys(todoExtraction).length ? { todoExtraction } : undefined,
           },
         });
         const resultObj = result && typeof result === "object" ? result as Record<string, unknown> : {};

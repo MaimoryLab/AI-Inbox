@@ -10,7 +10,7 @@ import { basename, join, dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { renderViewerDocument } from "./document.js";
-import type { CompressedObservation, Memory, ReviewQueueItem, Session } from "../types.js";
+import type { Action, CompressedObservation, Memory, ReviewQueueItem, Session } from "../types.js";
 import { KV } from "../state/schema.js";
 import { buildTurnActionDrafts } from "../functions/action-candidates.js";
 
@@ -985,40 +985,98 @@ async function handleReviewApproveFallback(
     : Array.isArray(body.tags) ? body.tags.map((tag) => asText(tag)).filter(Boolean) : [];
   const page = item.page || {};
   const project = asText(body.project) || asText(payload.project) || "browser";
-  const memory: Memory = {
-    id: `mem_${Date.now().toString(36)}_${randomUUID().replace(/-/g, "").slice(0, 12)}`,
-    createdAt: now,
-    updatedAt: now,
-    type: validMemoryType(asText(body.type) || payload.type),
-    title: title.slice(0, 80),
-    content: title ? `${title}\n\n${content}` : content,
-    concepts: normalizeConcepts([
-      payload.concepts,
+  // Parity with api::review-approve: branch on the approved kind so action
+  // items become Actions, not Memories. Without this the fallback silently
+  // funneled every approval (including kind: "action") into KV.memories, so
+  // approved actions never reached the workbench.
+  const approvedKind =
+    body.kind === "lesson" || body.kind === "memory" || body.kind === "action"
+      ? body.kind
+      : item.kind;
+
+  let resultId: string;
+  let resultBody: Record<string, unknown>;
+  let payloadType: string | undefined;
+
+  if (approvedKind === "action") {
+    const actionCandidate =
+      payload.actionCandidate && typeof payload.actionCandidate === "object"
+        ? (payload.actionCandidate as Record<string, unknown>)
+        : {};
+    const priorityRaw = Number(body.priority ?? actionCandidate.priority ?? 5);
+    const priority = Number.isFinite(priorityRaw)
+      ? Math.max(1, Math.min(10, Math.floor(priorityRaw)))
+      : 5;
+    const todoExtraction = payload.todoExtraction && typeof payload.todoExtraction === "object"
+      ? payload.todoExtraction as Record<string, unknown>
+      : {};
+    const typeBucket = typeof todoExtraction.typeBucket === "string" ? todoExtraction.typeBucket : "";
+    const actionStatus =
+      typeBucket === "done" ? "done" :
+      typeBucket === "in_progress" || typeBucket === "processing" ? "active" :
+      "pending";
+    const sourceObservationIds = Array.isArray(actionCandidate.sourceObservationIds)
+      ? actionCandidate.sourceObservationIds.filter(
+          (v): v is string => typeof v === "string" && v.length > 0,
+        )
+      : [];
+    const action: Action = {
+      id: `act_${Date.now().toString(36)}_${randomUUID().replace(/-/g, "").slice(0, 12)}`,
+      title,
+      description: content,
+      status: actionStatus,
+      priority,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: "review",
+      project,
       tags,
-      "browser-context",
-      page.host,
-      page.type ? `browser-page:${page.type}` : "",
-    ]),
-    files: [],
-    sessionIds: asText(payload.browserSessionId) ? [asText(payload.browserSessionId)] : [],
-    strength: 7,
-    version: 1,
-    sourceObservationIds: [],
-    isLatest: true,
-    project,
-  };
-  await kv.set(KV.memories, memory.id, memory);
+      sourceObservationIds,
+      sourceMemoryIds: [],
+      metadata: Object.keys(todoExtraction).length ? { todoExtraction } : undefined,
+    };
+    await kv.set(KV.actions, action.id, action);
+    resultId = action.id;
+    resultBody = { success: true, action };
+  } else {
+    const memory: Memory = {
+      id: `mem_${Date.now().toString(36)}_${randomUUID().replace(/-/g, "").slice(0, 12)}`,
+      createdAt: now,
+      updatedAt: now,
+      type: validMemoryType(asText(body.type) || payload.type),
+      title: title.slice(0, 80),
+      content: title ? `${title}\n\n${content}` : content,
+      concepts: normalizeConcepts([
+        payload.concepts,
+        tags,
+        "browser-context",
+        page.host,
+        page.type ? `browser-page:${page.type}` : "",
+      ]),
+      files: [],
+      sessionIds: asText(payload.browserSessionId) ? [asText(payload.browserSessionId)] : [],
+      strength: 7,
+      version: 1,
+      sourceObservationIds: [],
+      isLatest: true,
+      project,
+    };
+    await kv.set(KV.memories, memory.id, memory);
+    resultId = memory.id;
+    resultBody = { success: true, memory };
+    payloadType = memory.type;
+  }
   item.status = "approved";
   item.title = title;
   item.content = content;
   item.updatedAt = now;
   item.reviewedAt = now;
-  item.resultId = memory.id;
+  item.resultId = resultId;
   item.payload = {
     ...payload,
     project,
     tags,
-    type: memory.type,
+    ...(payloadType ? { type: payloadType } : {}),
     viewerFallbackApproved: true,
   };
   await kv.set(KV.reviewQueue, item.id, item);
@@ -1031,7 +1089,7 @@ async function handleReviewApproveFallback(
       await kv.set(KV.sessions, session.id, session);
     }
   }
-  json(res, 200, { success: true, item, result: { success: true, memory } }, req);
+  json(res, 200, { success: true, item, result: resultBody }, req);
   return true;
 }
 

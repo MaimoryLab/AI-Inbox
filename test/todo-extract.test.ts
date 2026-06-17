@@ -1,0 +1,149 @@
+import { describe, expect, it, beforeEach, vi } from "vitest";
+
+vi.mock("../src/config.js", () => ({
+  getEnvVar: (key: string) => {
+    const values: Record<string, string> = {
+      AGENTMEMORY_TODO_EXTRACTOR: "rules",
+      AGENTMEMORY_TODO_DIRECT_CONFIDENCE: "0.6",
+      AGENTMEMORY_TODO_REVIEW_CONFIDENCE: "0.55",
+    };
+    return process.env[key] ?? values[key];
+  },
+}));
+
+import { generateTodosFromSessions, validateTodoEvidence, runLangExtractSidecar, type ExtractedTodo } from "../src/functions/todo-extract.js";
+import type { Action, CompressedObservation, ReviewQueueItem, Session } from "../src/types.js";
+import { KV } from "../src/state/schema.js";
+import { mockKV } from "./helpers/mocks.js";
+
+function session(patch: Partial<Session> = {}): Session {
+  return {
+    id: "ses_1",
+    project: "agentmemory-lab",
+    cwd: "/repo",
+    startedAt: "2026-06-17T08:00:00.000Z",
+    endedAt: "2026-06-17T09:00:00.000Z",
+    status: "completed",
+    observationCount: 1,
+    ...patch,
+  };
+}
+
+function obs(patch: Partial<CompressedObservation> = {}): CompressedObservation {
+  return {
+    id: "obs_1",
+    sessionId: "ses_1",
+    timestamp: "2026-06-17T08:10:00.000Z",
+    type: "conversation",
+    title: "assistant",
+    subtitle: "",
+    facts: [],
+    narrative: "下一步请修复 CI 失败，并重新跑测试。",
+    concepts: [],
+    files: [],
+    importance: 5,
+    ...patch,
+  };
+}
+
+describe("todo extraction", () => {
+  let kv: ReturnType<typeof mockKV>;
+
+  beforeEach(() => {
+    kv = mockKV();
+  });
+
+  it("falls back to rules and directly creates high-confidence todos with evidence metadata", async () => {
+    await kv.set(KV.sessions, "ses_1", session());
+    await kv.set(KV.observations("ses_1"), "obs_1", obs());
+
+    const result = await generateTodosFromSessions(kv as never, { force: true });
+
+    expect(result.directCreated).toBe(1);
+    expect(result.reviewCreated).toBe(0);
+    const actions = await kv.list<Action>(KV.actions);
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({
+      status: "pending",
+      project: "agentmemory-lab",
+      tags: expect.arrayContaining(["todo-extracted", "time:current", "type:follow_up"]),
+      sourceObservationIds: ["obs_1"],
+    });
+    expect(actions[0].metadata?.todoExtraction).toMatchObject({
+      sourceSessionId: "ses_1",
+      evidence: { sourceObservationId: "obs_1" },
+    });
+  });
+
+  it("uses scan checkpoints to skip unchanged sessions", async () => {
+    await kv.set(KV.sessions, "ses_1", session());
+    await kv.set(KV.observations("ses_1"), "obs_1", obs());
+
+    await generateTodosFromSessions(kv as never, { force: true });
+    const second = await generateTodosFromSessions(kv as never);
+
+    expect(second.scannedObservations).toBe(0);
+    expect(second.directCreated).toBe(0);
+    expect(await kv.list<Action>(KV.actions)).toHaveLength(1);
+  });
+
+  it("sends medium-confidence rule todos to review", async () => {
+    await kv.set(KV.sessions, "ses_1", session());
+    await kv.set(KV.observations("ses_1"), "obs_1", obs({ narrative: "下一步请修复 CI 失败，并重新跑测试。" }));
+
+    process.env.AGENTMEMORY_TODO_DIRECT_CONFIDENCE = "0.8";
+    const result = await generateTodosFromSessions(kv as never, { force: true });
+    delete process.env.AGENTMEMORY_TODO_DIRECT_CONFIDENCE;
+
+    expect(result.directCreated).toBe(0);
+    expect(result.reviewCreated).toBe(1);
+    const reviews = await kv.list<ReviewQueueItem>(KV.reviewQueue);
+    expect(reviews[0]).toMatchObject({
+      kind: "action",
+      payload: {
+        todoExtraction: expect.objectContaining({ sourceSessionId: "ses_1" }),
+      },
+    });
+  });
+
+  it("keeps history todos hidden instead of writing them to actions", async () => {
+    await kv.set(KV.sessions, "ses_1", session({
+      startedAt: "2026-05-01T08:00:00.000Z",
+      endedAt: "2026-05-01T09:00:00.000Z",
+    }));
+    await kv.set(KV.observations("ses_1"), "obs_1", obs());
+
+    const result = await generateTodosFromSessions(kv as never, { force: true });
+
+    expect(result.hiddenHistory).toBe(1);
+    expect(await kv.list<Action>(KV.actions)).toHaveLength(0);
+    const reviews = await kv.list<ReviewQueueItem>(KV.reviewQueue);
+    expect(reviews[0]).toMatchObject({
+      status: "dismissed",
+      payload: {
+        hiddenHistory: true,
+        todoExtraction: expect.objectContaining({ timeBucket: "history" }),
+      },
+    });
+  });
+
+  it("rejects extracted todos when evidence quote is not grounded", () => {
+    expect(validateTodoEvidence({
+      title: "修复不存在的问题",
+      description: "修复不存在的问题",
+      confidence: 0.95,
+      timeBucket: "current",
+      typeBucket: "pending",
+      sourceSessionId: "ses_1",
+      evidence: { sourceObservationId: "obs_1", quote: "不存在的 quote" },
+      dedupeKey: "bad-evidence",
+    }, new Map([["obs_1", { text: "普通总结，没有行动。" }]]))).toBe(false);
+  });
+
+  it("sidecar failures are explicit so auto mode can fall back", async () => {
+    process.env.LANGEXTRACT_PYTHON = "__missing_python__";
+    await expect(runLangExtractSidecar({ blocks: [{ text: "后续需要修复 CI。", sourceObservationId: "obs_1" }] }, { timeoutMs: 500 }))
+      .rejects.toBeTruthy();
+    delete process.env.LANGEXTRACT_PYTHON;
+  });
+});

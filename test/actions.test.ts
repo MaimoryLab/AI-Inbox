@@ -52,6 +52,28 @@ describe("Actions Functions", () => {
       expect(result.error).toContain("title is required");
     });
 
+    it("accepts explicit status and metadata for extracted todos", async () => {
+      const result = (await sdk.trigger("mem::action-create", {
+        title: "Validate release",
+        status: "active",
+        metadata: { todoExtraction: { typeBucket: "processing" } },
+      })) as { success: boolean; action: Action };
+
+      expect(result.success).toBe(true);
+      expect(result.action.status).toBe("active");
+      expect(result.action.metadata).toEqual({ todoExtraction: { typeBucket: "processing" } });
+    });
+
+    it("rejects invalid explicit status", async () => {
+      const result = (await sdk.trigger("mem::action-create", {
+        title: "Invalid status",
+        status: "processing",
+      })) as { success: boolean; error: string };
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("invalid status");
+    });
+
     it("clamps priority 0 to default 5 (falsy fallback)", async () => {
       const result = (await sdk.trigger("mem::action-create", {
         title: "Zero priority task",

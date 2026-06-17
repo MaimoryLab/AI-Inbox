@@ -95,6 +95,7 @@ import { registerReplayFunctions } from "./functions/replay.js";
 import { registerSourceScanFunctions } from "./functions/source-scan-codex.js";
 import { registerSessionHighlightsFunction } from "./functions/session-highlights.js";
 import { registerActionCandidateFunctions } from "./functions/action-candidates.js";
+import { registerTodoExtractFunctions } from "./functions/todo-extract.js";
 import { registerApiTriggers } from "./triggers/api.js";
 import { registerEventTriggers } from "./triggers/events.js";
 import { registerMcpEndpoints } from "./mcp/server.js";
@@ -344,6 +345,7 @@ async function main() {
   registerSourceScanFunctions(sdk, kv);
   registerSessionHighlightsFunction(sdk, kv);
   registerActionCandidateFunctions(sdk, kv);
+  registerTodoExtractFunctions(sdk, kv);
   bootLog(
     `v0.6 advanced retrieval: sliding-window, query-expansion, temporal-graph, retention-scoring`,
   );

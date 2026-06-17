@@ -15,12 +15,18 @@ export function registerActionsFunction(sdk: ISdk, kv: StateKV): void {
       project?: string;
       tags?: string[];
       parentId?: string;
+      status?: Action["status"];
+      metadata?: Record<string, unknown>;
       sourceObservationIds?: string[];
       sourceMemoryIds?: string[];
       edges?: Array<{ type: string; targetActionId: string }>;
     }) => {
       if (!data.title || typeof data.title !== "string") {
         return { success: false, error: "title is required" };
+      }
+      const validStatuses = ["pending", "active", "done", "blocked", "cancelled"];
+      if (data.status && !validStatuses.includes(data.status)) {
+        return { success: false, error: `invalid status: ${data.status}` };
       }
 
       return withKeyedLock("mem:actions", async () => {
@@ -29,7 +35,7 @@ export function registerActionsFunction(sdk: ISdk, kv: StateKV): void {
           id: generateId("act"),
           title: data.title.trim(),
           description: (data.description || "").trim(),
-          status: "pending",
+          status: data.status || "pending",
           priority: Math.max(1, Math.min(10, data.priority || 5)),
           createdAt: now,
           updatedAt: now,
@@ -39,6 +45,7 @@ export function registerActionsFunction(sdk: ISdk, kv: StateKV): void {
           sourceObservationIds: data.sourceObservationIds || [],
           sourceMemoryIds: data.sourceMemoryIds || [],
           parentId: data.parentId,
+          metadata: data.metadata,
         };
 
         if (data.parentId) {
