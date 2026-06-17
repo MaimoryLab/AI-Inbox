@@ -3739,9 +3739,9 @@
 
     <div class="tab-bar" id="tab-bar">
     <div class="tab-main">
-      <button class="active" data-tab="dashboard" aria-current="page"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v5h-7zM13 12h7v8h-7zM4 14h7v6H4z"/></svg></span>总览</button>
-      <button data-tab="actions"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>待办</button>
-      <button data-tab="sessions"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h10M7 13h6"/></svg></span>证据</button>
+      <button class="active" data-tab="dashboard" aria-current="page"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v5h-7zM13 12h7v8h-7zM4 14h7v6H4z"/></svg></span><span class="tab-label" data-i18n="tab.dashboard">总览</span></button>
+      <button data-tab="actions"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span><span class="tab-label" data-i18n="tab.actions">待办</span></button>
+      <button data-tab="sessions"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h10M7 13h6"/></svg></span><span class="tab-label" data-i18n="tab.sessions">证据</span></button>
     </div>
     <div class="tab-side-meta">
       <button id="expert-toggle" type="button" class="expert-toggle" aria-pressed="false" aria-label="专家模式" title="专家模式:显示记忆/图谱/审计等进阶视图">专家</button>
@@ -3850,6 +3850,54 @@
       discovery: '&#128161;', subagent: '&#129302;', notification: '&#128276;',
       task: '&#9745;', other: '&#128196;'
     };
+    // === i18n base (PLAN-001 STEP-01) ===
+    // Lightweight inline i18n: a keyed {en, zh} catalog + t(key) lookup.
+    // Display labels live here, keyed BY the stored lowercase enum, so switching
+    // language never touches Action.status / statusFilter literals.
+    // ponytail: inline single-file base; promote to a shared module only if a
+    // second surface (extension) needs the same catalog.
+    /* i18n-core:start */
+    var I18N_MESSAGES = {
+      en: {
+        'tab.dashboard': 'Overview', 'tab.actions': 'To-Do', 'tab.sessions': 'Evidence',
+        'status.pending': 'Pending', 'status.active': 'In progress', 'status.done': 'Done',
+        'status.blocked': 'Blocked', 'status.cancelled': 'Cancelled',
+        'filter.review': 'Review', 'filter.all': 'All'
+      },
+      zh: {
+        'tab.dashboard': '总览', 'tab.actions': '待办', 'tab.sessions': '证据',
+        'status.pending': '待处理', 'status.active': '进行中', 'status.done': '已完成',
+        'status.blocked': '受阻', 'status.cancelled': '已取消',
+        'filter.review': '待确认', 'filter.all': '全部'
+      }
+    };
+    var I18N_LANG = 'zh';
+    function t(key, fallback) {
+      var table = I18N_MESSAGES[I18N_LANG] || {};
+      if (Object.prototype.hasOwnProperty.call(table, key)) return table[key];
+      if (Object.prototype.hasOwnProperty.call(I18N_MESSAGES.en, key)) return I18N_MESSAGES.en[key];
+      return fallback != null ? fallback : key;
+    }
+    function statusLabel(status) { return t('status.' + status, status); }
+    /* i18n-core:end */
+    (function () {
+      try {
+        var lang = new URLSearchParams(window.location.search).get('lang');
+        if (lang === 'en' || lang === 'zh') I18N_LANG = lang;
+      } catch (e) { /* no URL access — keep default */ }
+    })();
+    function applyI18n(root) {
+      var scope = root || document;
+      scope.querySelectorAll('[data-i18n]').forEach(function (el) {
+        el.textContent = t(el.getAttribute('data-i18n'));
+      });
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function () { applyI18n(); });
+    } else {
+      applyI18n();
+    }
+    // === /i18n base ===
     var TYPE_LABEL_MAP = {
       file_read: '读取文件',
       file_write: '写入文件',
@@ -8509,9 +8557,6 @@
       var search = state.actions.search.toLowerCase();
       var statusFilter = state.actions.statusFilter;
       var frontierIds = new Set((state.actions.frontier || []).map(function(a) { return a.id; }));
-      var statusLabels = { pending: '待跟进', active: '正在做', done: '已完成', blocked: '卡住了', cancelled: '已取消' };
-      var groupMeta = { active: '正在推进', blocked: '需要处理', pending: '待跟进', done: '已完成', cancelled: '已取消' };
-      var filterLabels = { pending: '待处理', review: '待确认', active: '进行中', done: '已完成', all: '全部' };
 
       if (search) {
         items = items.filter(function(a) {
@@ -8660,11 +8705,11 @@
       }
       function renderActionFilters() {
         var chips = [
-          { value: 'pending', label: filterLabels.pending },
-          { value: 'review', label: filterLabels.review },
-          { value: 'active', label: filterLabels.active },
-          { value: 'done', label: filterLabels.done },
-          { value: '', label: filterLabels.all }
+          { value: 'pending', label: t('status.pending') },
+          { value: 'review', label: t('filter.review') },
+          { value: 'active', label: t('status.active') },
+          { value: 'done', label: t('status.done') },
+          { value: '', label: t('filter.all') }
         ];
         var html = '<div class="actions-filter-row">';
         html += '<input id="actions-search" class="search-input" type="text" placeholder="搜索待办..." value="' + esc(state.actions.search) + '" style="flex:1;min-width:200px" />';
@@ -8721,7 +8766,7 @@
         (a.tags || []).slice(0, 2).forEach(function(t) { html += '<span class="tag">' + esc(t) + '</span>'; });
         if (a.updatedAt) html += '<span class="action-meta-text">更新 ' + esc(shortTime(a.updatedAt)) + '</span>';
         html += '</div></div>';
-        html += statusIconMarkup(a.status, statusLabels[a.status] || a.status);
+        html += statusIconMarkup(a.status, statusLabel(a.status));
         html += '</article>';
         return html;
       }
@@ -8771,7 +8816,7 @@
           var group = items.filter(function(a) { return a.status === status; });
           if (!group.length) return;
           html += '<section class="action-group">';
-          html += '<div class="action-group-head"><div class="action-group-title">' + esc(groupMeta[status]) + '</div><div class="lesson-count-pill">' + group.length + ' 件</div></div>';
+          html += '<div class="action-group-head"><div class="action-group-title">' + esc(statusLabel(status)) + '</div><div class="lesson-count-pill">' + group.length + ' 件</div></div>';
           html += '<div class="action-card-list">';
           group.forEach(function(a) {
             var isFrontier = frontierIds.has(a.id);
