@@ -1239,6 +1239,27 @@
       margin-top: 20px;
       margin-bottom: 18px;
     }
+    .session-detail-preview {
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      background: var(--bg-alt);
+      border-left: 3px solid var(--accent);
+      color: var(--ink);
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .session-detail-preview.compact {
+      display: -webkit-box;
+      -webkit-line-clamp: 4;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .session-highlights-list.compact {
+      max-height: 220px;
+      overflow: hidden;
+    }
     .detail-panel h3 {
       font-size: 15px;
       font-weight: 700;
@@ -4111,11 +4132,11 @@
       graph: { loaded: false, nodes: [], edges: [], stats: null, filters: {}, selectedNode: null },
       memories: { loaded: false, items: [], reviewItems: [], search: '', typeFilter: '', sourceFilter: '' },
 	      timeline: { loaded: false, observations: [], sessionId: '', projectKey: '', sessions: [], minImportance: 0, page: 0, pageSize: 50, mode: 'episodes', episodeFilter: 'all', expandedEpisodes: {} },
-      sessions: { loaded: false, items: [], selectedId: null, groupMode: 'folder', folderKey: 'all', sourceKey: 'all', warnings: [], highlightsById: {}, detailSectionsById: {}, detailCacheById: {}, stale: false, requestSeq: 0, detailRequestSeq: 0, pendingHighlightObsId: null },
+      sessions: { loaded: false, items: [], selectedId: null, groupMode: 'folder', folderKey: 'all', sourceKey: 'all', warnings: [], highlightsById: {}, detailSectionsById: {}, detailCacheById: {}, stale: false, requestSeq: 0, detailRequestSeq: 0, pendingHighlightObsId: null, previewExpandedById: {} },
       audit: { loaded: false, entries: [], opFilter: '' },
       activity: { loaded: false, observations: [], sessions: [], typeFilter: '', loadingPhase: '', warnings: [] },
       lessons: { loaded: false, items: [], search: '', skillSearch: '', skillRootFilter: 'all', mode: 'explicit', projects: [] },
-      actions: { loaded: false, items: [], reviewItems: [], frontier: [], statusFilter: '', search: '', doneExpanded: false },
+      actions: { loaded: false, items: [], reviewItems: [], frontier: [], statusFilter: '', search: '', doneExpanded: false, extractStatus: '', extractMessage: '', extractInFlight: false },
       inbox: { loaded: false, items: [], awaitingItems: [], answeredItems: [], dismissedItems: [], replyingId: null, pendingById: {}, briefingExpanded: false, answeredExpanded: false },
       crystals: { loaded: false, items: [], search: '', lessonMap: {} },
       profile: { loaded: false, projects: [], selectedProject: '', data: null },
@@ -5769,7 +5790,7 @@
           }
           break;
         case 'lessons': state.lessons.loaded = false; loadLessons(); break;
-        case 'actions': state.actions.loaded = false; loadActions({ generate: reason === 'manual' }); break;
+        case 'actions': state.actions.loaded = false; loadActions({ generate: reason === 'manual', force: reason === 'manual' }); break;
         case 'activity': state.activity.loaded = false; loadActivity(); break;
       }
     }
@@ -7631,7 +7652,8 @@
         html += '<div style="font-size:13px;color:var(--ink-faint);margin-top:8px;">暂无会话重点</div></div>';
         return html;
       }
-      html += '<div style="display:grid;gap:10px;margin-top:10px;">';
+      var compactHighlights = highlights.length > 4;
+      html += '<div class="session-highlights-list' + (compactHighlights ? ' compact' : '') + '" style="display:grid;gap:10px;margin-top:10px;">';
       highlights.forEach(function(item) {
         var label = SESSION_HIGHLIGHT_LABELS[item.category] || item.category || '重点';
         html += '<div style="display:grid;grid-template-columns:82px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-light);">';
@@ -7641,8 +7663,23 @@
         if (item.summary) html += '<div class="md-body" style="font-size:13px;color:var(--ink-muted);line-height:1.45;margin-top:3px;overflow-wrap:anywhere;">' + renderMarkdownSafe(item.summary) + '</div>';
         html += '</div></div>';
       });
-      html += '</div></div>';
+      html += '</div>';
+      if (compactHighlights) {
+        html += '<div style="margin-top:8px;font-size:12px;color:var(--ink-faint);">仅展示前几条重点；需要完整内容时使用完整对话过程。</div>';
+      }
+      html += '</div>';
       return html;
+    }
+
+    function isSessionPreviewExpanded(id) {
+      return !!(state.sessions.previewExpandedById && state.sessions.previewExpandedById[id]);
+    }
+
+    function toggleSessionPreview(id) {
+      if (!id) return;
+      if (!state.sessions.previewExpandedById) state.sessions.previewExpandedById = {};
+      state.sessions.previewExpandedById[id] = !state.sessions.previewExpandedById[id];
+      renderSessionDetail({ useCacheOnly: true });
     }
 
     async function renderSessionDetail(options) {
@@ -7720,7 +7757,12 @@
       html += '</div>';
 
       if (preview) {
-        html += '<div style="padding:10px 12px;margin-bottom:12px;background:var(--bg-alt);border-left:3px solid var(--accent);font-size:13px;line-height:1.5;color:var(--ink);white-space:pre-wrap;">' + esc(preview) + '</div>';
+        var previewExpanded = isSessionPreviewExpanded(id);
+        var previewIsLong = String(preview).length > 260;
+        html += '<div class="session-detail-preview' + (!previewExpanded && previewIsLong ? ' compact' : '') + '">' + esc(preview) + '</div>';
+        if (previewIsLong) {
+          html += '<button type="button" class="btn" style="padding:4px 8px;font-size:11px;margin:-4px 0 12px;" data-action="toggle-session-preview" data-session-id="' + esc(id) + '">' + (previewExpanded ? '收起摘要' : '展开摘要') + '</button>';
+        }
       }
 
       html += '<div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;margin-bottom:14px;">';
@@ -8163,8 +8205,6 @@
       opts = opts || {};
       var el = document.getElementById('view-actions');
       el.innerHTML = '<div class="loading">正在整理待办...</div>';
-      var shouldGenerate = opts.generate !== false;
-      var generationPromise = shouldGenerate ? apiPost('review/actions/generate', {}).catch(function() { return null; }) : null;
       var results = await Promise.all([
         apiGet('actions'),
         apiGet('frontier'),
@@ -8189,22 +8229,72 @@
       state.inbox.items = state.inbox.awaitingItems;
       state.inbox.loaded = true;
       renderActions();
-      if (generationPromise) {
-        generationPromise.then(function(result) {
-          if (!result || result.success !== true) return null;
-          return apiGet('review?status=pending&limit=200').then(function(reviewResult) {
-            state.actions.reviewItems = ((reviewResult && reviewResult.items) || []).filter(function(item) {
-              return item && item.status === 'pending' && item.kind === 'action' && isActionReviewRenderable(item);
-            });
-            if (state.activeTab === 'actions') {
-              renderActions();
-            } else {
-              state.actions.loaded = false;
-            }
-            return null;
-          });
-        }).catch(function() { return null; });
-      }
+      if (opts.generate !== false) startTodoExtraction(opts.force === true);
+    }
+
+    function todoExtractionDelta(result) {
+      if (!result || result.success !== true) return 0;
+      return Number(result.directCreated || 0) + Number(result.reviewCreated || 0);
+    }
+
+    function refreshActionListsAfterExtract() {
+      return Promise.all([
+        apiGet('actions'),
+        apiGet('frontier'),
+        apiGet('review?status=pending&limit=200')
+      ]).then(function(results) {
+        state.actions.items = (results[0] && results[0].actions) || state.actions.items || [];
+        state.actions.frontier = (results[1] && (results[1].frontier || results[1].actions)) || state.actions.frontier || [];
+        state.actions.reviewItems = ((results[2] && results[2].items) || []).filter(function(item) {
+          return item && item.status === 'pending' && item.kind === 'action' && isActionReviewRenderable(item);
+        });
+        return null;
+      });
+    }
+
+    function startTodoExtraction(force) {
+      if (state.actions.extractInFlight) return;
+      state.actions.extractInFlight = true;
+      state.actions.extractStatus = 'running';
+      state.actions.extractMessage = '正在从最近会话整理待办...';
+      if (state.activeTab === 'actions') renderActions();
+      var softRefreshDone = false;
+      var softRefreshTimer = setTimeout(function() {
+        if (!state.actions.extractInFlight || softRefreshDone) return;
+        softRefreshDone = true;
+        state.actions.extractMessage = '已显示最新待办，后台仍在整理...';
+        if (state.activeTab === 'actions') renderActions();
+        refreshActionListsAfterExtract().then(function() {
+          if (!state.actions.extractInFlight) return;
+          if (state.activeTab === 'actions') renderActions();
+        }).catch(function() {});
+      }, 12000);
+      apiPost('todo-extract/generate', {
+        maxSessions: 3,
+        maxObservationsPerSession: 120,
+        force: force === true
+      }).then(function(result) {
+        var delta = todoExtractionDelta(result);
+        if (!result || result.success !== true) {
+          state.actions.extractStatus = 'error';
+          state.actions.extractMessage = '抽取失败，已显示现有待办';
+          return null;
+        }
+        state.actions.extractStatus = 'done';
+        state.actions.extractMessage = delta > 0 ? '已更新 ' + delta + ' 张待办' : '最近会话没有新的待办';
+        return refreshActionListsAfterExtract();
+      }).catch(function() {
+        state.actions.extractStatus = 'error';
+        state.actions.extractMessage = '抽取失败，已显示现有待办';
+      }).then(function() {
+        clearTimeout(softRefreshTimer);
+        state.actions.extractInFlight = false;
+        if (state.activeTab === 'actions') {
+          renderActions();
+        } else {
+          state.actions.loaded = false;
+        }
+      });
     }
 
     // 待办→证据跳转:待办卡指向裸 obs_id,证据栏按 session 组织,
@@ -8698,6 +8788,7 @@
       if (statusFilter === 'all') {
         statusFilter = '';
       }
+      var showReviewItems = statusFilter === 'review';
 
       function actionAttentionKey(a, isFrontier) {
         if (a.status === 'done' || a.status === 'cancelled') return '';
@@ -8731,6 +8822,20 @@
         if (a.project) parts.push(projectDisplayName(a.project));
         if (a.source) parts.push(a.source);
         return parts.join(' · ');
+      }
+      function actionVisibleTags(tags) {
+        var all = Array.isArray(tags) ? tags.filter(Boolean).map(String) : [];
+        var visible = [];
+        function add(tag) {
+          if (tag && visible.indexOf(tag) < 0) visible.push(tag);
+        }
+        all.filter(function(tag) {
+          return tag === 'todo-extracted' || /^time:[a-z_]+$/i.test(tag) || /^type:[a-z_]+$/i.test(tag);
+        }).forEach(add);
+        all.forEach(function(tag) {
+          if (visible.length < 5) add(tag);
+        });
+        return visible.slice(0, 5);
       }
       function actionTitleText(text) {
         var s = String(text || t('act.untitled')).trim();
@@ -8848,6 +8953,11 @@
         html += '</div>';
         return html;
       }
+      function renderTodoExtractStatus() {
+        if (!state.actions.extractMessage) return '';
+        var cls = state.actions.extractStatus === 'error' ? ' activity-status-warning' : '';
+        return '<div class="activity-status-card' + cls + '" style="margin-bottom:12px;"><div class="activity-status-main"><span class="activity-status-dot"></span><span>' + esc(state.actions.extractMessage) + '</span></div></div>';
+      }
       function renderActionCandidateCard(item) {
         var priority = reviewActionPriority(item);
         var project = reviewProject(item);
@@ -8887,7 +8997,7 @@
         if (sourceText) html += '<span class="action-meta-text">' + t('act.from') + ' ' + esc(sourceText) + '</span>';
         var jumpObsId = Array.isArray(a.sourceObservationIds) ? a.sourceObservationIds.find(function(id) { return typeof id === 'string' && id.length > 0; }) : '';
         if (jumpObsId) html += '<button class="action-evidence-link" type="button" data-action="jump-to-evidence" data-obs-id="' + esc(jumpObsId) + '">' + t('act.viewSource') + '</button>';
-        (a.tags || []).slice(0, 2).forEach(function(t) { html += '<span class="tag">' + esc(t) + '</span>'; });
+        actionVisibleTags(a.tags).forEach(function(t) { html += '<span class="tag">' + esc(t) + '</span>'; });
         if (a.updatedAt) html += '<span class="action-meta-text">' + t('act.updated') + ' ' + esc(shortTime(a.updatedAt)) + '</span>';
         html += '</div></div>';
         html += statusIconMarkup(a.status, statusLabel(a.status));
@@ -8902,11 +9012,11 @@
       var awaitingBriefingsHtml = renderAwaitingBriefingSection();
       var inboxArchiveHtml = renderInboxArchiveSection();
 
-      var html = renderActionFilters();
+      var html = renderTodoExtractStatus() + renderActionFilters();
       html += actionMetricCards(statusCounts, reviewItems.length, waitingCount);
       html += awaitingQuestionsHtml;
 
-      if (reviewItems.length) {
+      if (showReviewItems && reviewItems.length) {
         html += '<section class="card memory-section" style="padding:14px 16px;margin-bottom:14px;background:#ffffff;">';
         html += '<div class="memory-section-head"><div><div class="memory-section-title">' + t('filter.review') + '</div></div><span class="memory-section-count">' + reviewItems.length + ' ' + t('act.itemsUnit') + '</span></div>';
         html += '<div class="action-card-list">';
@@ -8918,7 +9028,7 @@
 
       html += awaitingBriefingsHtml;
 
-      if (items.length === 0 && reviewItems.length === 0 && !awaitingQuestionsHtml && !awaitingBriefingsHtml && !inboxArchiveHtml) {
+      if (items.length === 0 && (!showReviewItems || reviewItems.length === 0) && !awaitingQuestionsHtml && !awaitingBriefingsHtml && !inboxArchiveHtml) {
         html += '<div class="empty-state">' +
           '<div class="empty-icon">&#9745;</div>' +
           '<div class="empty-title">' + t('act.empty.title') + '</div>' +
@@ -9443,7 +9553,7 @@
         }
       }
       if (state.activeTab === 'lessons') loadLessons();
-      if (state.activeTab === 'actions') loadActions();
+      if (state.activeTab === 'actions') loadActions({ generate: false });
       if (state.activeTab === 'activity' && msg.observation) {
         state.activity.observations.unshift(msg.observation);
         renderActivity();
@@ -9675,7 +9785,7 @@
       }
       if (action === 'refresh-actions') {
         state.actions.loaded = false;
-        loadActions({ generate: true });
+        loadActions({ generate: true, force: true });
         return;
       }
       if (action === 'refresh-sessions') {
@@ -9734,6 +9844,10 @@
           target.getAttribute('data-session-id') || state.sessions.selectedId || '',
           target.getAttribute('data-section') || '',
         );
+        return;
+      }
+      if (action === 'toggle-session-preview') {
+        toggleSessionPreview(target.getAttribute('data-session-id') || state.sessions.selectedId || '');
         return;
       }
       if (action === 'zoom-graph') {

@@ -22,6 +22,10 @@ PROMPT = textwrap.dedent(
     generic facts, read-only tool traces, and anything without a source quote.
     Use exact source text as extraction_text. Put fields in attributes:
     title, description, confidence, timeBucket, typeBucket, dedupeKey.
+    title must be a short human-readable action summary. Never use raw command
+    JSON, file paths, screenshots, toolUseId/call IDs, shell flags, logs, or
+    truncated trace fragments as title. If the only source text is a tool log,
+    command payload, path, or JSON object, do not extract a todo.
     timeBucket must be current, recent, or history.
     typeBucket must be pending, to_start, follow_up, in_progress, done, or processing.
     """

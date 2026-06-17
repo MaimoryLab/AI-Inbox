@@ -69,6 +69,77 @@ function normalizedKey(value: string): string {
   return normalizeText(value).toLowerCase().replace(/[，。！？；：,.!?;:]/g, "").replace(/\s+/g, " ");
 }
 
+function stripTitleNoise(value: string): string {
+  let text = normalizeText(value)
+    .replace(/^["'`“”‘’]+|["'`“”‘’]+$/g, "")
+    .replace(/^[-–—•*]\s*/u, "");
+  for (let i = 0; i < 3; i++) {
+    text = text
+      .replace(/^(todo|fixme)\s*[:：-]\s*/i, "")
+      .replace(/^因为[^，,]{0,40}[，,]\s*/u, "")
+      .replace(/^(下一步|后续|待办|请|需要|必须|我会|我将|现在我会|接下来|先)\s*[:：-]?\s*/u, "")
+      .replace(/^(follow up|follow-up|fix)\s*[:：-]?\s*/i, "")
+      .trim();
+  }
+  return text;
+}
+
+function firstTitleSentence(value: string): string {
+  const text = stripTitleNoise(value).replace(/`[^`]*`/g, "").replace(/\s+/g, " ");
+  const sentence = text.match(/[^。！？!?\n]+[。！？!?]?/u)?.[0] || text;
+  const compact = sentence
+    .replace(/[。！？!?；;,.，\s]+$/u, "")
+    .replace(/[，,；;]\s*(?:若|如果|如仍|否则|并且|同时|以便|避免|不让)\b.*$/u, "")
+    .replace(/[，,]?\s*(?:并|然后)?\s*(保存到|保存|写入|输出|放到|存到)\s*$/u, "")
+    .replace(/(?:，|,)?\s*(并|然后)\s*$/u, "")
+    .trim()
+    .replace(/[，,；;：:\s]+$/u, "");
+  if (compact.length <= 42) return compact;
+  const short = compact
+    .replace(/^(?:我会|我要|我将|现在我会|接下来)\s*/u, "")
+    .replace(/[，,；;]\s*.*$/u, "")
+    .trim();
+  return (short || compact).slice(0, 42).replace(/[，,；;：:\s]+$/u, "");
+}
+
+function looksLikeBadTitle(value: string): boolean {
+  const text = normalizeText(value);
+  const lower = text.toLowerCase();
+  if (text.length < 3) return true;
+  if (!/[A-Za-z\u4e00-\u9fff]/.test(text)) return true;
+  if (/^[{\[]/.test(text)) return true;
+  if (/^-[a-z0-9_-]+(?:\s|$)/i.test(text)) return true;
+  if (/^[A-Za-z0-9_.-]+\/?$/.test(text)) return true;
+  if (/\b(tooluseid|tooluse|call_[a-z0-9]+|chunk id|wall time|process exited)\b/i.test(text)) return true;
+  if (/"(cmd|command|workdir|yield_time_ms|max_output_tokens)"\s*:/.test(text)) return true;
+  if (/^\/(?:tmp|users|var|private|volumes)\//i.test(text)) return true;
+  if (/^[\w.-]+\/(?:\.\.\.|[\w.-]+\/)/.test(text)) return true;
+  if ((/\/|\\/.test(text)) && /\.(png|jpe?g|gif|webp|json|ya?ml|ts|tsx|js|py|md)\b/i.test(text)) return true;
+  const punctuation = (text.match(/[{}[\]":,]/g) || []).length;
+  if (text.length >= 24 && punctuation / text.length > 0.2) return true;
+  return lower === "untitled todo" || lower === "untitled candidate";
+}
+
+export function cleanTodoTitle(title: string, description = "", quote = ""): string | null {
+  for (const raw of [title, description, quote]) {
+    const candidate = firstTitleSentence(raw);
+    if (candidate && !looksLikeBadTitle(candidate)) return candidate;
+  }
+  return null;
+}
+
+function todoForStorage(todo: ExtractedTodo): ExtractedTodo | null {
+  const title = cleanTodoTitle(todo.title, todo.description, todo.evidence?.quote);
+  if (!title) return null;
+  const description = normalizeText(todo.description || todo.evidence?.quote).slice(0, 1000);
+  if (!description) return null;
+  const rawDedupe = normalizeText(todo.dedupeKey);
+  const dedupeKey = rawDedupe && !looksLikeBadTitle(rawDedupe)
+    ? normalizedKey(rawDedupe)
+    : normalizedKey(`${title}:${description}`);
+  return { ...todo, title, description, dedupeKey };
+}
+
 function sessionSortTime(session: Session): string {
   return session.endedAt || session.startedAt || "";
 }
@@ -365,8 +436,9 @@ export async function generateTodosFromSessions(
     const blockMap = new Map(observations.map((obs) => [obs.id, blockFor(obs)]));
     const { todos, engine } = await extractForSession(session, observations, mode);
     engines.add(engine);
-    for (const todo of todos) {
-      if (!todo.description || !validateTodoEvidence(todo, blockMap)) {
+    for (const rawTodo of todos) {
+      const todo = todoForStorage(rawTodo);
+      if (!todo || !validateTodoEvidence(todo, blockMap)) {
         discarded++;
         continue;
       }

@@ -133,6 +133,9 @@ for (const marker of ['项目交付说明', 'szn-viewer-ui-iteration', 'npm run 
 assert(existsSync('iii-config.local-memory.yaml'), 'Local memory config must exist.');
 const localMemoryConfig = read('iii-config.local-memory.yaml');
 assert(localMemoryConfig.includes('state_store.db') && localMemoryConfig.includes('stream_store'), 'Local memory config must define state and stream stores.');
+assert(localMemoryConfig.includes('file_path: ./data/state_store.db'), 'Local memory state store must use repo-relative ./data path.');
+assert(localMemoryConfig.includes('file_path: ./data/stream_store'), 'Local memory stream store must use repo-relative ./data path.');
+assert(!localMemoryConfig.includes('/Users/'), 'Local memory config must not contain a personal absolute path.');
 assert(read('package.json').includes('start:local-memory'), 'package.json must expose start:local-memory.');
 assert(browserReadme.includes('npm run package:browser-extension'), 'Browser extension README must mention packaging command.');
 assert(browserReadme.includes('npm run status:delivery'), 'Browser extension README must mention delivery status command.');

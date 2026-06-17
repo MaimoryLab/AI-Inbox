@@ -1118,6 +1118,16 @@ async function handleReviewDismissFallback(
 }
 
 const MAX_VIEWER_PORT_RETRIES = 10;
+const DEFAULT_PROXY_TIMEOUT_MS = 10_000;
+const TODO_EXTRACT_PROXY_TIMEOUT_MS = 120_000;
+
+export function proxyTimeoutMsForPath(pathname: string): number {
+  if (pathname === "/agentmemory/todo-extract/generate") {
+    const parsed = Number(process.env.AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS);
+    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : TODO_EXTRACT_PROXY_TIMEOUT_MS;
+  }
+  return DEFAULT_PROXY_TIMEOUT_MS;
+}
 
 let boundViewerPort: number | null = null;
 let viewerSkipped = false;
@@ -1358,6 +1368,37 @@ export function startViewerServer(
       }
     }
 
+    if (method === "GET" && pathname === "/agentmemory/actions") {
+      const params = parseViewerQuery(qs);
+      const limit = Math.max(1, Math.min(200, parseInt(params.limit || "50", 10) || 50));
+      let actions = await (kv as ViewerKv).list<Action>(KV.actions);
+      if (params.status) actions = actions.filter((action) => action.status === params.status);
+      if (params.project) actions = actions.filter((action) => action.project === params.project);
+      if (params.parentId) actions = actions.filter((action) => action.parentId === params.parentId);
+      actions.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+      json(res, 200, { success: true, actions: actions.slice(0, limit) }, req);
+      return;
+    }
+
+    if (method === "GET" && pathname === "/agentmemory/frontier") {
+      const params = parseViewerQuery(qs);
+      const limit = Math.max(1, Math.min(200, parseInt(params.limit || "20", 10) || 20));
+      const allActions = await (kv as ViewerKv).list<Action>(KV.actions);
+      const frontier = allActions
+        .filter((action) => action.status !== "done" && action.status !== "cancelled")
+        .filter((action) => !params.project || action.project === params.project)
+        .sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""))
+        .slice(0, limit)
+        .map((action, index) => ({ action, score: limit - index, blockers: [], leased: false }));
+      json(res, 200, {
+        success: true,
+        frontier,
+        totalActions: allActions.length,
+        totalUnblocked: frontier.length,
+      }, req);
+      return;
+    }
+
     if (method === "GET" && pathname === "/agentmemory/sessions") {
       const sessions = await (kv as ViewerKv).list<Session>(KV.sessions);
       sessions.sort((a, b) => (b.startedAt || "").localeCompare(a.startedAt || ""));
@@ -1464,7 +1505,7 @@ async function proxyToRestApi(
   }
 
   const controller = new AbortController();
-  const fetchTimeout = setTimeout(() => controller.abort(), 10000);
+  const fetchTimeout = setTimeout(() => controller.abort(), proxyTimeoutMsForPath(upstreamPath));
   let upstream: Response;
   try {
     upstream = await fetch(upstreamUrl, {

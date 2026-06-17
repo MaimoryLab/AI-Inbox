@@ -2,9 +2,12 @@ import { describe, it, expect, afterAll } from "vitest";
 import type { AddressInfo } from "node:net";
 import { request as httpRequest } from "node:http";
 import { renderViewerDocument } from "../src/viewer/document.js";
+import { KV } from "../src/state/schema.js";
+import type { Action } from "../src/types.js";
 import {
   buildAllowedHosts,
   isHostAllowed,
+  proxyTimeoutMsForPath,
   startViewerServer,
 } from "../src/viewer/server.js";
 
@@ -128,16 +131,45 @@ describe("viewer host allowlist (DNS rebinding defence)", () => {
   });
 });
 
+describe("viewer REST proxy timeout", () => {
+  it("keeps the default proxy timeout short except for real todo extraction", () => {
+    const previous = process.env.AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS;
+    delete process.env.AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS;
+    try {
+      expect(proxyTimeoutMsForPath("/agentmemory/actions")).toBe(10_000);
+      expect(proxyTimeoutMsForPath("/agentmemory/todo-extract/generate")).toBe(120_000);
+
+      process.env.AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS = "45000";
+      expect(proxyTimeoutMsForPath("/agentmemory/todo-extract/generate")).toBe(45_000);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS;
+      } else {
+        process.env.AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS = previous;
+      }
+    }
+  });
+});
+
 describe("viewer request handler DNS rebinding defence (e2e)", () => {
   const cleanups: Array<() => Promise<void>> = [];
   afterAll(async () => {
     for (const c of cleanups) await c();
   });
 
-  async function spinUpViewer(): Promise<{ port: number }> {
+  async function spinUpViewer(kvData: Record<string, Record<string, unknown>> = {}): Promise<{ port: number }> {
     // Start on port 0 so the OS assigns a free port; passing a real port
     // exercises buildAllowedHosts() with the live listen value.
-    const server = startViewerServer(0, {}, {}, undefined, 0);
+    const kv = {
+      get: async (scope: string, key: string) => (kvData[scope]?.[key] ?? null),
+      set: async (scope: string, key: string, value: unknown) => {
+        kvData[scope] ||= {};
+        kvData[scope][key] = value;
+        return value;
+      },
+      list: async (scope: string) => Object.values(kvData[scope] || {}),
+    };
+    const server = startViewerServer(0, kv, {}, undefined, 0);
     await new Promise<void>((resolve) => server.once("listening", () => resolve()));
     const addr = server.address() as AddressInfo;
     cleanups.push(
@@ -222,5 +254,28 @@ describe("viewer request handler DNS rebinding defence (e2e)", () => {
     // Sanity-check the artwork: rounded dark tile + green "AM" lettering.
     expect(res.body).toContain('fill="#111111"');
     expect(res.body).toContain(">AM<");
+  });
+
+  it("serves actions and frontier from viewer KV fallback when REST proxy misses", async () => {
+    const action: Action = {
+      id: "act_demo",
+      title: "整理验收截图",
+      description: "保存包含 Todo 卡片的截图。",
+      status: "pending",
+      priority: 5,
+      createdAt: "2026-06-17T12:00:00Z",
+      updatedAt: "2026-06-17T12:00:00Z",
+      createdBy: "test",
+      tags: ["todo-extracted", "time:current", "type:to_start"],
+      sourceObservationIds: [],
+      sourceMemoryIds: [],
+    };
+    const { port } = await spinUpViewer({ [KV.actions]: { [action.id]: action } });
+    const actions = await request(port, `localhost:${port}`, "/agentmemory/actions");
+    const frontier = await request(port, `localhost:${port}`, "/agentmemory/frontier");
+    expect(actions.status).toBe(200);
+    expect(JSON.parse(actions.body).actions[0].title).toBe("整理验收截图");
+    expect(frontier.status).toBe(200);
+    expect(JSON.parse(frontier.body).frontier[0].action.title).toBe("整理验收截图");
   });
 });

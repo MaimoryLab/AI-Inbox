@@ -11,7 +11,7 @@ vi.mock("../src/config.js", () => ({
   },
 }));
 
-import { generateTodosFromSessions, validateTodoEvidence, runLangExtractSidecar, type ExtractedTodo } from "../src/functions/todo-extract.js";
+import { cleanTodoTitle, generateTodosFromSessions, validateTodoEvidence, runLangExtractSidecar, type ExtractedTodo } from "../src/functions/todo-extract.js";
 import type { Action, CompressedObservation, ReviewQueueItem, Session } from "../src/types.js";
 import { KV } from "../src/state/schema.js";
 import { mockKV } from "./helpers/mocks.js";
@@ -138,6 +138,28 @@ describe("todo extraction", () => {
       evidence: { sourceObservationId: "obs_1", quote: "不存在的 quote" },
       dedupeKey: "bad-evidence",
     }, new Map([["obs_1", { text: "普通总结，没有行动。" }]]))).toBe(false);
+  });
+
+  it("cleans bad tool-log titles before writing todos", async () => {
+    const cleaned = cleanTodoTitle(
+      "langextract-demo/...`",
+      "因为用户明确要截图，我会读取截图专项说明，然后保存到 `/tmp/ai-todo-langextract-demo/...`。",
+    );
+    expect(cleaned).toContain("读取截图专项说明");
+    expect(cleaned).not.toContain("langextract-demo");
+    expect(cleaned).not.toContain("保存到");
+    expect(cleanTodoTitle(
+      "{\"cmd\":\"gh pr list --json number,title\"}",
+      "{\"cmd\":\"gh pr list --json number,title\"}",
+    )).toBeNull();
+  });
+
+  it("compacts long assistant-progress sentences into readable card titles", () => {
+    const cleaned = cleanTodoTitle(
+      "我会再等一轮；若仍未完成，我会中断这次安装，转用仓库结构和脚本级检查继续评估，不让验证步骤卡住整体结论",
+      "npm install 长时间无输出；计划再等待一轮，如仍未完成则中断安装，改用仓库结构和脚本级检查继续评估。",
+    );
+    expect(cleaned).toBe("再等一轮");
   });
 
   it("sidecar failures are explicit so auto mode can fall back", async () => {

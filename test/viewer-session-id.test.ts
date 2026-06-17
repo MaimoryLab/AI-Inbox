@@ -22,6 +22,7 @@ function loadViewerSandbox() {
   const elements = new Map<string, any>();
   const documentListeners = new Map<string, Array<(event: any) => void>>();
   const windowListeners = new Map<string, Array<(event: any) => void>>();
+  const timers: Array<() => void> = [];
   const createMockElement = (id = "") => {
     const attributes = new Map<string, string>();
     const classes = new Set<string>();
@@ -153,7 +154,10 @@ function loadViewerSandbox() {
     alert: () => {},
     setInterval: () => 0,
     clearInterval: () => {},
-    setTimeout: () => 0,
+    setTimeout: (fn: () => void) => {
+      timers.push(fn);
+      return timers.length;
+    },
     clearTimeout: () => {},
     URLSearchParams,
     Date,
@@ -194,11 +198,30 @@ function loadViewerSandbox() {
     for (const handler of windowListeners.get(type) || []) handler(event);
   };
 
-  return { sandbox, getElement, dispatchDocumentClick, dispatchDocumentEvent, dispatchWindowEvent };
+  const runTimers = () => {
+    let ran = 0;
+    while (timers.length) {
+      const pending = timers.splice(0);
+      for (const timer of pending) {
+        ran++;
+        timer();
+      }
+    }
+    return ran;
+  };
+
+  return { sandbox, getElement, dispatchDocumentClick, dispatchDocumentEvent, dispatchWindowEvent, runTimers };
 }
 
 async function flushPromises(times = 4) {
   for (let i = 0; i < times; i++) await Promise.resolve();
+}
+
+async function waitFor(predicate: () => boolean, attempts = 20) {
+  for (let i = 0; i < attempts; i++) {
+    if (predicate()) return;
+    await flushPromises(2);
+  }
 }
 
 describe("viewer session rendering", () => {
@@ -307,6 +330,59 @@ describe("viewer session rendering", () => {
     expect(detail).toContain("我会整理这次会话中对话框可见的重点");
     expect(detail).not.toContain("命令");
     expect(detail).not.toContain("src/viewer/index.html");
+  });
+
+  it("keeps long session detail content compact by default", async () => {
+    const { sandbox, getElement } = loadViewerSandbox();
+    const longText = "这是一段很长的会话摘要。".repeat(40);
+    sandbox.fetch = async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("session/highlights")) {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            highlights: Array.from({ length: 6 }, (_, index) => ({
+              id: `goal-${index}`,
+              sessionId: "session-long",
+              category: index % 2 === 0 ? "goal" : "agent_output",
+              title: `重点 ${index + 1}`,
+              summary: longText,
+              timestamp: "2026-06-11T08:00:00Z",
+              files: [],
+              importance: 8,
+              confidence: 0.8,
+            })),
+          }),
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    };
+    sandbox.state.sessions.items = [
+      {
+        id: "session-long",
+        startedAt: "2026-06-11T08:00:00Z",
+        summary: longText,
+        embeddedObservations: [
+          {
+            id: "obs-1",
+            type: "conversation",
+            timestamp: "2026-06-11T08:00:00Z",
+            narrative: longText,
+          },
+        ],
+      },
+    ];
+    sandbox.state.sessions.selectedId = "session-long";
+
+    await sandbox.renderSessionDetail();
+    const detail = getElement("session-detail").innerHTML;
+
+    expect(detail).toContain("session-detail-preview compact");
+    expect(detail).toContain("展开摘要");
+    expect(detail).toContain("session-highlights-list compact");
+    expect(detail).toContain("完整对话过程 · 1 条");
+    expect(detail).toContain('aria-expanded="false"');
   });
 
   it("keeps session detail stable when highlights are empty or unavailable", async () => {
@@ -708,14 +784,16 @@ describe("viewer session rendering", () => {
     expect(detail).not.toContain("加载会话详情中");
   });
 
-  it("manually refreshes actions and regenerates action candidates", async () => {
-    const { sandbox, getElement, dispatchDocumentClick } = loadViewerSandbox();
+  it("loads actions and runs small todo extraction in the background", async () => {
+    const { sandbox, getElement } = loadViewerSandbox();
     const urls: string[] = [];
-    sandbox.fetch = async (input: unknown) => {
+    const posts: Array<{ url: string; body: unknown }> = [];
+    sandbox.fetch = async (input: unknown, init?: { body?: string }) => {
       const url = String(input);
       urls.push(url);
-      if (url.includes("review/actions/generate")) {
-        return { ok: true, json: async () => ({ success: true, count: 1 }) };
+      if (url.includes("todo-extract/generate")) {
+        posts.push({ url, body: init?.body ? JSON.parse(init.body) : null });
+        return { ok: true, json: async () => ({ success: true, directCreated: 1, reviewCreated: 0 }) };
       }
       if (url.includes("review?status=pending")) {
         return { ok: true, json: async () => ({ items: [] }) };
@@ -737,22 +815,76 @@ describe("viewer session rendering", () => {
       statusFilter: "",
       search: "",
       reviewItems: [],
+      extractStatus: "",
+      extractMessage: "",
+      extractInFlight: false,
     };
-    sandbox.renderActions();
-    expect(getElement("view-actions").innerHTML).toContain('data-action="refresh-actions"');
-
-    const target = Object.create(sandbox.Element.prototype);
-    target.getAttribute = (name: string) => (name === "data-action" ? "refresh-actions" : null);
-    target.closest = (selector: string) => (selector === "[data-action]" ? target : null);
-    dispatchDocumentClick(target);
-    await flushPromises(8);
+    await sandbox.loadActions({ generate: true, force: true });
+    await flushPromises(16);
 
     expect(urls.some((url) => url.includes("actions"))).toBe(true);
     expect(urls.some((url) => url.includes("inbox?status=awaiting"))).toBe(true);
     expect(urls.some((url) => url.includes("inbox?status=answered"))).toBe(true);
     expect(urls.some((url) => url.includes("inbox?status=dismissed"))).toBe(true);
-    expect(urls.some((url) => url.includes("review/actions/generate"))).toBe(true);
-    expect(getElement("view-actions").innerHTML).toContain("正在整理待办");
+    expect(urls.some((url) => url.includes("todo-extract/generate"))).toBe(true);
+    expect(urls.some((url) => url.includes("review/actions/generate"))).toBe(false);
+    expect(posts[0].body).toMatchObject({
+      maxSessions: 3,
+      maxObservationsPerSession: 120,
+      force: true,
+    });
+    expect(sandbox.state.actions.extractMessage).toBe("已更新 1 张待办");
+  });
+
+  it("does not start duplicate todo extraction while one is in flight", async () => {
+    const { sandbox } = loadViewerSandbox();
+    const posts: string[] = [];
+    sandbox.fetch = async (input: unknown, init?: { method?: string }) => {
+      const url = String(input);
+      if (url.includes("todo-extract/generate")) {
+        posts.push(url);
+        return new Promise(() => undefined);
+      }
+      if (url.includes("review?status=pending")) return { ok: true, json: async () => ({ items: [] }) };
+      if (url.includes("frontier")) return { ok: true, json: async () => ({ frontier: [] }) };
+      if (url.includes("actions")) return { ok: true, json: async () => ({ actions: [] }) };
+      return { ok: true, json: async () => ({}) };
+    };
+
+    await sandbox.loadActions({ generate: true });
+    await flushPromises(2);
+    sandbox.startTodoExtraction(false);
+    sandbox.startTodoExtraction(false);
+
+    expect(posts).toHaveLength(1);
+  });
+
+  it("soft-refreshes actions while todo extraction is still running", async () => {
+    const { sandbox, runTimers } = loadViewerSandbox();
+    const actionResponses = [
+      { actions: [] },
+      { actions: [{ id: "act-1", title: "整理首版功能文档", status: "pending", updatedAt: "2026-06-17T12:00:00Z" }] },
+    ];
+    sandbox.fetch = async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("todo-extract/generate")) return new Promise(() => undefined);
+      if (url.includes("review?status=pending")) return { ok: true, json: async () => ({ items: [] }) };
+      if (url.includes("frontier")) return { ok: true, json: async () => ({ frontier: [] }) };
+      if (url.includes("actions")) {
+        return { ok: true, json: async () => actionResponses.shift() || { actions: [] } };
+      }
+      return { ok: true, json: async () => ({}) };
+    };
+
+    sandbox.state.activeTab = "actions";
+    await sandbox.loadActions({ generate: true });
+    await flushPromises(4);
+    expect(runTimers()).toBeGreaterThan(0);
+    await waitFor(() => !!sandbox.state.actions.items[0]);
+
+    expect(sandbox.state.actions.extractInFlight).toBe(true);
+    expect(sandbox.state.actions.extractMessage).toBe("已显示最新待办，后台仍在整理...");
+    expect(sandbox.state.actions.items[0].title).toBe("整理首版功能文档");
   });
 
   it("renders the action classification metrics without a false waiting section when inbox is empty", () => {
@@ -788,13 +920,89 @@ describe("viewer session rendering", () => {
     expect(idxGroups === -1 || idxAwaiting < idxGroups).toBe(true);
   });
 
+  it("renders todo extraction classification tags on approved action cards", () => {
+    const { sandbox, getElement } = loadViewerSandbox();
+    sandbox.state.activeTab = "actions";
+    sandbox.state.actions = {
+      loaded: true,
+      items: [
+        {
+          id: "act_todo_1",
+          title: "整理验收截图",
+          description: "打开待办页后确认自动抽取生成的卡片。",
+          status: "pending",
+          priority: "normal",
+          tags: ["todo-extracted", "time:current", "type:to_start"],
+          sourceObservationIds: ["obs_1"],
+          updatedAt: "2026-06-17T10:00:00Z",
+        },
+      ],
+      frontier: [],
+      statusFilter: "",
+      search: "",
+      reviewItems: [],
+    };
+    sandbox.state.inbox = { loaded: true, items: [] };
+
+    sandbox.renderActions();
+    const html = getElement("view-actions").innerHTML;
+
+    expect(html).toContain("整理验收截图");
+    expect(html).toContain("todo-extracted");
+    expect(html).toContain("time:current");
+    expect(html).toContain("type:to_start");
+  });
+
+  it("keeps review candidates out of the default action view", () => {
+    const { sandbox, getElement } = loadViewerSandbox();
+    sandbox.state.activeTab = "actions";
+    sandbox.state.actions = {
+      loaded: true,
+      items: [
+        {
+          id: "act_todo_1",
+          title: "整理验收截图",
+          description: "打开待办页后确认自动抽取生成的卡片。",
+          status: "pending",
+          priority: "normal",
+          tags: ["todo-extracted", "time:current", "type:to_start"],
+          sourceObservationIds: ["obs_1"],
+          updatedAt: "2026-06-17T10:00:00Z",
+        },
+      ],
+      frontier: [],
+      statusFilter: "",
+      search: "",
+      reviewItems: [
+        {
+          id: "review_readable",
+          status: "pending",
+          kind: "action",
+          title: "修复待办候选展示",
+          content: "下一步请修复待办候选展示。",
+          source: "viewer",
+          payload: { actionCandidate: { reason: "follow_up" }, tags: ["action-candidate"] },
+        },
+      ],
+    };
+    sandbox.state.inbox = { loaded: true, items: [] };
+
+    sandbox.renderActions();
+    const html = getElement("view-actions").innerHTML;
+
+    expect(html).toContain("整理验收截图");
+    expect(html).toContain("1 条待确认");
+    expect(html).not.toContain("action-candidate-card");
+    expect(html).not.toContain("还没有待办");
+  });
+
   it("renders action reviews as compact decision cards while keeping tool pollution hidden", () => {
     const { sandbox, getElement } = loadViewerSandbox();
     sandbox.state.actions = {
       loaded: true,
       items: [],
       frontier: [],
-      statusFilter: "",
+      statusFilter: "review",
       search: "",
       reviewItems: [
         {
