@@ -50,6 +50,8 @@ export const KV = {
   globalSlots: "mem:slots:global",
   state: "mem:state",
   commits: "mem:commits",
+  sources: "mem:sources",
+  scanCheckpoints: "mem:scan-checkpoints",
 } as const;
 
 export const STREAM = {

@@ -133,6 +133,28 @@ export interface ReviewQueueItem {
   reviewedAt?: string;
 }
 
+export interface Source {
+  id: string;
+  type: "codex" | "claude-code" | "browser";
+  name: string;
+  pathOrUrl: string;
+  enabled: boolean;
+  lastScannedAt?: string;
+}
+
+export interface ScanCheckpoint {
+  sourceId: string;
+  /**
+   * Incremental watermark: a JSON map of processed file path ->
+   * { mtimeMs, size }. A file is re-read only when it is absent here or its
+   * mtime/size changed. Recorded only on successful ingest, so a failed file
+   * stays absent and is retried on the next scan.
+   */
+  cursor: string;
+  lastSuccessAt?: string;
+  lastError?: string;
+}
+
 export interface SessionSummary {
   sessionId: string;
   project: string;

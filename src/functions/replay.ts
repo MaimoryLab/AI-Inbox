@@ -37,7 +37,7 @@ export function isSensitive(path: string): boolean {
   return SENSITIVE_PATH_PATTERNS.some((re) => re.test(path));
 }
 
-async function isSymlink(path: string): Promise<boolean> {
+export async function isSymlink(path: string): Promise<boolean> {
   try {
     const st = await lstat(path);
     return st.isSymbolicLink();
@@ -203,7 +203,7 @@ async function loadObservations(
   return rows.map((r) => (isRawShape(r) ? r : rawFromCompressed(r as CompressedObservation)));
 }
 
-async function findJsonlFiles(
+export async function findJsonlFiles(
   root: string,
   limit = 200,
 ): Promise<{
@@ -268,6 +268,7 @@ async function findJsonlFiles(
 export async function ingestJsonlFile(
   kv: StateKV,
   file: string,
+  fallbackSessionId?: string,
 ): Promise<{ sessionId: string; newObservations: number } | null> {
   let text: string;
   try {
@@ -280,7 +281,7 @@ export async function ingestJsonlFile(
     return null;
   }
 
-  const parsed = parseJsonlText(text, fingerprintId("sess", text));
+  const parsed = parseJsonlText(text, fallbackSessionId ?? fingerprintId("sess", text));
   if (parsed.observations.length === 0) return null;
 
   const firstPromptObs = parsed.observations.find(

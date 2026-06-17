@@ -92,6 +92,7 @@ import { registerTemporalGraphFunctions } from "./functions/temporal-graph.js";
 import { registerRetentionFunctions } from "./functions/retention.js";
 import { registerCompressFileFunction } from "./functions/compress-file.js";
 import { registerReplayFunctions } from "./functions/replay.js";
+import { registerSourceScanFunctions } from "./functions/source-scan-codex.js";
 import { registerSessionHighlightsFunction } from "./functions/session-highlights.js";
 import { registerActionCandidateFunctions } from "./functions/action-candidates.js";
 import { registerApiTriggers } from "./triggers/api.js";
@@ -340,6 +341,7 @@ async function main() {
   registerRetentionFunctions(sdk, kv);
   registerCompressFileFunction(sdk, kv, provider);
   registerReplayFunctions(sdk, kv);
+  registerSourceScanFunctions(sdk, kv);
   registerSessionHighlightsFunction(sdk, kv);
   registerActionCandidateFunctions(sdk, kv);
   bootLog(
