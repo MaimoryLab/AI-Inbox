@@ -12,6 +12,7 @@ import { homedir } from "node:os";
 import { renderViewerDocument } from "./document.js";
 import type { CompressedObservation, Memory, ReviewQueueItem, Session } from "../types.js";
 import { KV } from "../state/schema.js";
+import { buildTurnActionDrafts } from "../functions/action-candidates.js";
 
 // Self-host the viewer favicon at /favicon.svg instead of an inline
 // data: URI so the viewer CSP can stay tight at `img-src 'self'`.
@@ -782,6 +783,36 @@ function extractBrowserFallbackContent(body: Record<string, unknown>): {
   };
 }
 
+// Bring the viewer-server review fallback to parity with api::review-create:
+// browser-capture turns also produce action drafts (todos), via the shared
+// buildTurnActionDrafts (one dedup path). Gated for rollback without a revert.
+async function persistBrowserActionDrafts(
+  kv: ViewerKv,
+  item: ReviewQueueItem,
+  now: string,
+): Promise<number> {
+  if (process.env.AGENTMEMORY_BROWSER_ACTION_EXTRACT === "false") return 0;
+  const turns = item.conversation?.turns ?? [];
+  if (!turns.length) return 0;
+  const drafts = await buildTurnActionDrafts(kv, {
+    turns,
+    now,
+    source: item.source,
+    page: item.page,
+    conversation: item.conversation,
+    basePayload: {
+      ...(item.payload || {}),
+      provider: item.conversation?.provider,
+      pageType: item.page?.type,
+      viewerFallback: true,
+    },
+  });
+  for (const draft of drafts) {
+    await kv.set(KV.reviewQueue, draft.id, draft);
+  }
+  return drafts.length;
+}
+
 async function handleReviewFallback(
   req: IncomingMessage,
   res: ServerResponse,
@@ -860,6 +891,7 @@ async function handleReviewFallback(
       },
     };
     const browserSession = await recordBrowserSessionFallback(kv, item, syncId);
+    await persistBrowserActionDrafts(kv, item, now);
     json(res, 201, {
       success: true,
       item: {
@@ -918,6 +950,7 @@ async function handleReviewFallback(
     browserObservationCount: browserSession.observationCount,
   };
   await kv.set(KV.reviewQueue, item.id, item);
+  await persistBrowserActionDrafts(kv, item, now);
   json(res, existing ? 200 : 201, { success: true, item }, req);
   return true;
 }

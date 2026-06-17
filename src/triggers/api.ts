@@ -1,5 +1,5 @@
 import type { ISdk, ApiRequest } from "iii-sdk";
-import type { Action, Session, CompressedObservation, HookPayload, CommitLink, ReviewQueueItem, InboxItem, DeliveryRecord } from "../types.js";
+import type { Session, CompressedObservation, HookPayload, CommitLink, ReviewQueueItem, InboxItem, DeliveryRecord } from "../types.js";
 import { withKeyedLock } from "../state/keyed-mutex.js";
 import { KV } from "../state/schema.js";
 import { StateKV } from "../state/kv.js";
@@ -13,10 +13,7 @@ import { renderViewerDocument } from "../viewer/document.js";
 import { getBoundViewerPort, getViewerSkipped } from "../viewer/server.js";
 import { MAX_FILES_UPPER_BOUND } from "../functions/replay.js";
 import { logger } from "../logger.js";
-import {
-  type ActionCandidate,
-  extractActionCandidatesFromTurns,
-} from "../functions/action-candidates.js";
+import { buildTurnActionDrafts } from "../functions/action-candidates.js";
 import {
   isGraphExtractionEnabled,
   isConsolidationEnabled,
@@ -306,39 +303,6 @@ function isReviewTextDisplayable(value: string): boolean {
 
 function isReviewCandidateDisplayable(title: string, content: string): boolean {
   return isReviewTextDisplayable(title) && isReviewTextDisplayable(content);
-}
-
-function actionReviewItemFromCandidate(opts: {
-  candidate: ActionCandidate;
-  now: string;
-  source: ReviewQueueItem["source"];
-  page: ReviewQueueItem["page"];
-  conversation?: ReviewQueueItem["conversation"];
-  basePayload: Record<string, unknown>;
-}): ReviewQueueItem {
-  return {
-    id: `review_${Date.now().toString(36)}_${crypto.randomUUID().replace(/-/g, "").slice(0, 10)}`,
-    createdAt: opts.now,
-    updatedAt: opts.now,
-    status: "pending",
-    kind: "action",
-    title: opts.candidate.title,
-    content: opts.candidate.description,
-    source: opts.source,
-    page: opts.page,
-    ...(opts.conversation ? { conversation: opts.conversation } : {}),
-    payload: {
-      ...opts.basePayload,
-      actionCandidate: {
-        priority: opts.candidate.priority,
-        reason: opts.candidate.reason,
-        confidence: opts.candidate.confidence,
-        duplicateHint: opts.candidate.duplicateHint,
-        sourceObservationIds: opts.candidate.sourceObservationIds,
-      },
-      tags: opts.candidate.tags,
-    },
-  };
 }
 
 function flagDisabledResponse(opts: {
@@ -1352,31 +1316,23 @@ export function registerApiTriggers(
           ...(syncId ? { browserSyncId: syncId } : {}),
         },
       };
-      const actionDrafts: ReviewQueueItem[] = [];
-      if ((item.source === "browser-extension" || item.source === "browser-sync") && conversation.turns.length > 0) {
-        const [existingActions, existingReviewItems] = await Promise.all([
-          kv.list<Action>(KV.actions).catch(() => []),
-          kv.list<ReviewQueueItem>(KV.reviewQueue).catch(() => []),
-        ]);
-        for (const candidate of extractActionCandidatesFromTurns(conversation.turns, {
-          existingActions,
-          existingReviewItems,
-        })) {
-          actionDrafts.push(actionReviewItemFromCandidate({
-            candidate,
-            now,
-            source: item.source,
-            page: item.page,
-            conversation,
-            basePayload: {
-              ...payload,
-              ...(item.payload || {}),
-              provider: conversation.provider || payload.provider,
-              pageType: item.page?.type || payload.pageType,
-            },
-          }));
-        }
-      }
+      const actionDrafts: ReviewQueueItem[] =
+        (item.source === "browser-extension" || item.source === "browser-sync") &&
+        conversation.turns.length > 0
+          ? await buildTurnActionDrafts(kv, {
+              turns: conversation.turns,
+              now,
+              source: item.source,
+              page: item.page,
+              conversation,
+              basePayload: {
+                ...payload,
+                ...(item.payload || {}),
+                provider: conversation.provider || payload.provider,
+                pageType: item.page?.type || payload.pageType,
+              },
+            })
+          : [];
       if (item.source === "browser-extension" || item.source === "browser-sync") {
         try {
           const browserSession = await recordBrowserSessionFromReview(sdk, item);

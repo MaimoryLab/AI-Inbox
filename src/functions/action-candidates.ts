@@ -279,6 +279,77 @@ function reviewItemId(): string {
   return `review_${Date.now().toString(36)}_${crypto.randomUUID().replace(/-/g, "").slice(0, 10)}`;
 }
 
+export function actionReviewItemFromCandidate(opts: {
+  candidate: ActionCandidate;
+  now: string;
+  source: ReviewQueueItem["source"];
+  page: ReviewQueueItem["page"];
+  conversation?: ReviewQueueItem["conversation"];
+  basePayload: Record<string, unknown>;
+}): ReviewQueueItem {
+  return {
+    id: `review_${Date.now().toString(36)}_${crypto.randomUUID().replace(/-/g, "").slice(0, 10)}`,
+    createdAt: opts.now,
+    updatedAt: opts.now,
+    status: "pending",
+    kind: "action",
+    title: opts.candidate.title,
+    content: opts.candidate.description,
+    source: opts.source,
+    page: opts.page,
+    ...(opts.conversation ? { conversation: opts.conversation } : {}),
+    payload: {
+      ...opts.basePayload,
+      actionCandidate: {
+        priority: opts.candidate.priority,
+        reason: opts.candidate.reason,
+        confidence: opts.candidate.confidence,
+        duplicateHint: opts.candidate.duplicateHint,
+        sourceObservationIds: opts.candidate.sourceObservationIds,
+      },
+      tags: opts.candidate.tags,
+    },
+  };
+}
+
+/**
+ * Extract action candidates from browser conversation turns and build
+ * deduped review drafts. Shared by the REST review-create trigger and the
+ * viewer-server review fallback so both browser-capture paths produce todos
+ * through one implementation (single dedup source). Does not persist — the
+ * caller writes the returned drafts to KV.reviewQueue.
+ */
+export async function buildTurnActionDrafts(
+  kv: { list<T = unknown>(scope: string): Promise<T[]> },
+  opts: {
+    turns: BrowserTurn[];
+    now: string;
+    source: ReviewQueueItem["source"];
+    page: ReviewQueueItem["page"];
+    conversation?: ReviewQueueItem["conversation"];
+    basePayload: Record<string, unknown>;
+  },
+): Promise<ReviewQueueItem[]> {
+  if (!opts.turns.length) return [];
+  const [existingActions, existingReviewItems] = await Promise.all([
+    kv.list<Action>(KV.actions).catch(() => []),
+    kv.list<ReviewQueueItem>(KV.reviewQueue).catch(() => []),
+  ]);
+  return extractActionCandidatesFromTurns(opts.turns, {
+    existingActions,
+    existingReviewItems,
+  }).map((candidate) =>
+    actionReviewItemFromCandidate({
+      candidate,
+      now: opts.now,
+      source: opts.source,
+      page: opts.page,
+      conversation: opts.conversation,
+      basePayload: opts.basePayload,
+    }),
+  );
+}
+
 function nonEmptySessionValue(value: string | undefined): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
