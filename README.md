@@ -2,49 +2,54 @@
 
 **AI Todo** is a local-first todo extraction tool for AI workflows.
 
-It scans local agent sessions, captures browser AI conversations, extracts unfinished work, stores the results locally, and shows them in a simple local web UI. The goal is not to become another generic todo app. The goal is to answer one practical question:
+It scans local agent sessions and captures browser AI conversations, extracts the unfinished work, stores everything locally, and shows it in a simple local web UI — answering one practical question:
 
 > What did my AI agents leave unfinished, and what should I review next?
 
-## Why
+People work across coding agents, browser AI assistants, and project tools, and useful follow-ups stay buried in conversations: an agent waiting for confirmation, a failed command that blocked a task, a draft never reviewed, a plan never turned into an issue. AI Todo turns these open loops into local, reviewable todo candidates **with evidence**.
 
-People now work across coding agents, browser AI assistants, and project tools. Useful follow-ups often stay buried inside conversations:
+> **Status: internal trial / prototype.** It runs end to end locally. Some package names, CLI commands, and API paths still use the earlier implementation name while the project is being renamed to AI Todo. The UI is currently Chinese-first; English localization is in progress (`?lang=en` covers part of the UI today).
 
-- an agent is waiting for user confirmation
-- a command failed and blocked the task
-- a draft was generated but never reviewed
-- a feature plan was written but not turned into an issue
-- a browser AI conversation contains follow-up work
+## Quick start
 
-AI Todo turns these open loops into local, reviewable todo candidates with evidence.
+Requirements: **Node.js 20+**.
 
-## v1 Scope
+```bash
+npm install
+npm run build
+npm run start:local-memory
+```
 
-AI Todo v1 focuses on the current core product plus the required launch constraints:
+The daemon prints a local viewer URL (default REST API on port **3111**). Open it in your browser.
 
-| Area | v1 Requirement |
-|---|---|
-| Local scanner | Scan at least one local agent session source |
-| Browser capture | Capture at least one browser AI conversation source |
-| Local database | Store todos, sources, evidence, status, and scan checkpoints |
-| Incremental extraction | Avoid duplicate todos across repeated scans |
-| Local UI | Show active todos in a local web page |
-| Manual cleanup | Support done, ignored, and deleted states |
-| Evidence | Every todo must include at least one source reference |
-| Localization-ready | Core UI strings live outside business logic |
-| Connectors | Define a generic connector interface for future integrations |
-| Docs | Include PRD, features, architecture, rules, and roadmap |
+**Try it with sample data** — in another terminal:
 
-## Product Documents
+```bash
+node dist/cli.mjs demo
+```
 
-- [PRD](PRD.md)
-- [Architecture](ARCHITECTURE.md)
-- [Rules](RULES.md)
-- [Roadmap](ROADMAP.md)
-- [Development](docs/development.md)
-- `FEATURES.md` - planned
+Then refresh the viewer: the dashboard fills with browsable sessions, memory, and extracted todos. The **To-Do** tab shows the extracted todos (each with evidence); the **Evidence** tab shows the sessions they came from.
 
-## Core Todo Statuses
+> Prefer running from source while developing? `npm run dev` (via `tsx`) instead of build + start.
+
+## Use your own data
+
+- **Codex sessions (local):** the daemon scans your Codex session directories (`~/.codex/sessions` and `~/.codex/archived_sessions`) on startup and on an interval, and extracts todos automatically. Toggle with `AGENTMEMORY_CODEX_AUTOSCAN=false`; tune the cadence with `AGENTMEMORY_CODEX_SCAN_INTERVAL_MS` (default 5 min). You can also import a transcript on demand with `agentmemory import-jsonl <path>`.
+- **Browser AI conversations:** load the browser extension under [`browser-extension/`](browser-extension/); it captures supported AI sites and posts them to the local daemon, which extracts todos into the same queue.
+
+Everything stays on your machine — see [Privacy](#privacy).
+
+## How it works
+
+```
+local agent sessions ─┐
+                       ├─▶ normalize ─▶ rule-based extractor ─▶ local DB ─▶ local API ─▶ web UI
+browser AI capture ───┘                                          (todos + evidence)
+```
+
+Built on iii-engine (file-based SQLite state), with a local REST API + MCP server + web UI. v1 uses a deterministic rule-based extractor (no LLM classifier). See [ARCHITECTURE.md](ARCHITECTURE.md) for detail.
+
+## Core todo statuses
 
 | Status | Meaning |
 |---|---|
@@ -54,36 +59,24 @@ AI Todo v1 focuses on the current core product plus the required launch constrai
 | `needs_review` | The agent produced something that requires human review |
 | `stale_thread` | The conversation indicates later continuation but has no recent progress |
 
-## Current Prototype
+## Privacy
 
-This repository currently contains the implementation foundation for the local daemon, local API, browser extension, and web UI. Some internal package names, CLI commands, and API paths may still use earlier implementation names while the product is being renamed to AI Todo.
+- Local-first by default; captured browser content and local sessions stay on your machine.
+- No cloud sync in v1; no automatic writes into external todo tools in v1.
+- Secrets, API keys, and tokens are redacted before display when detected.
+- Every extracted todo includes evidence; you can mark todos done, ignored, or deleted.
+
+## Under the hood
 
 Under the hood, the current prototype still exposes the full implementation surface: **55 MCP tools** (8 visible by default — 55 tools, 6 resources, 3 prompts over MCP) and a local REST API serving **136 endpoints on port** 3111. These counts track the implementation that is mid-rename to AI Todo.
 
-Common local checks:
+## Documentation
 
-```bash
-npm install
-npm run build
-npm test
-```
-
-Local preview:
-
-```bash
-npm run start:local-memory
-```
-
-Then open the viewer URL printed by the command.
-
-## Privacy Principles
-
-- Local-first by default.
-- No cloud sync in v1.
-- No automatic writes into external todo tools in v1.
-- Captured browser content and local sessions stay on the user's machine by default.
-- Extracted todos must include evidence.
-- Users can mark todos as done, ignored, or deleted.
+- [PRD](PRD.md)
+- [Architecture](ARCHITECTURE.md)
+- [Rules](RULES.md)
+- [Roadmap](ROADMAP.md)
+- [Development](docs/development.md)
 
 ## License
 
