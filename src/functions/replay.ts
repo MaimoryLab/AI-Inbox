@@ -258,6 +258,100 @@ async function findJsonlFiles(
   };
 }
 
+/**
+ * Ingest a single JSONL transcript file: parse, dedup-write observations,
+ * upsert the Session, and derive crystals/lessons. Returns the session id and
+ * the count of newly written observations, or null when the file is skipped
+ * (unreadable, or no observations). Extracted from import-jsonl so the source
+ * scanner reuses the exact same ingest + dedup path (one source of truth).
+ */
+export async function ingestJsonlFile(
+  kv: StateKV,
+  file: string,
+): Promise<{ sessionId: string; newObservations: number } | null> {
+  let text: string;
+  try {
+    text = await readFile(file, "utf-8");
+  } catch (err) {
+    logger.warn("replay: failed to read jsonl", {
+      file,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+
+  const parsed = parseJsonlText(text, fingerprintId("sess", text));
+  if (parsed.observations.length === 0) return null;
+
+  const firstPromptObs = parsed.observations.find(
+    (o) => typeof o.userPrompt === "string" && o.userPrompt.trim().length > 0,
+  );
+  const firstPrompt = firstPromptObs?.userPrompt
+    ? firstPromptObs.userPrompt.replace(/\s+/g, " ").trim().slice(0, 200)
+    : undefined;
+
+  const searchIndex = getSearchIndex();
+  const compressed: CompressedObservation[] = [];
+  const newRawObservations: RawObservation[] = [];
+  await Promise.all(
+    parsed.observations.map(async (obs) => {
+      const existingObs = await kv.get<CompressedObservation>(
+        KV.observations(parsed.sessionId),
+        obs.id,
+      );
+      if (existingObs) return;
+      const synthetic = buildSyntheticCompression(obs);
+      compressed.push(synthetic);
+      newRawObservations.push(obs);
+      await kv.set(KV.observations(parsed.sessionId), obs.id, synthetic);
+      searchIndex.add(synthetic);
+    }),
+  );
+  const storedObservations = await kv.list<CompressedObservation>(
+    KV.observations(parsed.sessionId),
+  );
+  const totalObservationCount = storedObservations.length;
+  const existing = await kv.get<Session>(KV.sessions, parsed.sessionId);
+  if (existing) {
+    const existingTags = existing.tags || [];
+    const session: Session = {
+      ...existing,
+      endedAt: parsed.endedAt > (existing.endedAt || "") ? parsed.endedAt : existing.endedAt,
+      status: existing.status === "active" ? "completed" : existing.status,
+      observationCount: totalObservationCount,
+      tags: existingTags.includes("jsonl-import")
+        ? existingTags
+        : [...existingTags, "jsonl-import"],
+      firstPrompt: existing.firstPrompt || firstPrompt,
+    };
+    await kv.set(KV.sessions, session.id, session);
+  } else {
+    const session: Session = {
+      id: parsed.sessionId,
+      project: parsed.project,
+      cwd: parsed.cwd,
+      startedAt: parsed.startedAt,
+      endedAt: parsed.endedAt,
+      status: "completed",
+      observationCount: totalObservationCount,
+      tags: ["jsonl-import"],
+      firstPrompt,
+    };
+    await kv.set(KV.sessions, session.id, session);
+  }
+
+  await deriveCrystalAndLessons(
+    kv,
+    parsed.sessionId,
+    parsed.project,
+    newRawObservations,
+    compressed,
+    firstPrompt,
+  );
+
+  return { sessionId: parsed.sessionId, newObservations: newRawObservations.length };
+}
+
 export function registerReplayFunctions(sdk: ISdk, kv: StateKV): void {
   sdk.registerFunction(
     "mem::replay::load",
@@ -370,88 +464,10 @@ export function registerReplayFunctions(sdk: ISdk, kv: StateKV): void {
       for (const file of files) {
         if (isSensitive(file)) continue;
         if (await isSymlink(file)) continue;
-        let text: string;
-        try {
-          text = await readFile(file, "utf-8");
-        } catch (err) {
-          logger.warn("replay: failed to read jsonl", {
-            file,
-            error: err instanceof Error ? err.message : String(err),
-          });
-          continue;
-        }
-
-        const parsed = parseJsonlText(text, fingerprintId("sess", text));
-        if (parsed.observations.length === 0) continue;
-
-        const firstPromptObs = parsed.observations.find(
-          (o) => typeof o.userPrompt === "string" && o.userPrompt.trim().length > 0,
-        );
-        const firstPrompt = firstPromptObs?.userPrompt
-          ? firstPromptObs.userPrompt.replace(/\s+/g, " ").trim().slice(0, 200)
-          : undefined;
-
-        const searchIndex = getSearchIndex();
-        const compressed: CompressedObservation[] = [];
-        const newRawObservations: RawObservation[] = [];
-        await Promise.all(
-          parsed.observations.map(async (obs) => {
-            const existingObs = await kv.get<CompressedObservation>(
-              KV.observations(parsed.sessionId),
-              obs.id,
-            );
-            if (existingObs) return;
-            const synthetic = buildSyntheticCompression(obs);
-            compressed.push(synthetic);
-            newRawObservations.push(obs);
-            await kv.set(KV.observations(parsed.sessionId), obs.id, synthetic);
-            searchIndex.add(synthetic);
-          }),
-        );
-        const storedObservations = await kv.list<CompressedObservation>(
-          KV.observations(parsed.sessionId),
-        );
-        const totalObservationCount = storedObservations.length;
-        const existing = await kv.get<Session>(KV.sessions, parsed.sessionId);
-        if (existing) {
-          const existingTags = existing.tags || [];
-          const session: Session = {
-            ...existing,
-            endedAt: parsed.endedAt > (existing.endedAt || "") ? parsed.endedAt : existing.endedAt,
-            status: existing.status === "active" ? "completed" : existing.status,
-            observationCount: totalObservationCount,
-            tags: existingTags.includes("jsonl-import")
-              ? existingTags
-              : [...existingTags, "jsonl-import"],
-            firstPrompt: existing.firstPrompt || firstPrompt,
-          };
-          await kv.set(KV.sessions, session.id, session);
-        } else {
-          const session: Session = {
-            id: parsed.sessionId,
-            project: parsed.project,
-            cwd: parsed.cwd,
-            startedAt: parsed.startedAt,
-            endedAt: parsed.endedAt,
-            status: "completed",
-            observationCount: totalObservationCount,
-            tags: ["jsonl-import"],
-            firstPrompt,
-          };
-          await kv.set(KV.sessions, session.id, session);
-        }
-
-        observationCount += newRawObservations.length;
-        sessionIds.push(parsed.sessionId);
-
-        await deriveCrystalAndLessons(
-          kv,
-          parsed.sessionId,
-          parsed.project,
-          newRawObservations,
-          compressed,
-          firstPrompt,
-        );
+        const ingested = await ingestJsonlFile(kv, file);
+        if (!ingested) continue;
+        observationCount += ingested.newObservations;
+        sessionIds.push(ingested.sessionId);
       }
 
       await safeAudit(kv, "import", "mem::replay::import-jsonl", sessionIds, {

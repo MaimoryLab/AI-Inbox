@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseJsonlText } from "../src/replay/jsonl-parser.js";
 import { projectTimeline } from "../src/replay/timeline.js";
-import { registerReplayFunctions } from "../src/functions/replay.js";
+import { ingestJsonlFile, registerReplayFunctions } from "../src/functions/replay.js";
 import { getSearchIndex } from "../src/functions/search.js";
 import { buildSyntheticCompression } from "../src/functions/compress-synthetic.js";
 import type { RawObservation, Session } from "../src/types.js";
@@ -204,6 +204,24 @@ describe("buildSyntheticCompression replay coverage", () => {
 
     expect(compressed.type).toBe("conversation");
     expect(compressed.narrative).toContain("Looking into it now.");
+  });
+});
+
+describe("ingestJsonlFile", () => {
+  it("ingests one file and is idempotent on re-ingest (the scanner's reuse path)", async () => {
+    const kv = mockKV();
+    const first = await ingestJsonlFile(kv as never, fxPath("codex-session.jsonl"));
+    expect(first).toEqual({ sessionId: "codex-real-session", newObservations: 4 });
+    const second = await ingestJsonlFile(kv as never, fxPath("codex-session.jsonl"));
+    expect(second).toEqual({ sessionId: "codex-real-session", newObservations: 0 });
+    const stored = await kv.list<RawObservation>(KV.observations("codex-real-session"));
+    expect(stored).toHaveLength(4);
+  });
+
+  it("returns null for an unreadable file (skip, no throw)", async () => {
+    const kv = mockKV();
+    const result = await ingestJsonlFile(kv as never, fxPath("does-not-exist.jsonl"));
+    expect(result).toBeNull();
   });
 });
 
