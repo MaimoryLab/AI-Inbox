@@ -3912,7 +3912,18 @@
         'act.from': 'From', 'act.viewSource': 'View source →', 'act.updated': 'Updated',
         'act.itemsUnit': 'items',
         'act.empty.title': 'No todos yet',
-        'act.empty.lead': 'This is where todos, blocked items, and completed work extracted from your sessions will appear.'
+        'act.empty.lead': 'This is where todos, blocked items, and completed work extracted from your sessions will appear.',
+        'tab.memories': 'Memories', 'tab.lessons': 'Lessons', 'tab.graph': 'Graph', 'tab.timeline': 'Timeline', 'tab.activity': 'Live', 'tab.profile': 'Profile', 'tab.audit': 'Audit', 'tab.replay': 'Replay', 'tab.crystals': 'Crystals',
+        'ses.emptyNeedRetry': 'No sessions read yet — make sure the local service is running, then retry.',
+        'ses.empty': 'No sessions yet', 'ses.retry': 'Retry', 'ses.allSessions': 'All sessions',
+        'ses.heroTitle': 'Sessions',
+        'ses.heroNote': 'Sessions from your browser and local agents land here; browse them by folder or source.',
+        'ses.unitSessions': 'sessions', 'ses.unitFolders': 'folders', 'ses.unitSources': 'sources', 'ses.unitRecords': 'records', 'ses.recordsUnit': 'records',
+        'ses.groupModeAria': 'Group sessions by', 'ses.byFolder': 'By folder', 'ses.bySource': 'By source',
+        'ses.groupAria': 'Session groups', 'ses.source': 'Source', 'ses.folder': 'Folder',
+        'ses.emptyFolder': 'No sessions in this folder yet.', 'ses.emptySource': 'No sessions from this source yet.',
+        'ses.noPreview': 'No preview — click to view the full session.',
+        'ses.avatarFallback': 'S', 'ses.localRecord': 'Local record'
       },
       zh: {
         'tab.dashboard': '总览', 'tab.actions': '待办', 'tab.sessions': '证据',
@@ -3968,7 +3979,18 @@
         'act.from': '来自', 'act.viewSource': '看原文 →', 'act.updated': '更新',
         'act.itemsUnit': '件',
         'act.empty.title': '还没有待办',
-        'act.empty.lead': '这里会放从会话里整理出的待办、卡住事项和已完成事项。'
+        'act.empty.lead': '这里会放从会话里整理出的待办、卡住事项和已完成事项。',
+        'tab.memories': '记忆', 'tab.lessons': '经验', 'tab.graph': '图谱', 'tab.timeline': '时间线', 'tab.activity': '实时', 'tab.profile': '档案', 'tab.audit': '审计', 'tab.replay': '回放', 'tab.crystals': '结晶',
+        'ses.emptyNeedRetry': '暂时没有读到会话，请确认本地服务已启动后重试。',
+        'ses.empty': '暂无会话', 'ses.retry': '重试加载', 'ses.allSessions': '全部会话',
+        'ses.heroTitle': '会话',
+        'ses.heroNote': '浏览器和本地 Agent 的会话会汇入这里，可以按文件夹或来源查看。',
+        'ses.unitSessions': '段会话', 'ses.unitFolders': '个文件夹', 'ses.unitSources': '个来源', 'ses.unitRecords': '条记录', 'ses.recordsUnit': '条',
+        'ses.groupModeAria': '会话分组方式', 'ses.byFolder': '按文件夹', 'ses.bySource': '按来源',
+        'ses.groupAria': '会话分组', 'ses.source': '来源', 'ses.folder': '文件夹',
+        'ses.emptyFolder': '这个文件夹下暂时没有会话。', 'ses.emptySource': '这个来源下暂时没有会话。',
+        'ses.noPreview': '暂无预览，点击查看完整过程。',
+        'ses.avatarFallback': '会', 'ses.localRecord': '本地记录'
       }
     };
     var I18N_LANG = 'zh';
@@ -4025,15 +4047,15 @@
     // 专家模式:默认三栏干净;开启后在导航末尾恢复被砍/被隐藏的视图(后端资产不丢)。
     // 这些视图的 view 容器与渲染函数都还在文件里,本步只是放行入口。
     var EXPERT_TABS = [
-      { id: 'memories', label: '记忆' },
-      { id: 'lessons', label: '经验' },
-      { id: 'graph', label: '图谱' },
-      { id: 'timeline', label: '时间线' },
-      { id: 'activity', label: '实时' },
-      { id: 'profile', label: '档案' },
-      { id: 'audit', label: '审计' },
-      { id: 'replay', label: '回放' },
-      { id: 'crystals', label: '结晶' }
+      { id: 'memories', label: 'tab.memories' },
+      { id: 'lessons', label: 'tab.lessons' },
+      { id: 'graph', label: 'tab.graph' },
+      { id: 'timeline', label: 'tab.timeline' },
+      { id: 'activity', label: 'tab.activity' },
+      { id: 'profile', label: 'tab.profile' },
+      { id: 'audit', label: 'tab.audit' },
+      { id: 'replay', label: 'tab.replay' },
+      { id: 'crystals', label: 'tab.crystals' }
     ];
     function expertModeEnabled() {
       try {
@@ -4061,11 +4083,11 @@
       var group = document.createElement('span');
       group.id = 'tab-expert-group';
       group.className = 'tab-expert-group';
-      EXPERT_TABS.forEach(function(t) {
+      EXPERT_TABS.forEach(function(tab) {
         var b = document.createElement('button');
-        b.setAttribute('data-tab', t.id);
+        b.setAttribute('data-tab', tab.id);
         b.className = 'tab-expert-btn';
-        b.textContent = t.label;
+        b.textContent = t(tab.label);
         group.appendChild(b);
       });
       main.appendChild(group);
@@ -7400,8 +7422,8 @@
       html += renderDataWarnings(state.sessions.warnings, 'refresh-sessions');
       html += '<div id="sessions-stale-notice">' + sessionStaleNoticeMarkup() + '</div>';
       if (items.length === 0) {
-        html += '<div class="empty-state"><div class="empty-icon">&#128466;</div><p>' + (state.sessions.warnings && state.sessions.warnings.length ? '暂时没有读到会话，请确认本地服务已启动后重试。' : '暂无会话') + '</p>';
-        if (state.sessions.warnings && state.sessions.warnings.length) html += '<div style="margin-top:10px;"><button class="btn btn-primary" data-action="refresh-sessions">重试加载</button></div>';
+        html += '<div class="empty-state"><div class="empty-icon">&#128466;</div><p>' + (state.sessions.warnings && state.sessions.warnings.length ? t('ses.emptyNeedRetry') : t('ses.empty')) + '</p>';
+        if (state.sessions.warnings && state.sessions.warnings.length) html += '<div style="margin-top:10px;"><button class="btn btn-primary" data-action="refresh-sessions">' + t('ses.retry') + '</button></div>';
         html += '</div>';
       } else {
         var groupMode = state.sessions.groupMode === 'source' ? 'source' : 'folder';
@@ -7410,7 +7432,7 @@
         var sourceGroups = sessionSourceGroups(items);
         var folderGroups = [{
           key: 'all',
-          name: '全部会话',
+          name: t('ses.allSessions'),
           sessions: items,
           count: items.length,
           latest: projectGroups[0] ? projectGroups[0].latest : '',
@@ -7436,22 +7458,22 @@
         var visibleItems = activeGroup.sessions || [];
         var totalObs = items.reduce(function(sum, s) { return sum + (s.observationCount || 0); }, 0);
         html += '<div class="session-hero">';
-        html += '<div><div class="session-hero-title">会话</div><div class="session-hero-note">浏览器和本地 Agent 的会话会汇入这里，可以按文件夹或来源查看。</div></div>';
-        html += '<div class="session-hero-meta">' + items.length + ' 段会话 · ' + projectGroups.length + ' 个文件夹 · ' + (sourceGroups.length - 1) + ' 个来源 · ' + totalObs + ' 条记录</div>';
+        html += '<div><div class="session-hero-title">' + t('ses.heroTitle') + '</div><div class="session-hero-note">' + t('ses.heroNote') + '</div></div>';
+        html += '<div class="session-hero-meta">' + items.length + ' ' + t('ses.unitSessions') + ' · ' + projectGroups.length + ' ' + t('ses.unitFolders') + ' · ' + (sourceGroups.length - 1) + ' ' + t('ses.unitSources') + ' · ' + totalObs + ' ' + t('ses.unitRecords') + '</div>';
         html += '</div>';
         html += '<div id="session-detail"></div>';
 
         html += '<section class="session-section">';
         html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">';
-        html += '<span class="mode-switch" aria-label="会话分组方式">';
-        html += '<button type="button" class="' + (groupMode === 'folder' ? 'active' : '') + '" data-action="session-group-mode" data-mode="folder">按文件夹</button>';
-        html += '<button type="button" class="' + (groupMode === 'source' ? 'active' : '') + '" data-action="session-group-mode" data-mode="source">按来源</button>';
+        html += '<span class="mode-switch" aria-label="' + esc(t('ses.groupModeAria')) + '">';
+        html += '<button type="button" class="' + (groupMode === 'folder' ? 'active' : '') + '" data-action="session-group-mode" data-mode="folder">' + t('ses.byFolder') + '</button>';
+        html += '<button type="button" class="' + (groupMode === 'source' ? 'active' : '') + '" data-action="session-group-mode" data-mode="source">' + t('ses.bySource') + '</button>';
         html += '</span>';
-        html += '<button class="btn" data-action="refresh-sessions">刷新</button>';
+        html += '<button class="btn" data-action="refresh-sessions">' + t('act.refresh') + '</button>';
         html += '</div>';
         html += '<div class="session-inbox">';
-        html += '<aside class="session-source-rail" aria-label="会话分组">';
-        html += '<div class="session-source-label">' + (groupMode === 'source' ? '来源' : '文件夹') + '</div>';
+        html += '<aside class="session-source-rail" aria-label="' + esc(t('ses.groupAria')) + '">';
+        html += '<div class="session-source-label">' + (groupMode === 'source' ? t('ses.source') : t('ses.folder')) + '</div>';
         groups.forEach(function(g) {
           var latest = g.sessions && g.sessions[0];
           var preview = latest ? sessionBodyPreview(latest, sessionTitleText(latest)) : '';
@@ -7462,25 +7484,25 @@
         });
         html += '</aside>';
         html += '<div class="session-inbox-main">';
-        html += '<div class="session-inbox-head"><div><div class="session-inbox-title">' + esc(activeGroup ? activeGroup.name : '全部会话') + '</div><div class="session-inbox-note">' + visibleItems.length + ' 段会话 · ' + ((activeGroup && activeGroup.observations) || 0) + ' 条记录</div></div></div>';
+        html += '<div class="session-inbox-head"><div><div class="session-inbox-title">' + esc(activeGroup ? activeGroup.name : t('ses.allSessions')) + '</div><div class="session-inbox-note">' + visibleItems.length + ' ' + t('ses.unitSessions') + ' · ' + ((activeGroup && activeGroup.observations) || 0) + ' ' + t('ses.unitRecords') + '</div></div></div>';
         if (!visibleItems.length) {
-          html += '<div class="session-empty-filter">这个' + (groupMode === 'source' ? '来源' : '文件夹') + '下暂时没有会话。</div>';
+          html += '<div class="session-empty-filter">' + (groupMode === 'source' ? t('ses.emptySource') : t('ses.emptyFolder')) + '</div>';
         } else {
           visibleItems.forEach(function(s) {
             var id = sessionId(s);
             var title = sessionTitleText(s);
-            var preview = sessionBodyPreview(s, title) || '暂无预览，点击查看完整过程。';
+            var preview = sessionBodyPreview(s, title) || t('ses.noPreview');
             var source = inferSessionSource(s);
-            var avatarLabel = (source.name || '会').replace(/\s+/g, '').slice(0, 2);
+            var avatarLabel = (source.name || t('ses.avatarFallback')).replace(/\s+/g, '').slice(0, 2);
             var selected = id && state.sessions.selectedId === id;
             html += '<button type="button" class="session-row' + (selected ? ' selected' : '') + '" data-action="select-session" data-session-id="' + esc(id || '') + '">';
-            html += '<span class="session-row-avatar" aria-hidden="true">' + esc(avatarLabel || '会') + '</span>';
+            html += '<span class="session-row-avatar" aria-hidden="true">' + esc(avatarLabel || t('ses.avatarFallback')) + '</span>';
             html += '<div>';
-            html += '<div class="session-row-title">' + esc(title || '未命名会话') + '</div>';
+            html += '<div class="session-row-title">' + esc(title || t('dash.unnamedSession')) + '</div>';
             html += '<div class="session-row-preview">' + esc(preview) + '</div>';
-            html += '<div class="session-row-meta"><span>' + esc(source.name || '本地记录') + '</span><span>' + esc(projectDisplayName(sessionProjectKey(s))) + '</span></div>';
+            html += '<div class="session-row-meta"><span>' + esc(source.name || t('ses.localRecord')) + '</span><span>' + esc(projectDisplayName(sessionProjectKey(s))) + '</span></div>';
             html += '</div>';
-            html += '<div class="session-row-side"><span>' + esc(shortDateTime(sessionRecordTime(s))) + '</span><span class="session-row-count">' + (s.observationCount || 0) + ' 条</span></div>';
+            html += '<div class="session-row-side"><span>' + esc(shortDateTime(sessionRecordTime(s))) + '</span><span class="session-row-count">' + (s.observationCount || 0) + ' ' + t('ses.recordsUnit') + '</span></div>';
             html += '</button>';
           });
         }

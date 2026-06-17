@@ -100,4 +100,16 @@ describe("viewer i18n base", () => {
     expect(html).toContain("'act.refresh': 'Refresh'");
     expect(html).toContain("'act.refresh': '刷新'");
   });
+
+  it("expert tabs and the sessions list are externalized (PLAN-001 STEP-02c)", () => {
+    const { html } = renderViewerDocument();
+    // expert tab labels are catalog keys resolved at render, not inline Chinese
+    expect(html).toContain("label: 'tab.crystals'");
+    expect(html).toContain("t(tab.label)");
+    // sessions list render is keyed
+    expect(html).toContain("t('ses.heroTitle')");
+    expect(html).toContain("t('ses.byFolder')");
+    expect(html).toContain("'ses.heroTitle': 'Sessions'");
+    expect(html).toContain("'ses.heroTitle': '会话'");
+  });
 });
