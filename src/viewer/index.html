@@ -3901,7 +3901,18 @@
         'dash.proceduralMemory': 'Procedural memory',
         'dash.emptyProcedural': 'No procedural memory yet; repeated patterns are extracted automatically.',
         'dash.consolidationStatus': 'Consolidation status',
-        'dash.memoryRelations': 'Memory relations'
+        'dash.memoryRelations': 'Memory relations',
+        'act.attn.next': 'Next', 'act.attn.needsWork': 'Needs work', 'act.attn.noteworthy': 'Noteworthy',
+        'act.prio.high': 'Important', 'act.prio.normal': 'Normal', 'act.prio.low': 'Low',
+        'act.untitled': 'Untitled', 'act.untitledCandidate': 'Untitled candidate',
+        'act.metric.waiting': 'Awaiting reply', 'act.metric.review': 'To confirm', 'act.metric.followUp': 'To follow up', 'act.metric.active': 'In progress', 'act.metric.done': 'Done',
+        'act.searchPlaceholder': 'Search todos...', 'act.filterAria': 'Filter todos by status',
+        'act.nToConfirm': 'to confirm', 'act.nConfirmed': 'confirmed', 'act.refresh': 'Refresh',
+        'act.viewOriginal': 'View original', 'act.confirm': 'Confirm', 'act.ignore': 'Ignore',
+        'act.from': 'From', 'act.viewSource': 'View source →', 'act.updated': 'Updated',
+        'act.itemsUnit': 'items',
+        'act.empty.title': 'No todos yet',
+        'act.empty.lead': 'This is where todos, blocked items, and completed work extracted from your sessions will appear.'
       },
       zh: {
         'tab.dashboard': '总览', 'tab.actions': '待办', 'tab.sessions': '证据',
@@ -3946,7 +3957,18 @@
         'dash.proceduralMemory': '流程记忆',
         'dash.emptyProcedural': '还没有流程记忆，重复模式会自动提炼。',
         'dash.consolidationStatus': '归并状态',
-        'dash.memoryRelations': '记忆关系'
+        'dash.memoryRelations': '记忆关系',
+        'act.attn.next': '下一步', 'act.attn.needsWork': '需要处理', 'act.attn.noteworthy': '值得关注',
+        'act.prio.high': '重要', 'act.prio.normal': '普通', 'act.prio.low': '不急',
+        'act.untitled': '未命名待办', 'act.untitledCandidate': '未命名待办候选',
+        'act.metric.waiting': '待回应', 'act.metric.review': '待确认', 'act.metric.followUp': '待跟进', 'act.metric.active': '进行中', 'act.metric.done': '已完成',
+        'act.searchPlaceholder': '搜索待办...', 'act.filterAria': '待办状态筛选',
+        'act.nToConfirm': '条待确认', 'act.nConfirmed': '件已确认', 'act.refresh': '刷新',
+        'act.viewOriginal': '查看原文', 'act.confirm': '确认', 'act.ignore': '忽略',
+        'act.from': '来自', 'act.viewSource': '看原文 →', 'act.updated': '更新',
+        'act.itemsUnit': '件',
+        'act.empty.title': '还没有待办',
+        'act.empty.lead': '这里会放从会话里整理出的待办、卡住事项和已完成事项。'
       }
     };
     var I18N_LANG = 'zh';
@@ -8655,16 +8677,17 @@
         statusFilter = '';
       }
 
-      function actionAttentionText(a, isFrontier) {
+      function actionAttentionKey(a, isFrontier) {
         if (a.status === 'done' || a.status === 'cancelled') return '';
-        if (isFrontier) return '下一步';
-        if (a.status === 'blocked') return '需要处理';
-        if (a.priority === 'high' || Number(a.priority) >= 8) return '值得关注';
+        if (isFrontier) return 'next';
+        if (a.status === 'blocked') return 'needsWork';
+        if (a.priority === 'high' || Number(a.priority) >= 8) return 'noteworthy';
         return '';
       }
       function actionDescriptionText(text) {
         var s = String(text || '').trim();
         if (!s) return '';
+        if (I18N_LANG !== 'zh') return s;
         var map = [
           [/^Execute launch promotion for GitHub, Xiaohongshu, V2EX, Reddit, X, and other target communities\..*$/i, '继续推进 GitHub、小红书、V2EX、Reddit 和 X 等渠道的发布推广。'],
           [/^Execute launch promotion for (.+)$/i, '继续推进 $1 的发布推广。'],
@@ -8688,7 +8711,8 @@
         return parts.join(' · ');
       }
       function actionTitleText(text) {
-        var s = String(text || '待办').trim();
+        var s = String(text || t('act.untitled')).trim();
+        if (I18N_LANG !== 'zh') return s;
         var map = [
           [/^Create README 30s demo GIF and backup MP4 for taught-master-applications-skill$/i, '制作留学申请 Skill 的 README 演示视频'],
           [/^Create README 30s demo GIF and backup MP4 for (.+)$/i, '制作 $1 的 README 演示视频'],
@@ -8706,9 +8730,9 @@
         return s;
       }
       function priorityLabel(value) {
-        if (value === 'high' || Number(value) >= 8) return '重要';
-        if (value === 'normal' || Number(value) >= 5) return '普通';
-        return '不急';
+        if (value === 'high' || Number(value) >= 8) return t('act.prio.high');
+        if (value === 'normal' || Number(value) >= 5) return t('act.prio.normal');
+        return t('act.prio.low');
       }
       function priorityClass(value) {
         if (value === 'high' || Number(value) >= 8) return 'high';
@@ -8716,7 +8740,7 @@
         return 'low';
       }
       function compactActionTitle(text) {
-        var s = String(text || '未命名待办').replace(/^(TODO|FIXME)\s*[:：-]\s*/i, '').trim();
+        var s = String(text || t('act.untitled')).replace(/^(TODO|FIXME)\s*[:：-]\s*/i, '').trim();
         var headingMatch = s.match(/#{1,6}\s*([^#\n]+?)(?=\s+#{1,6}\s|$)/);
         if (headingMatch && !/^(Summary|Key Changes|Test Plan|Assumptions|Public API|Implementation)\b/i.test(headingMatch[1].trim())) {
           s = headingMatch[1].trim();
@@ -8728,7 +8752,7 @@
           .replace(/\s+/g, ' ')
           .trim();
         var first = s.split(/[。！？\n]/u)[0] || s;
-        return truncate(actionTitleText(first.replace(/[。！？；;,.，]+$/u, '').trim() || '未命名待办'), 72);
+        return truncate(actionTitleText(first.replace(/[。！？；;,.，]+$/u, '').trim() || t('act.untitled')), 72);
       }
       function stripMarkdownPlanText(text) {
         return String(text || '')
@@ -8768,11 +8792,11 @@
       }
       function actionMetricCards(counts, reviewCount, waitingCount) {
         var metrics = [
-          { label: '待回应', value: waitingCount, primary: waitingCount > 0 },
-          { label: '待确认', value: reviewCount, primary: waitingCount === 0 && reviewCount > 0 },
-          { label: '待跟进', value: counts.pending + counts.blocked, primary: waitingCount === 0 && reviewCount === 0 && (counts.pending + counts.blocked) > 0 },
-          { label: '进行中', value: counts.active, primary: false },
-          { label: '已完成', value: counts.done, primary: false }
+          { label: t('act.metric.waiting'), value: waitingCount, primary: waitingCount > 0 },
+          { label: t('act.metric.review'), value: reviewCount, primary: waitingCount === 0 && reviewCount > 0 },
+          { label: t('act.metric.followUp'), value: counts.pending + counts.blocked, primary: waitingCount === 0 && reviewCount === 0 && (counts.pending + counts.blocked) > 0 },
+          { label: t('act.metric.active'), value: counts.active, primary: false },
+          { label: t('act.metric.done'), value: counts.done, primary: false }
         ];
         var html = '<div class="action-overview">';
         metrics.forEach(function(m) {
@@ -8790,39 +8814,39 @@
           { value: '', label: t('filter.all') }
         ];
         var html = '<div class="actions-filter-row">';
-        html += '<input id="actions-search" class="search-input" type="text" placeholder="搜索待办..." value="' + esc(state.actions.search) + '" style="flex:1;min-width:200px" />';
-        html += '<div class="actions-filter-chips" role="group" aria-label="待办状态筛选">';
+        html += '<input id="actions-search" class="search-input" type="text" placeholder="' + esc(t('act.searchPlaceholder')) + '" value="' + esc(state.actions.search) + '" style="flex:1;min-width:200px" />';
+        html += '<div class="actions-filter-chips" role="group" aria-label="' + esc(t('act.filterAria')) + '">';
         chips.forEach(function(chip) {
           var active = (state.actions.statusFilter || '') === chip.value;
           html += '<button class="actions-filter-chip' + (active ? ' active' : '') + '" data-action="filter-actions-status" data-status="' + esc(chip.value) + '" type="button">' + esc(chip.label) + '</button>';
         });
         html += '</div>';
-        html += '<span style="font-size:12px;color:var(--ink-faint);align-self:center;">' + reviewItems.length + ' 条待确认 · ' + items.length + ' 件已确认</span>';
-        html += '<button class="btn" data-action="refresh-actions" type="button" style="margin-left:auto;">刷新</button>';
+        html += '<span style="font-size:12px;color:var(--ink-faint);align-self:center;">' + reviewItems.length + ' ' + t('act.nToConfirm') + ' · ' + items.length + ' ' + t('act.nConfirmed') + '</span>';
+        html += '<button class="btn" data-action="refresh-actions" type="button" style="margin-left:auto;">' + t('act.refresh') + '</button>';
         html += '</div>';
         return html;
       }
       function renderActionCandidateCard(item) {
         var priority = reviewActionPriority(item);
         var project = reviewProject(item);
-        var title = compactActionTitle(item.title || '未命名待办候选');
+        var title = compactActionTitle(item.title || t('act.untitledCandidate'));
         var preview = candidatePreviewText(item);
         var raw = String(item.content || '').trim();
         var showOriginal = raw && isMarkdownPlanText(raw);
         var html = '<article class="action-item-card action-candidate-card">';
         html += '<div class="action-priority-rail ' + priorityClass(priority) + '"></div>';
         html += '<div class="action-candidate-main">';
-        html += '<div class="action-candidate-head"><span class="badge badge-green">待确认</span><span class="badge badge-muted">' + esc(priorityLabel(priority)) + '</span></div>';
+        html += '<div class="action-candidate-head"><span class="badge badge-green">' + t('filter.review') + '</span><span class="badge badge-muted">' + esc(priorityLabel(priority)) + '</span></div>';
         html += '<div class="action-item-title" style="margin-top:6px;">' + esc(title) + '</div>';
         if (preview) html += '<div class="action-item-desc">' + esc(preview) + '</div>';
         html += '<div class="action-item-meta">';
         if (project) html += '<span class="badge badge-muted">' + esc(projectDisplayName(project)) + '</span>';
         html += '</div>';
         if (showOriginal) {
-          html += '<details class="action-original-disclosure"><summary>查看原文</summary><pre>' + esc(truncate(raw, 1200)) + '</pre></details>';
+          html += '<details class="action-original-disclosure"><summary>' + t('act.viewOriginal') + '</summary><pre>' + esc(truncate(raw, 1200)) + '</pre></details>';
         }
         html += '</div>';
-        html += '<div class="action-item-actions"><button class="btn btn-primary" data-action="edit-review" data-review-id="' + esc(item.id) + '">确认</button><button class="btn" data-action="dismiss-review" data-review-id="' + esc(item.id) + '">忽略</button></div>';
+        html += '<div class="action-item-actions"><button class="btn btn-primary" data-action="edit-review" data-review-id="' + esc(item.id) + '">' + t('act.confirm') + '</button><button class="btn" data-action="dismiss-review" data-review-id="' + esc(item.id) + '">' + t('act.ignore') + '</button></div>';
         html += '</article>';
         return html;
       }
@@ -8834,15 +8858,15 @@
         var actionDesc = actionDescriptionText(a.description);
         if (actionDesc) html += '<div class="action-item-desc">' + esc(truncate(actionDesc, 120)) + '</div>';
         html += '<div class="action-item-meta">';
-        var attention = actionAttentionText(a, isFrontier);
-        if (attention) html += '<span class="badge ' + (attention === '下一步' ? 'badge-green' : 'badge-yellow') + '">' + esc(attention) + '</span>';
+        var attention = actionAttentionKey(a, isFrontier);
+        if (attention) html += '<span class="badge ' + (attention === 'next' ? 'badge-green' : 'badge-yellow') + '">' + esc(t('act.attn.' + attention)) + '</span>';
         html += '<span class="badge badge-muted">' + esc(priorityLabel(a.priority)) + '</span>';
         var sourceText = actionSourceText(a);
-        if (sourceText) html += '<span class="action-meta-text">来自 ' + esc(sourceText) + '</span>';
+        if (sourceText) html += '<span class="action-meta-text">' + t('act.from') + ' ' + esc(sourceText) + '</span>';
         var jumpObsId = Array.isArray(a.sourceObservationIds) ? a.sourceObservationIds.find(function(id) { return typeof id === 'string' && id.length > 0; }) : '';
-        if (jumpObsId) html += '<button class="action-evidence-link" type="button" data-action="jump-to-evidence" data-obs-id="' + esc(jumpObsId) + '">看原文 →</button>';
+        if (jumpObsId) html += '<button class="action-evidence-link" type="button" data-action="jump-to-evidence" data-obs-id="' + esc(jumpObsId) + '">' + t('act.viewSource') + '</button>';
         (a.tags || []).slice(0, 2).forEach(function(t) { html += '<span class="tag">' + esc(t) + '</span>'; });
-        if (a.updatedAt) html += '<span class="action-meta-text">更新 ' + esc(shortTime(a.updatedAt)) + '</span>';
+        if (a.updatedAt) html += '<span class="action-meta-text">' + t('act.updated') + ' ' + esc(shortTime(a.updatedAt)) + '</span>';
         html += '</div></div>';
         html += statusIconMarkup(a.status, statusLabel(a.status));
         html += '</article>';
@@ -8862,7 +8886,7 @@
 
       if (reviewItems.length) {
         html += '<section class="card memory-section" style="padding:14px 16px;margin-bottom:14px;background:#ffffff;">';
-        html += '<div class="memory-section-head"><div><div class="memory-section-title">待确认</div></div><span class="memory-section-count">' + reviewItems.length + ' 条</span></div>';
+        html += '<div class="memory-section-head"><div><div class="memory-section-title">' + t('filter.review') + '</div></div><span class="memory-section-count">' + reviewItems.length + ' ' + t('act.itemsUnit') + '</span></div>';
         html += '<div class="action-card-list">';
         reviewItems.forEach(function(item) {
           html += renderActionCandidateCard(item);
@@ -8875,8 +8899,8 @@
       if (items.length === 0 && reviewItems.length === 0 && !awaitingQuestionsHtml && !awaitingBriefingsHtml && !inboxArchiveHtml) {
         html += '<div class="empty-state">' +
           '<div class="empty-icon">&#9745;</div>' +
-          '<div class="empty-title">还没有待办</div>' +
-          '<div class="empty-lead">这里会放从会话里整理出的待办、卡住事项和已完成事项。</div>' +
+          '<div class="empty-title">' + t('act.empty.title') + '</div>' +
+          '<div class="empty-lead">' + t('act.empty.lead') + '</div>' +
           '</div>';
       } else {
         items = items.slice().sort(function(a, b) {
@@ -8894,7 +8918,7 @@
           var group = items.filter(function(a) { return a.status === status; });
           if (!group.length) return;
           html += '<section class="action-group">';
-          html += '<div class="action-group-head"><div class="action-group-title">' + esc(statusLabel(status)) + '</div><div class="lesson-count-pill">' + group.length + ' 件</div></div>';
+          html += '<div class="action-group-head"><div class="action-group-title">' + esc(statusLabel(status)) + '</div><div class="lesson-count-pill">' + group.length + ' ' + t('act.itemsUnit') + '</div></div>';
           html += '<div class="action-card-list">';
           group.forEach(function(a) {
             var isFrontier = frontierIds.has(a.id);

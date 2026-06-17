@@ -89,4 +89,15 @@ describe("viewer i18n base", () => {
     expect(html).toContain("'dash.recentSessions': 'Recent sessions'");
     expect(html).toContain("'dash.recentSessions': '最近会话'");
   });
+
+  it("actions view is externalized and zh-only rewrites are gated (PLAN-001 STEP-02b)", () => {
+    const { html } = renderViewerDocument();
+    expect(html).toContain("t('act.refresh')");
+    expect(html).toContain("t('act.empty.title')");
+    expect(html).toContain("t('act.attn.' + attention)");
+    // English locale must not receive the Chinese rewrite tables
+    expect(html).toContain("if (I18N_LANG !== 'zh') return s;");
+    expect(html).toContain("'act.refresh': 'Refresh'");
+    expect(html).toContain("'act.refresh': '刷新'");
+  });
 });
