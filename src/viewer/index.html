@@ -8694,6 +8694,7 @@
       html += '<input id="todo-config-LANGEXTRACT_MODEL" class="search-input" value="' + value('LANGEXTRACT_MODEL', 'deepseek/deepseek-v4-pro') + '" placeholder="model" />';
       html += '<input id="todo-config-LANGEXTRACT_BASE_URL" class="search-input" value="' + value('LANGEXTRACT_BASE_URL', 'https://api.novita.ai/openai/v1') + '" placeholder="https://api.novita.ai/openai/v1" />';
       html += '<input id="todo-config-LANGEXTRACT_THINKING_DEPTH" class="search-input" value="' + value('LANGEXTRACT_THINKING_DEPTH', 'medium') + '" placeholder="medium" />';
+      html += '<input id="todo-config-AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS" class="search-input" value="' + value('AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS', '120000') + '" placeholder="120000" />';
       html += '<div><input id="todo-config-LANGEXTRACT_API_KEY" class="search-input" type="password" placeholder="' + esc(keyLabel) + '" />';
       if (maskedKey) html += '<div class="action-meta-text" style="margin-top:4px;">' + esc(t('settings.apiKeyLabel')) + ' ' + esc(maskedKey) + '</div>';
       html += '</div></div>';
@@ -8715,6 +8716,7 @@
         'LANGEXTRACT_MODEL',
         'LANGEXTRACT_BASE_URL',
         'LANGEXTRACT_THINKING_DEPTH',
+        'AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS',
         'LANGEXTRACT_API_KEY'
       ].forEach(function(key) {
         var el = document.getElementById('todo-config-' + key);
@@ -8732,6 +8734,7 @@
         'LANGEXTRACT_MODEL',
         'LANGEXTRACT_BASE_URL',
         'LANGEXTRACT_THINKING_DEPTH',
+        'AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS',
         'LANGEXTRACT_API_KEY'
       ];
       var body = {};

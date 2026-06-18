@@ -1034,6 +1034,7 @@ describe("viewer session rendering", () => {
     expect(getElement("settings-panel").innerHTML).not.toContain("pa/gpt-5.5");
 
     getElement("todo-config-LANGEXTRACT_MODEL").value = "deepseek/deepseek-v4-pro";
+    getElement("todo-config-AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS").value = "120000";
     getElement("todo-config-LANGEXTRACT_API_KEY").value = "secret";
     const target = Object.create(sandbox.Element.prototype);
     target.getAttribute = (name: string) => name === "data-action" ? "save-todo-config" : null;
@@ -1041,7 +1042,7 @@ describe("viewer session rendering", () => {
     dispatchDocumentClick(target);
     await waitFor(() => sandbox.state.actions.extractMessage === "Config saved. Restart the service to apply it.");
 
-    expect(posts[0]).toMatchObject({ LANGEXTRACT_MODEL: "deepseek/deepseek-v4-pro", LANGEXTRACT_API_KEY: "secret" });
+    expect(posts[0]).toMatchObject({ LANGEXTRACT_MODEL: "deepseek/deepseek-v4-pro", AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS: "120000", LANGEXTRACT_API_KEY: "secret" });
     expect(sandbox.state.actions.extractMessage).toBe("Config saved. Restart the service to apply it.");
   });
 
