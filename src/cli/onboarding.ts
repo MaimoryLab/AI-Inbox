@@ -9,8 +9,8 @@
 //      the user recognises them later. The label mirrors README row 1
 //      (native plugins) and row 2 (MCP-only).
 //   2. Which LLM provider to use for compress / consolidate / graph.
-//      Todo extraction is configured separately in the viewer Settings panel
-//      via LANGEXTRACT_*.
+//   3. Whether To-Do extraction should use LangExtract. The API key is still
+//      added later in the viewer Settings panel or ~/.agentmemory/.env.
 //      "skip — BM25-only mode" is a real first-class option; lots of
 //      users want agentmemory purely as a hybrid keyword + vector
 //      memory layer without granting LLM API keys.
@@ -22,7 +22,7 @@
 // `agentmemory-lab init`.
 
 import { copyFile, mkdir } from "node:fs/promises";
-import { constants as fsConstants, existsSync, writeFileSync } from "node:fs";
+import { constants as fsConstants, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,6 +32,10 @@ import { resolveAdapter, runAdapter } from "./connect/index.js";
 import type { ConnectResult } from "./connect/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+function homeDir(): string {
+  return process.env["HOME"] || process.env["USERPROFILE"] || homedir();
+}
 
 // Native plugin row — these agents ship an agentmemory plugin or
 // first-party integration. Glyphs match SkillKit's published set
@@ -69,6 +73,15 @@ const PROVIDERS: { value: string; label: string; envKey: string | null }[] = [
   { value: "minimax", label: "MiniMax — minimax-m1", envKey: "MINIMAX_API_KEY" },
   { value: "skip", label: "Skip — BM25-only mode (no LLM key)", envKey: null },
 ];
+
+const TODO_EXTRACT_DEFAULTS: Record<string, string> = {
+  AGENTMEMORY_TODO_EXTRACTOR: "langextract",
+  LANGEXTRACT_PROVIDER: "openai",
+  LANGEXTRACT_MODEL: "deepseek/deepseek-v4-pro",
+  LANGEXTRACT_BASE_URL: "https://api.novita.ai/openai/v1",
+  LANGEXTRACT_THINKING_DEPTH: "medium",
+  AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS: "120000",
+};
 
 export function buildAgentOptions(): { value: string; label: string; hint?: string }[] {
   return [
@@ -112,7 +125,7 @@ function findEnvExample(): string | null {
 }
 
 async function seedEnvFile(provider: string | null): Promise<string | null> {
-  const target = join(homedir(), ".agentmemory", ".env");
+  const target = join(homeDir(), ".agentmemory", ".env");
   const dir = dirname(target);
   await mkdir(dir, { recursive: true });
 
@@ -142,6 +155,21 @@ async function seedEnvFile(provider: string | null): Promise<string | null> {
   }
 
   return target;
+}
+
+function enableTodoExtractionDefaults(envPath: string): void {
+  const current = existsSync(envPath) ? readFileSync(envPath, "utf-8") : "";
+  const keys = new Set(
+    current
+      .split("\n")
+      .map((line) => line.match(/^\s*([A-Z0-9_]+)\s*=/)?.[1])
+      .filter((key): key is string => !!key),
+  );
+  const additions = Object.entries(TODO_EXTRACT_DEFAULTS)
+    .filter(([key]) => !keys.has(key))
+    .map(([key, value]) => `${key}=${value}`);
+  if (!additions.length) return;
+  writeFileSync(envPath, `${current.replace(/\n*$/, "\n")}${additions.join("\n")}\n`, { mode: 0o600 });
 }
 
 export interface OnboardingResult {
@@ -224,6 +252,21 @@ export async function runOnboarding(): Promise<OnboardingResult> {
 
   const envPath = await seedEnvFile(provider);
 
+  const todoPicked = await p.select<string>({
+    message: "Enable To-Do LLM extraction with LangExtract? (API key can be added later in Settings)",
+    options: [
+      { value: "skip", label: "Skip for now — use the To-Do button after configuring Settings" },
+      { value: "langextract", label: "Enable LangExtract defaults — requires LANGEXTRACT_API_KEY" },
+    ],
+    initialValue: "skip",
+  });
+  if (p.isCancel(todoPicked)) {
+    p.cancel("Setup cancelled. Re-run any time with: agentmemory --reset");
+    process.exit(0);
+  }
+  const todoExtractionEnabled = todoPicked === "langextract";
+  if (todoExtractionEnabled && envPath) enableTodoExtractionDefaults(envPath);
+
   writePrefs({
     lastAgent: agents[0] ?? null,
     lastAgents: agents,
@@ -232,7 +275,7 @@ export async function runOnboarding(): Promise<OnboardingResult> {
     firstRunAt: new Date().toISOString(),
   });
 
-  const prefsLocation = join(homedir(), ".agentmemory", "preferences.json");
+  const prefsLocation = join(homeDir(), ".agentmemory", "preferences.json");
   const lines = [`✓ Saved preferences to ${prefsLocation}`];
   if (envPath) {
     lines.push(`✓ Wrote ${envPath} (edit to add your API key)`);
@@ -247,6 +290,11 @@ export async function runOnboarding(): Promise<OnboardingResult> {
     }
   } else {
     lines.push("  No provider chosen — agentmemory will run in BM25-only mode.");
+  }
+  if (todoExtractionEnabled) {
+    lines.push("  To-Do LLM extraction defaults enabled; add LANGEXTRACT_API_KEY in Settings before running it.");
+  } else {
+    lines.push("  To-Do LLM extraction not enabled during setup; configure it later in Settings.");
   }
   p.note(lines.join("\n"), "ready");
 

@@ -29,6 +29,7 @@ vi.mock("../src/cli/connect/index.js", () => ({
 
 const ORIGINAL_HOME = process.env["HOME"];
 const ORIGINAL_USERPROFILE = process.env["USERPROFILE"];
+const ORIGINAL_CI = process.env["CI"];
 const stdinTtyDescriptor = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");
 const stdoutTtyDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
 
@@ -51,11 +52,16 @@ async function freshOnboarding() {
   return await import("../src/cli/onboarding.js");
 }
 
+function activeEnvLines(env: string): string[] {
+  return env.split("\n").map((line) => line.trim()).filter((line) => line && !line.startsWith("#"));
+}
+
 describe("cli onboarding", () => {
   beforeEach(() => {
     sandboxHome = mkdtempSync(join(tmpdir(), "agentmemory-onboarding-"));
     process.env["HOME"] = sandboxHome;
     process.env["USERPROFILE"] = sandboxHome;
+    process.env["CI"] = "0";
     setTTY(false);
     vi.clearAllMocks();
   });
@@ -66,6 +72,8 @@ describe("cli onboarding", () => {
     else process.env["HOME"] = ORIGINAL_HOME;
     if (ORIGINAL_USERPROFILE === undefined) delete process.env["USERPROFILE"];
     else process.env["USERPROFILE"] = ORIGINAL_USERPROFILE;
+    if (ORIGINAL_CI === undefined) delete process.env["CI"];
+    else process.env["CI"] = ORIGINAL_CI;
     rmSync(sandboxHome, { recursive: true, force: true });
   });
 
@@ -90,5 +98,40 @@ describe("cli onboarding", () => {
       skipSplash: true,
     });
     expect(typeof preferences.firstRunAt).toBe("string");
+  });
+
+  it("keeps To-Do LLM extraction off unless the user opts in", async () => {
+    setTTY(true);
+    prompts.multiselect.mockResolvedValueOnce([]);
+    prompts.select
+      .mockResolvedValueOnce("skip")
+      .mockResolvedValueOnce("skip");
+    const { runOnboarding } = await freshOnboarding();
+
+    await runOnboarding();
+
+    const envPath = join(sandboxHome, ".agentmemory", ".env");
+    const lines = activeEnvLines(readFileSync(envPath, "utf-8"));
+    expect(lines).not.toContain("AGENTMEMORY_TODO_EXTRACTOR=langextract");
+    expect(lines.some((line) => line.startsWith("LANGEXTRACT_API_KEY="))).toBe(false);
+  });
+
+  it("writes To-Do LangExtract defaults when the user opts in", async () => {
+    setTTY(true);
+    prompts.multiselect.mockResolvedValueOnce([]);
+    prompts.select
+      .mockResolvedValueOnce("skip")
+      .mockResolvedValueOnce("langextract");
+    const { runOnboarding } = await freshOnboarding();
+
+    await runOnboarding();
+
+    const envPath = join(sandboxHome, ".agentmemory", ".env");
+    const lines = activeEnvLines(readFileSync(envPath, "utf-8"));
+    expect(lines).toContain("AGENTMEMORY_TODO_EXTRACTOR=langextract");
+    expect(lines).toContain("LANGEXTRACT_PROVIDER=openai");
+    expect(lines).toContain("LANGEXTRACT_MODEL=deepseek/deepseek-v4-pro");
+    expect(lines).toContain("LANGEXTRACT_BASE_URL=https://api.novita.ai/openai/v1");
+    expect(lines.some((line) => line.startsWith("LANGEXTRACT_API_KEY="))).toBe(false);
   });
 });
