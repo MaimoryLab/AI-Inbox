@@ -5045,7 +5045,7 @@
     }
     function isActionReviewRenderable(item) {
       if (!item) return false;
-      return isReviewItemDisplayable(item);
+      return item.kind === 'action' && isReviewItemDisplayable(item);
     }
     function actionTags(action) {
       return Array.isArray(action && action.tags) ? action.tags.map(String) : [];
@@ -8598,7 +8598,7 @@
       if (state.settings.open) {
         loadTodoExtractorConfig().then(renderSettingsPanel).catch(function() {});
       }
-      if (opts.generate !== false) startTodoExtraction(opts.force === true);
+      if (opts.generate === true) startTodoExtraction(opts.force === true);
     }
 
     function todoExtractionDelta(result) {

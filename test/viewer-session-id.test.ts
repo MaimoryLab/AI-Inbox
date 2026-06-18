@@ -784,8 +784,8 @@ describe("viewer session rendering", () => {
     expect(detail).not.toContain("加载会话详情中");
   });
 
-  it("loads actions and runs small todo extraction in the background", async () => {
-    const { sandbox, getElement } = loadViewerSandbox();
+  it("loads actions without running LLM extraction by default", async () => {
+    const { sandbox } = loadViewerSandbox();
     const urls: string[] = [];
     const posts: Array<{ url: string; body: unknown }> = [];
     sandbox.fetch = async (input: unknown, init?: { body?: string }) => {
@@ -819,21 +819,46 @@ describe("viewer session rendering", () => {
       extractMessage: "",
       extractInFlight: false,
     };
-    await sandbox.loadActions({ generate: true, force: true });
-    await flushPromises(16);
+    await sandbox.loadActions();
+    await flushPromises(8);
 
     expect(urls.some((url) => url.includes("actions"))).toBe(true);
     expect(urls.some((url) => url.includes("inbox?status=awaiting"))).toBe(true);
     expect(urls.some((url) => url.includes("inbox?status=answered"))).toBe(true);
     expect(urls.some((url) => url.includes("inbox?status=dismissed"))).toBe(true);
-    expect(urls.some((url) => url.includes("todo-extract/generate"))).toBe(true);
+    expect(urls.some((url) => url.includes("todo-extract/generate"))).toBe(false);
     expect(urls.some((url) => url.includes("review/actions/generate"))).toBe(false);
+    expect(posts).toHaveLength(0);
+  });
+
+  it("runs LLM extraction only when explicitly requested", async () => {
+    const { sandbox } = loadViewerSandbox();
+    const posts: Array<{ url: string; body: unknown }> = [];
+    sandbox.fetch = async (input: unknown, init?: { body?: string }) => {
+      const url = String(input);
+      if (url.includes("todo-extract/generate")) {
+        posts.push({ url, body: init?.body ? JSON.parse(init.body) : null });
+        return { ok: true, json: async () => ({ success: true, directCreated: 1, reviewCreated: 0 }) };
+      }
+      if (url.includes("review?status=pending")) return { ok: true, json: async () => ({ items: [] }) };
+      if (url.includes("frontier")) return { ok: true, json: async () => ({ frontier: [] }) };
+      if (url.includes("actions")) return { ok: true, json: async () => ({ actions: [] }) };
+      return { ok: true, json: async () => ({}) };
+    };
+
+    sandbox.state.activeTab = "actions";
+    await sandbox.loadActions();
+    await flushPromises(8);
+    expect(posts).toHaveLength(0);
+
+    await sandbox.loadActions({ generate: true, force: true });
+    await flushPromises(16);
+    expect(posts).toHaveLength(1);
     expect(posts[0].body).toMatchObject({
       maxSessions: 1,
       maxObservationsPerSession: 20,
       force: true,
     });
-    expect(sandbox.state.actions.extractMessage).toContain("new 1");
   });
 
   it("does not start duplicate todo extraction while one is in flight", async () => {
@@ -1296,6 +1321,15 @@ describe("viewer session rendering", () => {
           source: "viewer",
           payload: { actionCandidate: { reason: "follow_up" }, tags: ["action-candidate"] },
         },
+        {
+          id: "review_memory",
+          status: "pending",
+          kind: "memory",
+          title: "记忆总结卡片",
+          content: "这是一张记忆总结，不应出现在待办确认区。",
+          source: "viewer",
+          payload: { tags: ["browser"] },
+        },
       ],
     };
     sandbox.state.inbox = { loaded: true, items: [] };
@@ -1306,6 +1340,7 @@ describe("viewer session rendering", () => {
     expect(html).toContain("整理验收截图");
     expect(html).toContain("1 to confirm");
     expect(html).not.toContain("action-candidate-card");
+    expect(html).not.toContain("记忆总结卡片");
     expect(html).not.toContain("No todos yet");
   });
 
@@ -1354,6 +1389,15 @@ describe("viewer session rendering", () => {
           source: "viewer",
           payload: { actionCandidate: { reason: "todo" }, tags: ["action-candidate"] },
         },
+        {
+          id: "review_memory",
+          status: "pending",
+          kind: "memory",
+          title: "记忆总结卡片",
+          content: "这是一张记忆总结，不应出现在待办确认区。",
+          source: "viewer",
+          payload: { tags: ["browser"] },
+        },
       ],
     };
 
@@ -1362,6 +1406,7 @@ describe("viewer session rendering", () => {
 
     expect(html).toContain("修复待办候选展示");
     expect(html).toContain("action-candidate-card");
+    expect(html).not.toContain("记忆总结卡片");
     expect(html).toContain("Review");
     expect(html).toContain("Confirm");
     expect(html).toContain("Ignore");
