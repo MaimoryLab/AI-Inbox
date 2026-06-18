@@ -21,6 +21,9 @@ import {
   isContextInjectionEnabled,
   detectEmbeddingProvider,
   detectLlmProviderKind,
+  getTodoExtractorUserConfig,
+  getUserEnvPath,
+  writeUserEnv,
   getAgentId,
   isAgentScopeIsolated,
 } from "../config.js";
@@ -35,6 +38,13 @@ function parseOptionalInt(raw: unknown): number | undefined {
   if (raw === undefined || raw === null || raw === "") return undefined;
   const n = typeof raw === "number" ? raw : parseInt(String(raw), 10);
   return Number.isFinite(n) ? n : undefined;
+}
+
+function cleanConfigValue(raw: unknown): string | null {
+  if (raw === undefined || raw === null) return null;
+  const value = String(raw).trim();
+  if (!value || /[\r\n]/.test(value)) return null;
+  return value;
 }
 
 function checkAuth(
@@ -486,6 +496,58 @@ export function registerApiTriggers(
     function_id: "api::config-flags",
     config: {
       api_path: "/agentmemory/config/flags",
+      http_method: "GET",
+      middleware_function_ids: ["middleware::api-auth"],
+    },
+  });
+
+  sdk.registerFunction("api::todo-extractor-config",
+    async (req: ApiRequest): Promise<Response> => {
+      const authErr = checkAuth(req, secret);
+      if (authErr) return authErr;
+      if (req.body && Object.keys(req.body as Record<string, unknown>).length) {
+        const body = req.body as Record<string, unknown>;
+        const updates: Record<string, string> = {};
+        const fields = [
+          "AGENTMEMORY_TODO_EXTRACTOR",
+          "LANGEXTRACT_PYTHON",
+          "LANGEXTRACT_MODEL",
+          "LANGEXTRACT_PROVIDER",
+          "LANGEXTRACT_API_KEY",
+          "LANGEXTRACT_BASE_URL",
+          "LANGEXTRACT_THINKING_DEPTH",
+        ];
+        for (const key of fields) {
+          const value = cleanConfigValue(body[key]);
+          if (value) updates[key] = value;
+        }
+        if (Object.keys(updates).length) writeUserEnv(updates);
+      }
+      return {
+        status_code: 200,
+        body: {
+          success: true,
+          envPath: getUserEnvPath(),
+          config: getTodoExtractorUserConfig(),
+          restartRequired: true,
+        },
+      };
+    },
+  );
+  sdk.registerTrigger({
+    type: "http",
+    function_id: "api::todo-extractor-config",
+    config: {
+      api_path: "/agentmemory/config/todo-extractor",
+      http_method: "POST",
+      middleware_function_ids: ["middleware::api-auth"],
+    },
+  });
+  sdk.registerTrigger({
+    type: "http",
+    function_id: "api::todo-extractor-config",
+    config: {
+      api_path: "/agentmemory/config/todo-extractor",
       http_method: "GET",
       middleware_function_ids: ["middleware::api-auth"],
     },

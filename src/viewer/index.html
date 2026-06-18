@@ -4136,7 +4136,7 @@
       audit: { loaded: false, entries: [], opFilter: '' },
       activity: { loaded: false, observations: [], sessions: [], typeFilter: '', loadingPhase: '', warnings: [] },
       lessons: { loaded: false, items: [], search: '', skillSearch: '', skillRootFilter: 'all', mode: 'explicit', projects: [] },
-      actions: { loaded: false, items: [], reviewItems: [], frontier: [], statusFilter: '', search: '', doneExpanded: false, extractStatus: '', extractMessage: '', extractInFlight: false },
+      actions: { loaded: false, items: [], reviewItems: [], frontier: [], statusFilter: '', search: '', doneExpanded: false, extractStatus: '', extractMessage: '', extractInFlight: false, stale: false, config: null, configOpen: false, configSaving: false },
       inbox: { loaded: false, items: [], awaitingItems: [], answeredItems: [], dismissedItems: [], replyingId: null, pendingById: {}, briefingExpanded: false, answeredExpanded: false },
       crystals: { loaded: false, items: [], search: '', lessonMap: {} },
       profile: { loaded: false, projects: [], selectedProject: '', data: null },
@@ -5776,6 +5776,11 @@
       state.sessions.stale = true;
       if (state.activeTab === 'sessions') renderSessionsStaleNotice();
     }
+    function markActionsStale(message) {
+      state.actions.stale = true;
+      if (message) state.actions.extractMessage = message;
+      if (state.activeTab === 'actions' && !actionsScrolledAway()) renderActions();
+    }
     function refreshActiveTab(reason) {
       reason = reason || 'manual';
       switch (state.activeTab) {
@@ -5790,7 +5795,14 @@
           }
           break;
         case 'lessons': state.lessons.loaded = false; loadLessons(); break;
-        case 'actions': state.actions.loaded = false; loadActions({ generate: reason === 'manual', force: reason === 'manual' }); break;
+        case 'actions':
+          if (reason === 'manual') {
+            state.actions.loaded = false;
+            loadActions({ generate: false });
+          } else {
+            markActionsStale('有新会话记录，待办暂未自动刷新。');
+          }
+          break;
         case 'activity': state.activity.loaded = false; loadActivity(); break;
       }
     }
@@ -8223,12 +8235,16 @@
       state.actions.reviewItems = reviewItems;
       state.actions.frontier = frontier;
       state.actions.loaded = true;
+      state.actions.stale = false;
       state.inbox.awaitingItems = (results[3] && results[3].items) || [];
       state.inbox.answeredItems = (results[4] && results[4].items) || [];
       state.inbox.dismissedItems = (results[5] && results[5].items) || [];
       state.inbox.items = state.inbox.awaitingItems;
       state.inbox.loaded = true;
       renderActions();
+      if (!state.actions.config) loadTodoExtractorConfig().then(function() {
+        if (state.activeTab === 'actions' && state.actions.configOpen) renderActions();
+      }).catch(function() {});
       if (opts.generate !== false) startTodoExtraction(opts.force === true);
     }
 
@@ -8252,6 +8268,74 @@
       });
     }
 
+    function actionsScrolledAway() {
+      try {
+        var y = window.pageYOffset ||
+          (document.documentElement && document.documentElement.scrollTop) ||
+          (document.body && document.body.scrollTop) ||
+          0;
+        return state.activeTab === 'actions' && y > 80;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function loadTodoExtractorConfig() {
+      return apiGet('config/todo-extractor').then(function(res) {
+        if (res && res.config) state.actions.config = res;
+        return res;
+      });
+    }
+
+    function saveTodoExtractorConfig() {
+      var fields = [
+        'AGENTMEMORY_TODO_EXTRACTOR',
+        'LANGEXTRACT_PYTHON',
+        'LANGEXTRACT_PROVIDER',
+        'LANGEXTRACT_MODEL',
+        'LANGEXTRACT_BASE_URL',
+        'LANGEXTRACT_THINKING_DEPTH',
+        'LANGEXTRACT_API_KEY'
+      ];
+      var body = {};
+      fields.forEach(function(key) {
+        var el = document.getElementById('todo-config-' + key);
+        if (el && String(el.value || '').trim()) body[key] = String(el.value || '').trim();
+      });
+      state.actions.configSaving = true;
+      renderActions();
+      apiPost('config/todo-extractor', body).then(function(res) {
+        if (res && res.config) state.actions.config = res;
+        state.actions.extractMessage = '配置已保存，重启后生效。';
+      }).catch(function() {
+        state.actions.extractStatus = 'error';
+        state.actions.extractMessage = '配置保存失败';
+      }).then(function() {
+        state.actions.configSaving = false;
+        if (state.activeTab === 'actions') renderActions();
+      });
+    }
+
+    function updateActionStatus(actionId, status) {
+      if (!actionId || !status) return;
+      apiPost('actions/update', { actionId: actionId, status: status }).then(function(res) {
+        if (!res || res.success === false) {
+          state.actions.extractStatus = 'error';
+          state.actions.extractMessage = '待办状态更新失败';
+          renderActions();
+          return;
+        }
+        state.actions.items = (state.actions.items || []).map(function(a) {
+          return a.id === actionId ? Object.assign({}, a, { status: status, updatedAt: new Date().toISOString() }) : a;
+        });
+        renderActions();
+      }).catch(function() {
+        state.actions.extractStatus = 'error';
+        state.actions.extractMessage = '待办状态更新失败';
+        renderActions();
+      });
+    }
+
     function startTodoExtraction(force) {
       if (state.actions.extractInFlight) return;
       state.actions.extractInFlight = true;
@@ -8263,9 +8347,17 @@
         if (!state.actions.extractInFlight || softRefreshDone) return;
         softRefreshDone = true;
         state.actions.extractMessage = '已显示最新待办，后台仍在整理...';
+        if (actionsScrolledAway()) {
+          state.actions.stale = true;
+          return;
+        }
         if (state.activeTab === 'actions') renderActions();
         refreshActionListsAfterExtract().then(function() {
           if (!state.actions.extractInFlight) return;
+          if (actionsScrolledAway()) {
+            state.actions.stale = true;
+            return;
+          }
           if (state.activeTab === 'actions') renderActions();
         }).catch(function() {});
       }, 12000);
@@ -8282,6 +8374,10 @@
         }
         state.actions.extractStatus = 'done';
         state.actions.extractMessage = delta > 0 ? '已更新 ' + delta + ' 张待办' : '最近会话没有新的待办';
+        if (actionsScrolledAway()) {
+          state.actions.stale = delta > 0;
+          return null;
+        }
         return refreshActionListsAfterExtract();
       }).catch(function() {
         state.actions.extractStatus = 'error';
@@ -8289,9 +8385,9 @@
       }).then(function() {
         clearTimeout(softRefreshTimer);
         state.actions.extractInFlight = false;
-        if (state.activeTab === 'actions') {
+        if (state.activeTab === 'actions' && !actionsScrolledAway()) {
           renderActions();
-        } else {
+        } else if (state.activeTab !== 'actions') {
           state.actions.loaded = false;
         }
       });
@@ -8949,8 +9045,35 @@
         });
         html += '</div>';
         html += '<span style="font-size:12px;color:var(--ink-faint);align-self:center;">' + reviewItems.length + ' ' + t('act.nToConfirm') + ' · ' + items.length + ' ' + t('act.nConfirmed') + '</span>';
-        html += '<button class="btn" data-action="refresh-actions" type="button" style="margin-left:auto;">' + t('act.refresh') + '</button>';
+        html += '<button class="btn btn-primary" data-action="extract-actions" type="button" style="margin-left:auto;"' + (state.actions.extractInFlight ? ' disabled' : '') + '>用大模型整理</button>';
+        html += '<button class="btn" data-action="toggle-todo-config" type="button">配置</button>';
+        html += '<button class="btn" data-action="refresh-actions" type="button">' + t('act.refresh') + '</button>';
         html += '</div>';
+        return html;
+      }
+      function renderActionsStaleNotice() {
+        if (!state.actions.stale) return '';
+        return '<div class="activity-status-card activity-status-warning" style="margin-bottom:12px;"><div class="activity-status-main"><span class="activity-status-dot"></span><span>有新记录，待办列表暂未自动刷新。</span></div><button class="btn btn-primary" data-action="refresh-actions" type="button">刷新待办</button></div>';
+      }
+      function renderTodoConfigPanel() {
+        if (!state.actions.configOpen) return '';
+        var cfg = (state.actions.config && state.actions.config.config) || {};
+        var value = function(key, fallback) { return esc(cfg[key] || fallback || ''); };
+        var keyLabel = cfg.LANGEXTRACT_API_KEY_CONFIGURED ? '已配置，留空保持不变' : '未配置';
+        var html = '<section class="card memory-section" style="padding:14px 16px;margin-bottom:14px;background:#ffffff;">';
+        html += '<div class="memory-section-head"><div><div class="memory-section-title">大模型抽取配置</div><div class="memory-section-sub">保存到用户配置，重启后生效。</div></div></div>';
+        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;">';
+        html += '<input id="todo-config-AGENTMEMORY_TODO_EXTRACTOR" class="search-input" value="' + value('AGENTMEMORY_TODO_EXTRACTOR', 'auto') + '" placeholder="auto|rules|langextract" />';
+        html += '<input id="todo-config-LANGEXTRACT_PYTHON" class="search-input" value="' + value('LANGEXTRACT_PYTHON', 'python3') + '" placeholder="python3" />';
+        html += '<input id="todo-config-LANGEXTRACT_PROVIDER" class="search-input" value="' + value('LANGEXTRACT_PROVIDER', 'openai') + '" placeholder="openai" />';
+        html += '<input id="todo-config-LANGEXTRACT_MODEL" class="search-input" value="' + value('LANGEXTRACT_MODEL', 'pa/gpt-5.5') + '" placeholder="model" />';
+        html += '<input id="todo-config-LANGEXTRACT_BASE_URL" class="search-input" value="' + value('LANGEXTRACT_BASE_URL', '') + '" placeholder="https://api.novita.ai/openai/v1" />';
+        html += '<input id="todo-config-LANGEXTRACT_THINKING_DEPTH" class="search-input" value="' + value('LANGEXTRACT_THINKING_DEPTH', 'medium') + '" placeholder="medium" />';
+        html += '<input id="todo-config-LANGEXTRACT_API_KEY" class="search-input" type="password" placeholder="' + esc(keyLabel) + '" />';
+        html += '</div><div style="display:flex;gap:8px;margin-top:10px;align-items:center;">';
+        html += '<button class="btn btn-primary" data-action="save-todo-config" type="button"' + (state.actions.configSaving ? ' disabled' : '') + '>保存配置</button>';
+        if (state.actions.config && state.actions.config.envPath) html += '<span class="action-meta-text">' + esc(state.actions.config.envPath) + '</span>';
+        html += '</div></section>';
         return html;
       }
       function renderTodoExtractStatus() {
@@ -9000,7 +9123,12 @@
         actionVisibleTags(a.tags).forEach(function(t) { html += '<span class="tag">' + esc(t) + '</span>'; });
         if (a.updatedAt) html += '<span class="action-meta-text">' + t('act.updated') + ' ' + esc(shortTime(a.updatedAt)) + '</span>';
         html += '</div></div>';
+        html += '<div class="action-item-actions">';
+        if (a.status !== 'done') html += '<button class="btn" data-action="action-status" data-action-id="' + esc(a.id || '') + '" data-status="done" type="button">完成</button>';
+        if (a.status !== 'cancelled') html += '<button class="btn" data-action="action-status" data-action-id="' + esc(a.id || '') + '" data-status="cancelled" type="button">归档</button>';
+        if (a.status !== 'cancelled') html += '<button class="btn btn-danger" data-action="action-status" data-action-id="' + esc(a.id || '') + '" data-status="cancelled" type="button">删除</button>';
         html += statusIconMarkup(a.status, statusLabel(a.status));
+        html += '</div>';
         html += '</article>';
         return html;
       }
@@ -9012,7 +9140,7 @@
       var awaitingBriefingsHtml = renderAwaitingBriefingSection();
       var inboxArchiveHtml = renderInboxArchiveSection();
 
-      var html = renderTodoExtractStatus() + renderActionFilters();
+      var html = renderTodoExtractStatus() + renderActionsStaleNotice() + renderTodoConfigPanel() + renderActionFilters();
       html += actionMetricCards(statusCounts, reviewItems.length, waitingCount);
       html += awaitingQuestionsHtml;
 
@@ -9553,7 +9681,7 @@
         }
       }
       if (state.activeTab === 'lessons') loadLessons();
-      if (state.activeTab === 'actions') loadActions({ generate: false });
+      if (state.activeTab === 'actions') markActionsStale('有新会话记录，待办暂未自动刷新。');
       if (state.activeTab === 'activity' && msg.observation) {
         state.activity.observations.unshift(msg.observation);
         renderActivity();
@@ -9785,7 +9913,25 @@
       }
       if (action === 'refresh-actions') {
         state.actions.loaded = false;
-        loadActions({ generate: true, force: true });
+        loadActions({ generate: false });
+        return;
+      }
+      if (action === 'extract-actions') {
+        startTodoExtraction(true);
+        return;
+      }
+      if (action === 'toggle-todo-config') {
+        state.actions.configOpen = !state.actions.configOpen;
+        if (state.actions.configOpen && !state.actions.config) loadTodoExtractorConfig().then(function() { renderActions(); });
+        renderActions();
+        return;
+      }
+      if (action === 'save-todo-config') {
+        saveTodoExtractorConfig();
+        return;
+      }
+      if (action === 'action-status') {
+        updateActionStatus(target.getAttribute('data-action-id') || '', target.getAttribute('data-status') || '');
         return;
       }
       if (action === 'refresh-sessions') {

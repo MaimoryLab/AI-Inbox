@@ -859,6 +859,137 @@ describe("viewer session rendering", () => {
     expect(posts).toHaveLength(1);
   });
 
+  it("marks actions stale instead of reloading them on websocket updates", () => {
+    const { sandbox, getElement } = loadViewerSandbox();
+    let loadCalls = 0;
+    sandbox.loadActions = () => {
+      loadCalls++;
+    };
+    sandbox.state.activeTab = "actions";
+    sandbox.window.pageYOffset = 200;
+    sandbox.state.actions = {
+      loaded: true,
+      items: [{ id: "act-1", title: "Keep scroll", status: "pending" }],
+      frontier: [],
+      statusFilter: "",
+      search: "",
+      reviewItems: [],
+      extractStatus: "",
+      extractMessage: "",
+      extractInFlight: false,
+      stale: false,
+    };
+    sandbox.routeWsMessage({ observation: { id: "obs-1", sessionId: "s1", timestamp: "2026-06-17T10:00:00Z" } });
+
+    expect(loadCalls).toBe(0);
+    expect(sandbox.state.actions.stale).toBe(true);
+    expect(getElement("view-actions").innerHTML).not.toContain("有新记录");
+  });
+
+  it("uses the explicit LLM extract button instead of refresh for generation", () => {
+    const { sandbox, dispatchDocumentClick } = loadViewerSandbox();
+    let started = 0;
+    let loaded = 0;
+    sandbox.startTodoExtraction = (force: boolean) => {
+      if (force) started++;
+    };
+    sandbox.loadActions = () => {
+      loaded++;
+    };
+
+    const extract = Object.create(sandbox.Element.prototype);
+    extract.getAttribute = (name: string) => name === "data-action" ? "extract-actions" : null;
+    extract.closest = (selector: string) => selector === "[data-action]" ? extract : null;
+    dispatchDocumentClick(extract);
+
+    const refresh = Object.create(sandbox.Element.prototype);
+    refresh.getAttribute = (name: string) => name === "data-action" ? "refresh-actions" : null;
+    refresh.closest = (selector: string) => selector === "[data-action]" ? refresh : null;
+    dispatchDocumentClick(refresh);
+
+    expect(started).toBe(1);
+    expect(loaded).toBe(1);
+  });
+
+  it("renders action status controls and posts status updates", async () => {
+    const { sandbox, getElement, dispatchDocumentClick } = loadViewerSandbox();
+    const posts: Array<{ url: string; body: any }> = [];
+    sandbox.fetch = async (input: unknown, init?: { body?: string }) => {
+      const url = String(input);
+      if (url.includes("actions/update")) {
+        posts.push({ url, body: init?.body ? JSON.parse(init.body) : null });
+        return { ok: true, json: async () => ({ success: true, action: { id: "act-1", status: "done" } }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    };
+    sandbox.state.activeTab = "actions";
+    sandbox.state.actions = {
+      loaded: true,
+      items: [{ id: "act-1", title: "Finish me", status: "pending", tags: [] }],
+      frontier: [],
+      statusFilter: "",
+      search: "",
+      reviewItems: [],
+    };
+    sandbox.state.inbox = { loaded: true, items: [] };
+    sandbox.renderActions();
+    expect(getElement("view-actions").innerHTML).toContain("完成");
+    expect(getElement("view-actions").innerHTML).toContain("归档");
+    expect(getElement("view-actions").innerHTML).toContain("删除");
+
+    const target = Object.create(sandbox.Element.prototype);
+    target.getAttribute = (name: string) => {
+      if (name === "data-action") return "action-status";
+      if (name === "data-action-id") return "act-1";
+      if (name === "data-status") return "done";
+      return null;
+    };
+    target.closest = (selector: string) => selector === "[data-action]" ? target : null;
+    dispatchDocumentClick(target);
+    await waitFor(() => sandbox.state.actions.items[0].status === "done");
+
+    expect(posts[0].body).toMatchObject({ actionId: "act-1", status: "done" });
+    expect(sandbox.state.actions.items[0].status).toBe("done");
+  });
+
+  it("renders and saves todo extractor config from the actions page", async () => {
+    const { sandbox, getElement, dispatchDocumentClick } = loadViewerSandbox();
+    const posts: any[] = [];
+    sandbox.fetch = async (input: unknown, init?: { body?: string }) => {
+      const url = String(input);
+      if (url.includes("config/todo-extractor") && init?.body) {
+        posts.push(JSON.parse(init.body));
+        return { ok: true, json: async () => ({ success: true, envPath: "/tmp/.env", config: { LANGEXTRACT_MODEL: "pa/gpt-5.5", LANGEXTRACT_API_KEY_CONFIGURED: true } }) };
+      }
+      return { ok: true, json: async () => ({ success: true, envPath: "/tmp/.env", config: { LANGEXTRACT_MODEL: "pa/gpt-5.5", LANGEXTRACT_API_KEY_CONFIGURED: false } }) };
+    };
+    sandbox.state.activeTab = "actions";
+    sandbox.state.actions = {
+      loaded: true,
+      items: [],
+      frontier: [],
+      statusFilter: "",
+      search: "",
+      reviewItems: [],
+      configOpen: true,
+      config: { envPath: "/tmp/.env", config: { LANGEXTRACT_MODEL: "pa/gpt-5.5", LANGEXTRACT_API_KEY_CONFIGURED: false } },
+    };
+    sandbox.state.inbox = { loaded: true, items: [] };
+    sandbox.renderActions();
+    expect(getElement("view-actions").innerHTML).toContain("大模型抽取配置");
+
+    getElement("todo-config-LANGEXTRACT_MODEL").value = "pa/gpt-5.5";
+    getElement("todo-config-LANGEXTRACT_API_KEY").value = "secret";
+    const target = Object.create(sandbox.Element.prototype);
+    target.getAttribute = (name: string) => name === "data-action" ? "save-todo-config" : null;
+    target.closest = (selector: string) => selector === "[data-action]" ? target : null;
+    dispatchDocumentClick(target);
+    await waitFor(() => sandbox.state.actions.extractMessage === "配置已保存，重启后生效。");
+
+    expect(posts[0]).toMatchObject({ LANGEXTRACT_MODEL: "pa/gpt-5.5", LANGEXTRACT_API_KEY: "secret" });
+    expect(sandbox.state.actions.extractMessage).toBe("配置已保存，重启后生效。");
+  });
+
   it("soft-refreshes actions while todo extraction is still running", async () => {
     const { sandbox, runTimers } = loadViewerSandbox();
     const actionResponses = [

@@ -13,6 +13,7 @@ import { renderViewerDocument } from "./document.js";
 import type { Action, CompressedObservation, Memory, ReviewQueueItem, Session } from "../types.js";
 import { KV } from "../state/schema.js";
 import { buildTurnActionDrafts } from "../functions/action-candidates.js";
+import { getTodoExtractorUserConfig, getUserEnvPath, writeUserEnv } from "../config.js";
 
 // Self-host the viewer favicon at /favicon.svg instead of an inline
 // data: URI so the viewer CSP can stay tight at `img-src 'self'`.
@@ -1377,6 +1378,60 @@ export function startViewerServer(
       if (params.parentId) actions = actions.filter((action) => action.parentId === params.parentId);
       actions.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
       json(res, 200, { success: true, actions: actions.slice(0, limit) }, req);
+      return;
+    }
+
+    if (method === "POST" && pathname === "/agentmemory/actions/update") {
+      const raw = await readBody(req);
+      const body = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+      const actionId = asText(body.actionId);
+      const status = asText(body.status);
+      if (!actionId) {
+        json(res, 400, { error: "actionId is required" }, req);
+        return;
+      }
+      const validStatuses = new Set(["pending", "active", "done", "blocked", "cancelled"]);
+      if (status && !validStatuses.has(status)) {
+        json(res, 400, { error: `invalid status: ${status}` }, req);
+        return;
+      }
+      const action = await (kv as ViewerKv).get<Action>(KV.actions, actionId);
+      if (!action) {
+        json(res, 404, { success: false, error: "action not found" }, req);
+        return;
+      }
+      if (status) action.status = status as Action["status"];
+      action.updatedAt = new Date().toISOString();
+      await (kv as ViewerKv).set(KV.actions, action.id, action);
+      json(res, 200, { success: true, action }, req);
+      return;
+    }
+
+    if (pathname === "/agentmemory/config/todo-extractor" && (method === "GET" || method === "POST")) {
+      if (method === "POST") {
+        const raw = await readBody(req);
+        const body = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+        const updates: Record<string, string> = {};
+        [
+          "AGENTMEMORY_TODO_EXTRACTOR",
+          "LANGEXTRACT_PYTHON",
+          "LANGEXTRACT_MODEL",
+          "LANGEXTRACT_PROVIDER",
+          "LANGEXTRACT_API_KEY",
+          "LANGEXTRACT_BASE_URL",
+          "LANGEXTRACT_THINKING_DEPTH",
+        ].forEach((key) => {
+          const value = asText(body[key]);
+          if (value && !/[\r\n]/.test(value)) updates[key] = value;
+        });
+        if (Object.keys(updates).length) writeUserEnv(updates);
+      }
+      json(res, 200, {
+        success: true,
+        envPath: getUserEnvPath(),
+        config: getTodoExtractorUserConfig(),
+        restartRequired: true,
+      }, req);
       return;
     }
 

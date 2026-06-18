@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type {
@@ -18,6 +18,15 @@ function safeParseInt(value: string | undefined, fallback: number): number {
 
 const DATA_DIR = join(homedir(), ".agentmemory");
 const ENV_FILE = join(DATA_DIR, ".env");
+const WRITABLE_TODO_EXTRACT_KEYS = new Set([
+  "AGENTMEMORY_TODO_EXTRACTOR",
+  "LANGEXTRACT_PYTHON",
+  "LANGEXTRACT_MODEL",
+  "LANGEXTRACT_PROVIDER",
+  "LANGEXTRACT_API_KEY",
+  "LANGEXTRACT_BASE_URL",
+  "LANGEXTRACT_THINKING_DEPTH",
+]);
 
 let warnPremiumModelShown = false;
 
@@ -43,6 +52,47 @@ function loadEnvFile(): Record<string, string> {
     vars[key] = val;
   }
   return vars;
+}
+
+export function getUserEnvPath(): string {
+  return ENV_FILE;
+}
+
+export function getTodoExtractorUserConfig(): Record<string, string | boolean> {
+  const env = getMergedEnv();
+  return {
+    AGENTMEMORY_TODO_EXTRACTOR: env["AGENTMEMORY_TODO_EXTRACTOR"] || "auto",
+    LANGEXTRACT_PYTHON: env["LANGEXTRACT_PYTHON"] || "python3",
+    LANGEXTRACT_MODEL: env["LANGEXTRACT_MODEL"] || "pa/gpt-5.5",
+    LANGEXTRACT_PROVIDER: env["LANGEXTRACT_PROVIDER"] || "",
+    LANGEXTRACT_BASE_URL: env["LANGEXTRACT_BASE_URL"] || "",
+    LANGEXTRACT_THINKING_DEPTH: env["LANGEXTRACT_THINKING_DEPTH"] || "medium",
+    LANGEXTRACT_API_KEY_CONFIGURED: hasRealValue(env["LANGEXTRACT_API_KEY"]),
+  };
+}
+
+export function writeUserEnv(updates: Record<string, string>): void {
+  const cleanEntries = Object.entries(updates).filter(
+    ([key, value]) => WRITABLE_TODO_EXTRACT_KEYS.has(key) && value.trim().length > 0 && !/[\r\n]/.test(value),
+  );
+  if (!cleanEntries.length) return;
+  mkdirSync(DATA_DIR, { recursive: true });
+  const current = existsSync(ENV_FILE) ? readFileSync(ENV_FILE, "utf-8") : "";
+  const lines = current ? current.split("\n") : [];
+  const seen = new Set<string>();
+  const next = lines.map((line) => {
+    const match = line.match(/^\s*([A-Z0-9_]+)\s*=/);
+    if (!match) return line;
+    const key = match[1];
+    const update = cleanEntries.find(([k]) => k === key);
+    if (!update) return line;
+    seen.add(key);
+    return `${key}=${update[1]}`;
+  });
+  cleanEntries.forEach(([key, value]) => {
+    if (!seen.has(key)) next.push(`${key}=${value}`);
+  });
+  writeFileSync(ENV_FILE, next.join("\n").replace(/\n*$/, "\n"), { mode: 0o600 });
 }
 
 function hasRealValue(v: string | undefined): v is string {

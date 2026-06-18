@@ -43,6 +43,7 @@ import { isFirstRun, readPrefs, resetPrefs, writePrefs } from "./cli/preferences
 import { runOnboarding } from "./cli/onboarding.js";
 import { setBootVerbose } from "./logger.js";
 import { VERSION } from "./version.js";
+import { getTodoExtractorUserConfig, getUserEnvPath, writeUserEnv } from "./config.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -131,6 +132,7 @@ Commands:
                      No arg = interactive picker. --all wires every detected agent.
                      --dry-run shows what would change. --force re-installs.
   status             Show connection status, memory count, flags, and health
+  config get|set     Read or update user Todo extractor config in ~/.agentmemory/.env
   doctor             Interactive diagnostic + fixer. [F]ix · [S]kip · [?]more · [Q]uit
                      --all: apply every fix without prompting (CI)
                      --dry-run: show what each fix would do, don't execute
@@ -2316,6 +2318,28 @@ async function runMcp(): Promise<void> {
   await import("./mcp/standalone.js");
 }
 
+async function runConfig(): Promise<void> {
+  const sub = args[1];
+  if (sub === "get") {
+    p.note(JSON.stringify(getTodoExtractorUserConfig(), null, 2), `Todo extractor config (${getUserEnvPath()})`);
+    return;
+  }
+  if (sub === "set") {
+    const pair = args[2] || "";
+    const eq = pair.indexOf("=");
+    if (eq <= 0) {
+      p.log.error("Usage: agentmemory-lab config set KEY=value");
+      return;
+    }
+    const key = pair.slice(0, eq);
+    const value = pair.slice(eq + 1);
+    writeUserEnv({ [key]: value });
+    p.log.success(`Updated ${key}. Restart Agent Memory Lab to use it.`);
+    return;
+  }
+  p.log.info("Usage: agentmemory-lab config get | config set KEY=value");
+}
+
 async function runConnectCmd(): Promise<void> {
   const { runConnect } = await import("./cli/connect/index.js");
   await runConnect(args.slice(1));
@@ -2650,6 +2674,7 @@ const commands: Record<string, () => Promise<void>> = {
   stop: runStop,
   remove: runRemove,
   mcp: runMcp,
+  config: runConfig,
   "import-jsonl": runImportJsonl,
 };
 
