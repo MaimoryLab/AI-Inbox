@@ -18,6 +18,11 @@ function safeParseInt(value: string | undefined, fallback: number): number {
 
 const DATA_DIR = join(homedir(), ".agentmemory");
 const ENV_FILE = join(DATA_DIR, ".env");
+export const DEFAULT_LANGEXTRACT_MODEL = "deepseek/deepseek-v4-pro";
+export const DEFAULT_LANGEXTRACT_PROVIDER = "openai";
+export const DEFAULT_LANGEXTRACT_BASE_URL = "https://api.novita.ai/openai/v1";
+export const DEFAULT_TODO_EXTRACT_TIMEOUT_MS = 120_000;
+const LEGACY_LANGEXTRACT_MODELS = new Set(["pa/gpt-5.5"]);
 const WRITABLE_TODO_EXTRACT_KEYS = new Set([
   "AGENTMEMORY_TODO_EXTRACTOR",
   "LANGEXTRACT_PYTHON",
@@ -70,13 +75,24 @@ export function getTodoExtractorUserConfig(): Record<string, string | boolean> {
   return {
     AGENTMEMORY_TODO_EXTRACTOR: env["AGENTMEMORY_TODO_EXTRACTOR"] || "auto",
     LANGEXTRACT_PYTHON: env["LANGEXTRACT_PYTHON"] || "python3",
-    LANGEXTRACT_MODEL: env["LANGEXTRACT_MODEL"] || "deepseek/deepseek-v4-pro",
-    LANGEXTRACT_PROVIDER: env["LANGEXTRACT_PROVIDER"] || "",
-    LANGEXTRACT_BASE_URL: env["LANGEXTRACT_BASE_URL"] || "",
+    LANGEXTRACT_MODEL: normalizeTodoExtractorModel(env["LANGEXTRACT_MODEL"]),
+    LANGEXTRACT_PROVIDER: normalizeTodoExtractorProvider(env["LANGEXTRACT_PROVIDER"]),
+    LANGEXTRACT_BASE_URL: env["LANGEXTRACT_BASE_URL"] || DEFAULT_LANGEXTRACT_BASE_URL,
     LANGEXTRACT_THINKING_DEPTH: env["LANGEXTRACT_THINKING_DEPTH"] || "medium",
     LANGEXTRACT_API_KEY_CONFIGURED: hasRealValue(env["LANGEXTRACT_API_KEY"]),
     LANGEXTRACT_API_KEY_MASKED: maskSecret(env["LANGEXTRACT_API_KEY"]),
   };
+}
+
+export function normalizeTodoExtractorModel(value: string | undefined): string {
+  const model = value?.trim();
+  return model && !LEGACY_LANGEXTRACT_MODELS.has(model) ? model : DEFAULT_LANGEXTRACT_MODEL;
+}
+
+export function normalizeTodoExtractorProvider(value: string | undefined): string {
+  const provider = value?.trim().toLowerCase();
+  if (!provider || provider === "novita" || provider === "deepseek") return DEFAULT_LANGEXTRACT_PROVIDER;
+  return provider;
 }
 
 export function writeUserEnv(updates: Record<string, string>): void {

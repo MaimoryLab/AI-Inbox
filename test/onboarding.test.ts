@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { buildAgentOptions, getInitialAgentValues } from "../src/cli/onboarding.js";
@@ -23,5 +24,11 @@ describe("first-run onboarding", () => {
 
   it("keeps Claude Code as the default outside known agent environments", () => {
     expect(getInitialAgentValues({})).toEqual(["claude-code"]);
+  });
+
+  it("makes clear that first-run provider setup is not To-Do extraction", () => {
+    const source = readFileSync("src/cli/onboarding.ts", "utf-8");
+    expect(source).toContain("Not To-Do extraction");
+    expect(source).toContain("LANGEXTRACT_* settings");
   });
 });

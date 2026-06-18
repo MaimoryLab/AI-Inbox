@@ -735,7 +735,7 @@ function startIiiBin(iiiBin: string, configPath: string): boolean {
   const s = p.spinner();
   s.start(`Starting iii-engine: ${iiiBin}`);
   writeEngineState({ kind: "native", configPath });
-  spawnEngineBackground(iiiBin, ["--config", configPath], "iii-engine");
+  spawnEngineBackground(iiiBin, ["--no-update-check", "--config", configPath], "iii-engine");
   s.stop("iii-engine process started");
   return true;
 }

@@ -1,7 +1,7 @@
 import type { ISdk, ApiRequest } from "iii-sdk";
 import type { Session, CompressedObservation, HookPayload, CommitLink, ReviewQueueItem, InboxItem, DeliveryRecord } from "../types.js";
 import { withKeyedLock } from "../state/keyed-mutex.js";
-import { KV } from "../state/schema.js";
+import { KV, fingerprintId } from "../state/schema.js";
 import { StateKV } from "../state/kv.js";
 import { getLatestHealth } from "../health/monitor.js";
 import type { MetricsStore } from "../eval/metrics-store.js";
@@ -1585,6 +1585,7 @@ export function registerApiTriggers(
           ? payload.todoExtraction as Record<string, unknown>
           : {};
         const typeBucket = typeof todoExtraction.typeBucket === "string" ? todoExtraction.typeBucket : "";
+        const dedupeKey = typeof todoExtraction.dedupeKey === "string" ? todoExtraction.dedupeKey : "";
         const actionStatus =
           typeBucket === "done" ? "done" :
           typeBucket === "in_progress" || typeBucket === "processing" ? "active" :
@@ -1597,6 +1598,7 @@ export function registerApiTriggers(
           payload: {
             title,
             description: content,
+            id: dedupeKey ? fingerprintId("act", `todo:${dedupeKey}`) : undefined,
             priority,
             createdBy: "review",
             project: project || (typeof payload.project === "string" ? payload.project : undefined),

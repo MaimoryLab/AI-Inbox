@@ -6,7 +6,14 @@ import type { ISdk } from "iii-sdk";
 import type { StateKV } from "../state/kv.js";
 import { KV, fingerprintId, generateId } from "../state/schema.js";
 import type { Action, CompressedObservation, ReviewQueueItem, ScanCheckpoint, Session } from "../types.js";
-import { getEnvVar } from "../config.js";
+import {
+  DEFAULT_LANGEXTRACT_BASE_URL,
+  DEFAULT_TODO_EXTRACT_TIMEOUT_MS,
+  getEnvVar,
+  normalizeTodoExtractorModel,
+  normalizeTodoExtractorProvider,
+} from "../config.js";
+import { scanCodexSource } from "./source-scan-codex.js";
 import {
   extractActionCandidatesFromObservations,
   type ActionCandidate,
@@ -44,6 +51,7 @@ type TodoExtractOptions = {
   maxObservationsPerSession?: number;
   project?: string;
   force?: boolean;
+  scanSources?: boolean;
 };
 
 const TIME_BUCKETS = new Set(["current", "recent", "history"]);
@@ -232,7 +240,10 @@ export async function runLangExtractSidecar(
     const value = getEnvVar(key);
     if (value) env[key] = value;
   }
-  const timeoutMs = opts.timeoutMs ?? envNumber("AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS", 30_000);
+  env.LANGEXTRACT_MODEL = normalizeTodoExtractorModel(env.LANGEXTRACT_MODEL);
+  env.LANGEXTRACT_PROVIDER = normalizeTodoExtractorProvider(env.LANGEXTRACT_PROVIDER);
+  env.LANGEXTRACT_BASE_URL = env.LANGEXTRACT_BASE_URL || DEFAULT_LANGEXTRACT_BASE_URL;
+  const timeoutMs = opts.timeoutMs ?? envNumber("AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS", DEFAULT_TODO_EXTRACT_TIMEOUT_MS);
   return new Promise((resolvePromise, reject) => {
     const child = spawn(python, [script], { stdio: ["pipe", "pipe", "pipe"], env });
     let stdout = "";
@@ -352,7 +363,8 @@ function parseCheckpoint(cursor: string | undefined): Record<string, string> {
 }
 
 function makeAction(todo: ExtractedTodo, session: Session, now: string): Action {
-  const tags = ["todo-extracted", `time:${todo.timeBucket}`, `type:${todo.typeBucket}`];
+  const changed = sessionChangedSinceExtraction(todo, session);
+  const tags = ["todo-extracted", `time:${todo.timeBucket}`, `type:${todo.typeBucket}`, ...(changed ? ["todo-recheck"] : [])];
   return {
     id: fingerprintId("act", `todo:${todo.dedupeKey}`),
     title: todo.title,
@@ -366,7 +378,7 @@ function makeAction(todo: ExtractedTodo, session: Session, now: string): Action 
     tags,
     sourceObservationIds: [todo.evidence.sourceObservationId],
     sourceMemoryIds: [],
-    metadata: { todoExtraction: todo },
+    metadata: { todoExtraction: withSourceCheckpoint(todo, session) },
   };
 }
 
@@ -402,6 +414,46 @@ function actionLooksGenerated(action: Action): boolean {
     tags.includes("todo-extracted") ||
     tags.includes("action-candidate") ||
     !!action.metadata?.todoExtraction;
+}
+
+function sessionChangedSinceExtraction(todo: ExtractedTodo, session: Session): boolean {
+  const stored = (todo as unknown as { sourceCheckpoint?: string }).sourceCheckpoint;
+  return !!stored && stored !== checkpointKey(session);
+}
+
+function withSourceCheckpoint(todo: ExtractedTodo, session: Session): ExtractedTodo & { sourceCheckpoint: string } {
+  return { ...todo, sourceCheckpoint: checkpointKey(session) };
+}
+
+async function markChangedGeneratedActions(
+  kv: Pick<StateKV, "list" | "set">,
+  sessionsById: Map<string, Session>,
+  now: string,
+): Promise<number> {
+  const actions = await kv.list<Action>(KV.actions).catch(() => []);
+  let marked = 0;
+  for (const action of actions) {
+    const extraction = action.metadata?.todoExtraction as (ExtractedTodo & { sourceCheckpoint?: string }) | undefined;
+    const session = extraction?.sourceSessionId ? sessionsById.get(extraction.sourceSessionId) : undefined;
+    if (!session || !extraction?.sourceCheckpoint || extraction.sourceCheckpoint === checkpointKey(session)) continue;
+    const tags = Array.isArray(action.tags) ? action.tags : [];
+    if (tags.includes("todo-recheck")) continue;
+    await kv.set(KV.actions, action.id, {
+      ...action,
+      updatedAt: now,
+      tags: [...tags, "todo-recheck"],
+      metadata: {
+        ...(action.metadata || {}),
+        todoExtraction: {
+          ...extraction,
+          needsRecheck: true,
+          latestSourceCheckpoint: checkpointKey(session),
+        },
+      },
+    });
+    marked++;
+  }
+  return marked;
 }
 
 function reviewLooksGenerated(item: ReviewQueueItem): boolean {
@@ -487,8 +539,16 @@ export async function generateTodosFromSessions(
   discarded: number;
   cleanedActions: number;
   cleanedReviews: number;
+  recheckMarked: number;
+  sourceScan?: { imported: number; skipped: number; errors: number };
+  llmFallback?: boolean;
   fallbackReason?: string;
 }> {
+  let sourceScan: { imported: number; skipped: number; errors: number } | undefined;
+  if (data.scanSources !== false) {
+    const scan = await scanCodexSource(kv as StateKV).catch(() => null);
+    if (scan) sourceScan = { imported: scan.imported, skipped: scan.skipped, errors: scan.errors };
+  }
   const maxSessions = clampPositiveInt(data.maxSessions, 20, 100);
   const maxObservationsPerSession = clampPositiveInt(data.maxObservationsPerSession, 300, 1000);
   const mode = (getEnvVar("AGENTMEMORY_TODO_EXTRACTOR") || "auto").toLowerCase();
@@ -518,6 +578,7 @@ export async function generateTodosFromSessions(
   const engines = new Set<"langextract" | "rules">();
   const fallbackReasons = new Set<string>();
   const now = new Date().toISOString();
+  const recheckMarked = await markChangedGeneratedActions(kv, new Map(allSessions.map((session) => [session.id, session])), now);
 
   for (const session of sessions) {
     const key = checkpointKey(session);
@@ -582,6 +643,9 @@ export async function generateTodosFromSessions(
     discarded,
     cleanedActions: cleanup.cleanedActions,
     cleanedReviews: cleanup.cleanedReviews,
+    recheckMarked,
+    ...(sourceScan ? { sourceScan } : {}),
+    ...(fallbackReasons.size ? { llmFallback: true } : {}),
     ...(fallbackReasons.size ? { fallbackReason: Array.from(fallbackReasons)[0] } : {}),
   };
 }

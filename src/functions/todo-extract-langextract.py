@@ -13,6 +13,11 @@ import os
 import sys
 import textwrap
 
+DEFAULT_MODEL = "deepseek/deepseek-v4-pro"
+DEFAULT_PROVIDER = "openai"
+DEFAULT_BASE_URL = "https://api.novita.ai/openai/v1"
+LEGACY_MODELS = {"pa/gpt-5.5"}
+
 
 PROMPT = textwrap.dedent(
     """\
@@ -41,10 +46,17 @@ def load_langextract():
         raise SystemExit(f"langextract unavailable: {exc}") from exc
 
 
+def model_id_from_env() -> str:
+    model = (os.environ.get("LANGEXTRACT_MODEL") or os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL).strip()
+    return DEFAULT_MODEL if model in LEGACY_MODELS else model
+
+
 def extract_kwargs(lx, model_id: str, model_config_cls=None) -> dict:
-    provider = os.environ.get("LANGEXTRACT_PROVIDER", "").strip().lower()
+    provider = os.environ.get("LANGEXTRACT_PROVIDER", DEFAULT_PROVIDER).strip().lower()
+    if provider in ("", "novita", "deepseek"):
+        provider = DEFAULT_PROVIDER
     api_key = os.environ.get("LANGEXTRACT_API_KEY", "").strip()
-    base_url = os.environ.get("LANGEXTRACT_BASE_URL", "").strip()
+    base_url = os.environ.get("LANGEXTRACT_BASE_URL", DEFAULT_BASE_URL).strip() or DEFAULT_BASE_URL
     thinking_depth = os.environ.get("LANGEXTRACT_THINKING_DEPTH", "medium").strip()
     params = {
         "extraction_passes": int(os.environ.get("LANGEXTRACT_PASSES", "2")),
@@ -67,6 +79,8 @@ def extract_kwargs(lx, model_id: str, model_config_cls=None) -> dict:
             provider="openai",
             provider_kwargs=provider_kwargs,
         )
+        if model_id.startswith("deepseek/"):
+            params["use_schema_constraints"] = False
     else:
         params["model_id"] = model_id
     return params
@@ -108,7 +122,7 @@ def main() -> int:
             ],
         )
     ]
-    model_id = os.environ.get("LANGEXTRACT_MODEL") or os.environ.get("GEMINI_MODEL") or "deepseek/deepseek-v4-pro"
+    model_id = model_id_from_env()
     result = lx.extract(
         text_or_documents=text,
         prompt_description=PROMPT,
@@ -163,12 +177,13 @@ if __name__ == "__main__":
         class DummyLx:
             factory = DummyFactory
 
-        params = extract_kwargs(DummyLx, os.environ.get("LANGEXTRACT_MODEL", "deepseek/deepseek-v4-pro"), DummyConfig)
+        params = extract_kwargs(DummyLx, model_id_from_env(), DummyConfig)
         config = params.get("config")
         assert config.model_id == "deepseek/deepseek-v4-pro"
         assert config.provider == "openai"
         assert config.provider_kwargs["base_url"] == "https://api.novita.ai/openai/v1"
         assert config.provider_kwargs["reasoning_effort"] == "medium"
+        assert params["use_schema_constraints"] is False
         print("ok")
         raise SystemExit(0)
     raise SystemExit(main())

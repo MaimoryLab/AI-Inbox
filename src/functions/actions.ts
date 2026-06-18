@@ -20,6 +20,7 @@ export function registerActionsFunction(sdk: ISdk, kv: StateKV): void {
       sourceObservationIds?: string[];
       sourceMemoryIds?: string[];
       edges?: Array<{ type: string; targetActionId: string }>;
+      id?: string;
     }) => {
       if (!data.title || typeof data.title !== "string") {
         return { success: false, error: "title is required" };
@@ -31,8 +32,9 @@ export function registerActionsFunction(sdk: ISdk, kv: StateKV): void {
 
       return withKeyedLock("mem:actions", async () => {
         const now = new Date().toISOString();
+        const id = data.id && /^act_[A-Za-z0-9_-]+$/.test(data.id) ? data.id : generateId("act");
         const action: Action = {
-          id: generateId("act"),
+          id,
           title: data.title.trim(),
           description: (data.description || "").trim(),
           status: data.status || "pending",
@@ -47,6 +49,8 @@ export function registerActionsFunction(sdk: ISdk, kv: StateKV): void {
           parentId: data.parentId,
           metadata: data.metadata,
         };
+        const existing = await kv.get<Action>(KV.actions, action.id);
+        if (existing) return { success: true, action: existing, edges: [] };
 
         if (data.parentId) {
           const parent = await kv.get<Action>(KV.actions, data.parentId);

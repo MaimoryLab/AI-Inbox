@@ -33,3 +33,14 @@ describe("stop reaps the worker process (#640, #474)", () => {
     expect(cliSrc).toMatch(/\.agentmemory["'].*worker\.pid|"worker\.pid"/);
   });
 });
+
+describe("new user startup guardrails", () => {
+  it("keeps npm install usable with the current peer dependency set", () => {
+    expect(readFileSync(".npmrc", "utf-8")).toContain("legacy-peer-deps=true");
+  });
+
+  it("starts the pinned iii engine without background update checks", () => {
+    const source = readFileSync("src/cli.ts", "utf-8");
+    expect(source).toContain('["--no-update-check", "--config", configPath]');
+  });
+});
