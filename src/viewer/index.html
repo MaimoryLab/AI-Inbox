@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>灵感记忆台</title>
+  <title>AI Todo</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <!-- Removed Google Fonts <link> in #323: the viewer CSP is strict
        (default-src 'none', style-src 'unsafe-inline', font-src 'self')
@@ -229,7 +229,7 @@
       border-top: 1px dashed var(--border, #d8dce1);
     }
     .tab-expert-group::before {
-      content: "进阶";
+      content: "More";
       font-size: 9px;
       letter-spacing: 0.1em;
       color: var(--ink-faint, #9aa0a6);
@@ -3875,26 +3875,26 @@
 </head>
 <body>
   <div class="app-header">
-    <a class="brand" href="#dashboard" data-tab-link="dashboard" aria-label="打开总览">
-      <h1>灵感记忆台</h1>
+    <a class="brand" href="#dashboard" data-tab-link="dashboard" aria-label="Open overview">
+      <h1>AI Todo</h1>
     </a>
     <div class="header-right">
-      <button id="theme-toggle" class="btn" style="font-size:9px;padding:3px 10px;letter-spacing:0.1em;margin-right:8px;" data-action="toggle-theme">深色</button>
-      <span id="ws-status" class="ws-status disconnected">实时更新关闭</span>
+      <button id="theme-toggle" class="btn" style="font-size:9px;padding:3px 10px;letter-spacing:0.1em;margin-right:8px;" data-action="toggle-theme">DARK</button>
+      <span id="ws-status" class="ws-status disconnected">Live updates off</span>
     </div>
   </div>
 
     <div class="tab-bar" id="tab-bar">
     <div class="tab-main">
-      <button class="active" data-tab="dashboard" aria-current="page"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v5h-7zM13 12h7v8h-7zM4 14h7v6H4z"/></svg></span><span class="tab-label" data-i18n="tab.dashboard">总览</span></button>
-      <button data-tab="actions"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span><span class="tab-label" data-i18n="tab.actions">待办</span></button>
-      <button data-tab="sessions"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h10M7 13h6"/></svg></span><span class="tab-label" data-i18n="tab.sessions">证据</span></button>
+      <button class="active" data-tab="dashboard" aria-current="page"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v5h-7zM13 12h7v8h-7zM4 14h7v6H4z"/></svg></span><span class="tab-label" data-i18n="tab.dashboard">Overview</span></button>
+      <button data-tab="actions"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span><span class="tab-label" data-i18n="tab.actions">To-Do</span></button>
+      <button data-tab="sessions"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h10M7 13h6"/></svg></span><span class="tab-label" data-i18n="tab.sessions">Evidence</span></button>
     </div>
     <div class="tab-side-meta">
-      <button id="expert-toggle" type="button" class="expert-toggle" aria-pressed="false" aria-label="专家模式" title="专家模式:显示记忆/图谱/审计等进阶视图">专家</button>
-      <a href="https://github.com/MaimoryLab/agentmemory-lab" target="_blank" rel="noopener" aria-label="仓库" title="仓库"><span class="side-icon icon-repo"></span></a>
-      <a href="https://github.com/MaimoryLab/agentmemory-lab#readme" target="_blank" rel="noopener" aria-label="文档" title="文档"><span class="side-icon icon-docs"></span></a>
-      <a id="footer-feedback" href="#" target="_blank" rel="noopener" aria-label="反馈" title="反馈"><span class="side-icon icon-feedback"></span></a>
+      <button id="expert-toggle" type="button" class="expert-toggle" aria-pressed="false" aria-label="Expert mode" title="Expert mode: show advanced memory, graph, and audit views">More</button>
+      <a href="https://github.com/MaimoryLab/agentmemory-lab" target="_blank" rel="noopener" aria-label="Repository" title="Repository"><span class="side-icon icon-repo"></span></a>
+      <a href="https://github.com/MaimoryLab/agentmemory-lab#readme" target="_blank" rel="noopener" aria-label="Docs" title="Docs"><span class="side-icon icon-docs"></span></a>
+      <a id="footer-feedback" href="#" target="_blank" rel="noopener" aria-label="Feedback" title="Feedback"><span class="side-icon icon-feedback"></span></a>
     </div>
   </div>
 
@@ -3916,7 +3916,7 @@
   <div id="modal-overlay" class="modal-overlay">
     <div class="modal" id="modal"></div>
   </div>
-  <button id="settings-gear" class="settings-gear" data-action="toggle-settings" type="button" aria-label="设置" aria-expanded="false" title="设置">
+  <button id="settings-gear" class="settings-gear" data-action="toggle-settings" type="button" aria-label="Settings" aria-expanded="false" title="Settings">
     <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z"></path>
       <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6l-.03.08a2 2 0 0 1-3.94 0L10 20a1.7 1.7 0 0 0-1-.6 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1l-.08-.03a2 2 0 0 1 0-3.94L4 10a1.7 1.7 0 0 0 .6-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6l.03-.08a2 2 0 0 1 3.94 0L14 4a1.7 1.7 0 0 0 1 .6 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.07.37.27.7.6 1l.08.03a2 2 0 0 1 0 3.94L20 14c-.33.3-.53.63-.6 1Z"></path>
@@ -4064,9 +4064,120 @@
         'act.nToConfirm': 'to confirm', 'act.nConfirmed': 'confirmed', 'act.refresh': 'Refresh',
         'act.viewOriginal': 'View original', 'act.confirm': 'Confirm', 'act.ignore': 'Ignore',
         'act.from': 'From', 'act.viewSource': 'View source →', 'act.updated': 'Updated',
+        'act.extract.title': 'Use LLM to organize recent sessions',
+        'act.extract.run': 'Organize with LLM',
+        'act.extract.running': 'Organizing...',
+        'act.extract.done': 'Organized',
+        'act.extract.rules': 'Rules used',
+        'act.extract.error': 'Organize failed',
+        'act.extract.failedExisting': 'Extraction failed; showing existing todos',
+        'act.extract.doneLlm': 'LLM extraction complete',
+        'act.extract.doneMixed': 'Partial LLM extraction complete',
+        'act.extract.doneRules': 'Rules extraction complete',
+        'act.extract.created': 'new',
+        'act.extract.history': 'history',
+        'act.extract.discarded': 'discarded',
+        'act.extract.cleaned': 'cleaned',
+        'act.extract.reason': 'reason',
+        'act.status.complete': 'Complete',
+        'act.status.archive': 'Archive',
+        'act.status.delete': 'Delete',
         'act.itemsUnit': 'items',
         'act.empty.title': 'No todos yet',
         'act.empty.lead': 'This is where todos, blocked items, and completed work extracted from your sessions will appear.',
+        'settings.title': 'Settings',
+        'settings.subtitle': 'Local configuration is written to the user config file and takes effect after restarting the service.',
+        'settings.close': 'Close',
+        'settings.language': 'UI language',
+        'settings.extractor': 'LLM extraction config',
+        'settings.apiKeyKeep': 'Enter a new API key to replace it, or leave blank to keep the current key',
+        'settings.apiKeyMissing': 'Not configured',
+        'settings.apiKeyLabel': 'API key:',
+        'settings.save': 'Save config',
+        'settings.saving': 'Saving...',
+        'obs.type.file_read': 'Read file',
+        'obs.type.file_write': 'Write file',
+        'obs.type.file_edit': 'Edit file',
+        'obs.type.command_run': 'Run command',
+        'obs.type.search': 'Search',
+        'obs.type.web_fetch': 'Web fetch',
+        'obs.type.conversation': 'Conversation',
+        'obs.type.error': 'Error',
+        'obs.type.decision': 'Decision',
+        'obs.type.discovery': 'Discovery',
+        'obs.type.subagent': 'Subagent',
+        'obs.type.notification': 'Notification',
+        'obs.type.task': 'Task',
+        'obs.type.image': 'Image',
+        'obs.type.other': 'Other',
+        'obs.summary.localOperation': 'Run local operation',
+        'obs.summary.restartService': 'Restart AI Todo service',
+        'obs.summary.startService': 'Start AI Todo service',
+        'obs.summary.openPreview': 'Open AI Todo preview',
+        'obs.summary.checkService': 'Check service status',
+        'obs.summary.verifyPageFix': 'Verify page fix',
+        'obs.summary.viewFixLog': 'View fix log',
+        'obs.summary.checkBrowserAutomation': 'Check browser automation dependency',
+        'obs.summary.checkProcess': 'Check local service process',
+        'obs.summary.organizeLocalFiles': 'Organize local files',
+        'obs.summary.readLocalServiceData': 'Read local service data',
+        'obs.summary.viewLocalFiles': 'View local file content',
+        'obs.summary.runProjectScript': 'Run project script',
+        'obs.summary.checkCodeVersion': 'Check or update code version',
+        'obs.summary.runLocalCommand': 'Run local command',
+        'obs.output.noText': 'This step completed without extra output.',
+        'obs.output.serviceOk': 'The result is healthy and the service is available.',
+        'obs.output.npxMissing': 'Check result: npx is not available in this environment.',
+        'obs.output.npxOk': 'Check result: browser automation dependency is available.',
+        'obs.output.pageFixOk': 'Check result: the page contains the expected fix.',
+        'obs.output.error': 'The command returned an error and needs follow-up.',
+        'obs.output.readService': 'Read data returned by the local service.',
+        'obs.output.viewFiles': 'Viewed local file content to confirm current state.',
+        'obs.output.done': 'This step completed and returned output.',
+        'obs.display.promptSubmit': 'User request',
+        'obs.display.agentMessage': 'Assistant response',
+        'obs.display.updatePlan': 'Update plan',
+        'obs.display.updatePlanBody': 'The task plan was updated.',
+        'obs.display.applyPatch': 'Update local files',
+        'obs.display.applyPatchBody': 'Code changes were applied.',
+        'obs.display.toolTrace': 'This step was recorded as a structured tool event.',
+        'episode.type.file_read': 'Read material',
+        'episode.type.file_write': 'Write file',
+        'episode.type.file_edit': 'Edit file',
+        'episode.type.command_run': 'Local operation',
+        'episode.type.search': 'Search',
+        'episode.type.web_fetch': 'Web material',
+        'episode.type.conversation': 'Conversation progress',
+        'episode.type.error': 'Error triage',
+        'episode.type.decision': 'Decision record',
+        'episode.type.discovery': 'Discovery',
+        'episode.type.subagent': 'Collaboration task',
+        'episode.type.notification': 'Reminder',
+        'episode.type.task': 'Task progress',
+        'episode.type.other': 'Other',
+        'episode.kind.user_need': 'User request',
+        'episode.kind.bugfix': 'Fix record',
+        'episode.kind.research': 'Project research',
+        'episode.kind.file_work': 'File work',
+        'episode.kind.important': 'Important segment',
+        'episode.kind.work': 'Work progress',
+        'episode.workSegment': 'Work segment',
+        'episode.record': 'records',
+        'episode.bodyPrefix': 'This segment mainly contains ',
+        'episode.bodySuffix': ', summarized from low-level records.',
+        'project.uncategorized': 'Uncategorized',
+        'project.all': 'All projects',
+        'project.browser': 'Browser',
+        'project.demo': 'Demo data',
+        'source.local': 'Local record',
+        'source.agentMarked': 'Agent wrote a source marker',
+        'source.demoNote': 'From the demo command, not real user work',
+        'source.importedClaude': 'Claude Code history import',
+        'source.importedClaudeNote': 'Imported from local JSONL history',
+        'source.pathInferred': 'Inferred from project path',
+        'source.unknownAgentNote': 'This session does not identify which agent created it',
+        'agent.avatarAlt': 'avatar',
+        'ses.noRecordId': 'no record ID',
         'tab.memories': 'Memories', 'tab.lessons': 'Lessons', 'tab.graph': 'Graph', 'tab.timeline': 'Timeline', 'tab.activity': 'Live', 'tab.profile': 'Profile', 'tab.audit': 'Audit', 'tab.replay': 'Replay', 'tab.crystals': 'Crystals',
         'ses.emptyNeedRetry': 'No sessions read yet — make sure the local service is running, then retry.',
         'ses.empty': 'No sessions yet', 'ses.retry': 'Retry', 'ses.allSessions': 'All sessions',
@@ -4131,9 +4242,120 @@
         'act.nToConfirm': '条待确认', 'act.nConfirmed': '件已确认', 'act.refresh': '刷新',
         'act.viewOriginal': '查看原文', 'act.confirm': '确认', 'act.ignore': '忽略',
         'act.from': '来自', 'act.viewSource': '看原文 →', 'act.updated': '更新',
+        'act.extract.title': '调用大模型整理最近会话',
+        'act.extract.run': '用大模型整理',
+        'act.extract.running': '整理中...',
+        'act.extract.done': '已整理',
+        'act.extract.rules': '未走大模型',
+        'act.extract.error': '整理失败',
+        'act.extract.failedExisting': '抽取失败，已显示现有待办',
+        'act.extract.doneLlm': '大模型整理完成',
+        'act.extract.doneMixed': '部分大模型整理完成',
+        'act.extract.doneRules': '未走大模型，已用规则整理',
+        'act.extract.created': '新增',
+        'act.extract.history': '历史',
+        'act.extract.discarded': '丢弃',
+        'act.extract.cleaned': '清理',
+        'act.extract.reason': '原因',
+        'act.status.complete': '完成',
+        'act.status.archive': '归档',
+        'act.status.delete': '删除',
         'act.itemsUnit': '件',
         'act.empty.title': '还没有待办',
         'act.empty.lead': '这里会放从会话里整理出的待办、卡住事项和已完成事项。',
+        'settings.title': '设置',
+        'settings.subtitle': '本机配置会写入用户配置文件，重启服务后生效。',
+        'settings.close': '关闭',
+        'settings.language': '界面语言',
+        'settings.extractor': '大模型抽取配置',
+        'settings.apiKeyKeep': '输入新 API key 覆盖，留空保持不变',
+        'settings.apiKeyMissing': '未配置',
+        'settings.apiKeyLabel': 'API key:',
+        'settings.save': '保存配置',
+        'settings.saving': '保存中...',
+        'obs.type.file_read': '读取文件',
+        'obs.type.file_write': '写入文件',
+        'obs.type.file_edit': '编辑文件',
+        'obs.type.command_run': '执行命令',
+        'obs.type.search': '搜索',
+        'obs.type.web_fetch': '网页获取',
+        'obs.type.conversation': '对话',
+        'obs.type.error': '错误',
+        'obs.type.decision': '决策',
+        'obs.type.discovery': '发现',
+        'obs.type.subagent': '子代理',
+        'obs.type.notification': '通知',
+        'obs.type.task': '任务',
+        'obs.type.image': '图片',
+        'obs.type.other': '其它',
+        'obs.summary.localOperation': '执行本地操作',
+        'obs.summary.restartService': '重启灵感记忆台服务',
+        'obs.summary.startService': '启动灵感记忆台服务',
+        'obs.summary.openPreview': '打开灵感记忆台预览',
+        'obs.summary.checkService': '检查记忆台服务状态',
+        'obs.summary.verifyPageFix': '验证页面修复是否生效',
+        'obs.summary.viewFixLog': '查看修复日志',
+        'obs.summary.checkBrowserAutomation': '检查浏览器自动化工具是否可用',
+        'obs.summary.checkProcess': '检查本地服务进程',
+        'obs.summary.organizeLocalFiles': '整理本地文件',
+        'obs.summary.readLocalServiceData': '读取本地服务数据',
+        'obs.summary.viewLocalFiles': '查看本地文件内容',
+        'obs.summary.runProjectScript': '运行项目脚本',
+        'obs.summary.checkCodeVersion': '检查或更新代码版本',
+        'obs.summary.runLocalCommand': '执行本地命令',
+        'obs.output.noText': '这一步已执行，没有返回额外文本。',
+        'obs.output.serviceOk': '结果正常，服务已经可用。',
+        'obs.output.npxMissing': '检查结果：当前环境没有可用的 npx。',
+        'obs.output.npxOk': '检查结果：浏览器自动化工具依赖可用。',
+        'obs.output.pageFixOk': '检查结果：页面里已经包含对应修复逻辑。',
+        'obs.output.error': '执行返回了错误信息，需要继续排查。',
+        'obs.output.readService': '已读取本地服务返回的数据。',
+        'obs.output.viewFiles': '已查看本地文件内容，用于确认当前状态。',
+        'obs.output.done': '这一步已完成，并返回了执行结果。',
+        'obs.display.promptSubmit': '用户提出需求',
+        'obs.display.agentMessage': '助手回应',
+        'obs.display.updatePlan': '更新执行计划',
+        'obs.display.updatePlanBody': '已更新任务计划。',
+        'obs.display.applyPatch': '更新本地文件',
+        'obs.display.applyPatchBody': '已应用代码修改。',
+        'obs.display.toolTrace': '这一步已记录为结构化工具事件。',
+        'episode.type.file_read': '读取资料',
+        'episode.type.file_write': '写入文件',
+        'episode.type.file_edit': '修改文件',
+        'episode.type.command_run': '本地操作',
+        'episode.type.search': '搜索定位',
+        'episode.type.web_fetch': '网页资料',
+        'episode.type.conversation': '对话推进',
+        'episode.type.error': '异常排查',
+        'episode.type.decision': '决策记录',
+        'episode.type.discovery': '发现线索',
+        'episode.type.subagent': '协作任务',
+        'episode.type.notification': '提醒',
+        'episode.type.task': '任务推进',
+        'episode.type.other': '其它',
+        'episode.kind.user_need': '用户需求',
+        'episode.kind.bugfix': '修复记录',
+        'episode.kind.research': '项目研究',
+        'episode.kind.file_work': '文件整理',
+        'episode.kind.important': '重要片段',
+        'episode.kind.work': '工作推进',
+        'episode.workSegment': '工作片段',
+        'episode.record': '记录',
+        'episode.bodyPrefix': '这一段主要包含 ',
+        'episode.bodySuffix': '，已从底层记录整理成可读片段。',
+        'project.uncategorized': '未归类',
+        'project.all': '全部项目',
+        'project.browser': '浏览器',
+        'project.demo': '演示数据',
+        'source.local': '本地记录',
+        'source.agentMarked': 'Agent 已写入来源标记',
+        'source.demoNote': '来自 demo 命令，不代表你的真实工作',
+        'source.importedClaude': 'Claude Code 历史导入',
+        'source.importedClaudeNote': '从本地 JSONL 历史记录导入',
+        'source.pathInferred': '按项目路径识别',
+        'source.unknownAgentNote': '这条会话没有写明来自哪个 Agent',
+        'agent.avatarAlt': '头像',
+        'ses.noRecordId': '无记录 ID',
         'tab.memories': '记忆', 'tab.lessons': '经验', 'tab.graph': '图谱', 'tab.timeline': '时间线', 'tab.activity': '实时', 'tab.profile': '档案', 'tab.audit': '审计', 'tab.replay': '回放', 'tab.crystals': '结晶',
         'ses.emptyNeedRetry': '暂时没有读到会话，请确认本地服务已启动后重试。',
         'ses.empty': '暂无会话', 'ses.retry': '重试加载', 'ses.allSessions': '全部会话',
@@ -4147,7 +4369,7 @@
         'ses.avatarFallback': '会', 'ses.localRecord': '本地记录'
       }
     };
-    var I18N_LANG = 'zh';
+    var I18N_LANG = 'en';
     function t(key, fallback) {
       var table = I18N_MESSAGES[I18N_LANG] || {};
       if (Object.prototype.hasOwnProperty.call(table, key)) return table[key];
@@ -4167,6 +4389,11 @@
       scope.querySelectorAll('[data-i18n]').forEach(function (el) {
         el.textContent = t(el.getAttribute('data-i18n'));
       });
+      var gear = document.getElementById('settings-gear');
+      if (gear) {
+        gear.setAttribute('aria-label', t('settings.title'));
+        gear.setAttribute('title', t('settings.title'));
+      }
     }
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', function () { applyI18n(); });
@@ -4174,26 +4401,9 @@
       applyI18n();
     }
     // === /i18n base ===
-    var TYPE_LABEL_MAP = {
-      file_read: '读取文件',
-      file_write: '写入文件',
-      file_edit: '编辑文件',
-      command_run: '执行命令',
-      search: '搜索',
-      web_fetch: '网页获取',
-      conversation: '对话',
-      error: '错误',
-      decision: '决策',
-      discovery: '发现',
-      subagent: '子代理',
-      notification: '通知',
-      task: '任务',
-      image: '图片',
-      other: '其它'
-    };
     function observationTypeLabel(type) {
       var key = String(type || 'other');
-      return TYPE_LABEL_MAP[key] || key.replace(/_/g, ' ');
+      return t('obs.type.' + key, key.replace(/_/g, ' '));
     }
     var CB_STATE_COLORS = { closed: 'badge-green', open: 'badge-red', 'half-open': 'badge-yellow' };
     var TAB_IDS = ['dashboard', 'actions', 'sessions'];
@@ -4458,34 +4668,34 @@
     }
     function commandHumanSummary(command) {
       var c = String(command || '').trim();
-      if (!c) return '执行本地操作';
-      if (c.indexOf('ensure-agentmemory-live.mjs') >= 0 && c.indexOf('--restart') >= 0) return '重启灵感记忆台服务';
-      if (c.indexOf('ensure-agentmemory-live.mjs') >= 0) return '启动灵感记忆台服务';
-      if (/^open\s+['"]?https?:\/\/127\.0\.0\.1:3114/.test(c)) return '打开灵感记忆台预览';
-      if (c.indexOf('agentmemory/livez') >= 0 || c.indexOf('/health') >= 0) return '检查记忆台服务状态';
-      if (c.indexOf('sessionBodyPreview') >= 0 || c.indexOf('observationDisplay') >= 0) return '验证页面修复是否生效';
-      if (c.indexOf('bugfix-log') >= 0 && /sed|cat|ls/.test(c)) return '查看修复日志';
-      if (/command -v npx/.test(c)) return '检查浏览器自动化工具是否可用';
-      if (/^(ps|lsof|netstat)\b/.test(c) || c.indexOf(' ps ') >= 0 || c.indexOf('lsof ') >= 0) return '检查本地服务进程';
-      if (/^mkdir\b|^mv\b|^cp\b|^node <<|cleanup|重复旧版本|_待确认清理/.test(c)) return '整理本地文件';
-      if (/^curl\b/.test(c)) return '读取本地服务数据';
-      if (/^sed\b|^rg\b|^grep\b|^find\b|^ls\b|^nl\b/.test(c)) return '查看本地文件内容';
-      if (/^(npm|pnpm|bun|yarn)\b/.test(c)) return '运行项目脚本';
-      if (/^(git)\b/.test(c)) return '检查或更新代码版本';
-      return '执行本地命令';
+      if (!c) return t('obs.summary.localOperation');
+      if (c.indexOf('ensure-agentmemory-live.mjs') >= 0 && c.indexOf('--restart') >= 0) return t('obs.summary.restartService');
+      if (c.indexOf('ensure-agentmemory-live.mjs') >= 0) return t('obs.summary.startService');
+      if (/^open\s+['"]?https?:\/\/127\.0\.0\.1:3114/.test(c)) return t('obs.summary.openPreview');
+      if (c.indexOf('agentmemory/livez') >= 0 || c.indexOf('/health') >= 0) return t('obs.summary.checkService');
+      if (c.indexOf('sessionBodyPreview') >= 0 || c.indexOf('observationDisplay') >= 0) return t('obs.summary.verifyPageFix');
+      if (c.indexOf('bugfix-log') >= 0 && /sed|cat|ls/.test(c)) return t('obs.summary.viewFixLog');
+      if (/command -v npx/.test(c)) return t('obs.summary.checkBrowserAutomation');
+      if (/^(ps|lsof|netstat)\b/.test(c) || c.indexOf(' ps ') >= 0 || c.indexOf('lsof ') >= 0) return t('obs.summary.checkProcess');
+      if (/^mkdir\b|^mv\b|^cp\b|^node <<|cleanup|重复旧版本|_待确认清理/.test(c)) return t('obs.summary.organizeLocalFiles');
+      if (/^curl\b/.test(c)) return t('obs.summary.readLocalServiceData');
+      if (/^sed\b|^rg\b|^grep\b|^find\b|^ls\b|^nl\b/.test(c)) return t('obs.summary.viewLocalFiles');
+      if (/^(npm|pnpm|bun|yarn)\b/.test(c)) return t('obs.summary.runProjectScript');
+      if (/^(git)\b/.test(c)) return t('obs.summary.checkCodeVersion');
+      return t('obs.summary.runLocalCommand');
     }
     function commandOutputSummary(output, command) {
       var out = String(output || '').trim();
       var c = String(command || '');
-      if (!out) return '这一步已执行，没有返回额外文本。';
-      if (out.indexOf('"ok": true') >= 0 || out.indexOf('"status":"ok"') >= 0 || out.indexOf('"status": "ok"') >= 0) return '结果正常，服务已经可用。';
-      if (out.indexOf('npx-missing') >= 0) return '检查结果：当前环境没有可用的 npx。';
-      if (out.indexOf('npx-ok') >= 0) return '检查结果：浏览器自动化工具依赖可用。';
-      if (out.indexOf('sessionBodyPreview') >= 0 || out.indexOf('observationDisplay') >= 0) return '检查结果：页面里已经包含对应修复逻辑。';
-      if (out.indexOf('error') >= 0 || out.indexOf('failed') >= 0 || out.indexOf('Error:') >= 0) return '执行返回了错误信息，需要继续排查。';
-      if (/^curl\b/.test(c)) return '已读取本地服务返回的数据。';
-      if (/^sed\b|^rg\b|^grep\b|^find\b|^ls\b|^nl\b/.test(c)) return '已查看本地文件内容，用于确认当前状态。';
-      return '这一步已完成，并返回了执行结果。';
+      if (!out) return t('obs.output.noText');
+      if (out.indexOf('"ok": true') >= 0 || out.indexOf('"status":"ok"') >= 0 || out.indexOf('"status": "ok"') >= 0) return t('obs.output.serviceOk');
+      if (out.indexOf('npx-missing') >= 0) return t('obs.output.npxMissing');
+      if (out.indexOf('npx-ok') >= 0) return t('obs.output.npxOk');
+      if (out.indexOf('sessionBodyPreview') >= 0 || out.indexOf('observationDisplay') >= 0) return t('obs.output.pageFixOk');
+      if (out.indexOf('error') >= 0 || out.indexOf('failed') >= 0 || out.indexOf('Error:') >= 0) return t('obs.output.error');
+      if (/^curl\b/.test(c)) return t('obs.output.readService');
+      if (/^sed\b|^rg\b|^grep\b|^find\b|^ls\b|^nl\b/.test(c)) return t('obs.output.viewFiles');
+      return t('obs.output.done');
     }
 	    function observationDisplay(o) {
 	      var baseTitle = normalizePreviewText(o && (o.title || o.toolName || (o.hookType ? o.hookType.replace(/_/g, ' ') : 'Observation')));
@@ -4497,16 +4707,16 @@
 	      var title = baseTitle || 'Observation';
 	      var subtitle = rawSubtitle;
 	      var body = rawNarrative;
-	      if (title === 'prompt_submit') title = '用户提出需求';
-	      if (title === 'agent_message') title = '助手回应';
+	      if (title === 'prompt_submit') title = t('obs.display.promptSubmit');
+	      if (title === 'agent_message') title = t('obs.display.agentMessage');
 	      if (toolName === 'update_plan') {
-	        title = '更新执行计划';
+	        title = t('obs.display.updatePlan');
 	        subtitle = '';
-	        body = '已更新任务计划。';
+	        body = t('obs.display.updatePlanBody');
 	      } else if (toolName === 'apply_patch') {
-	        title = '更新本地文件';
+	        title = t('obs.display.applyPatch');
 	        subtitle = '';
-	        body = '已应用代码修改。';
+	        body = t('obs.display.applyPatchBody');
 	      } else if ((type === 'command_run' || toolName === 'bash' || toolName === 'exec_command') && commandInfo.command) {
 	        title = commandHumanSummary(commandInfo.command);
 	        subtitle = '';
@@ -4515,7 +4725,7 @@
         body = rawNarrative.slice(rawSubtitle.length).replace(/^[\s|:：,，.。;；-]+/, '').trim();
       }
 	      if (looksToolTraceDisplayText(subtitle)) subtitle = '';
-	      if (looksToolTraceDisplayText(body)) body = '这一步已记录为结构化工具事件。';
+	      if (looksToolTraceDisplayText(body)) body = t('obs.display.toolTrace');
 	      body = sessionBodyPreview({ summary: body, latestPrompt: rawNarrative, firstPrompt: rawSubtitle }, title);
 	      return { title: title, subtitle: subtitle, body: body };
 	    }
@@ -4537,34 +4747,10 @@
 	      return title;
 	    }
 	    function typeDisplayLabel(type) {
-	      var map = {
-	        file_read: '读取资料',
-	        file_write: '写入文件',
-	        file_edit: '修改文件',
-	        command_run: '本地操作',
-	        search: '搜索定位',
-	        web_fetch: '网页资料',
-	        conversation: '对话推进',
-	        error: '异常排查',
-	        decision: '决策记录',
-	        discovery: '发现线索',
-	        subagent: '协作任务',
-	        notification: '提醒',
-	        task: '任务推进',
-	        other: '其它'
-	      };
-	      return map[type] || String(type || '其它').replace(/_/g, ' ');
+	      return t('episode.type.' + (type || 'other'), String(type || t('episode.type.other')).replace(/_/g, ' '));
 	    }
 	    function episodeKindLabel(kind) {
-	      var map = {
-	        user_need: '用户需求',
-	        bugfix: '修复记录',
-	        research: '项目研究',
-	        file_work: '文件整理',
-	        important: '重要片段',
-	        work: '工作推进'
-	      };
-	      return map[kind] || '工作推进';
+	      return t('episode.kind.' + (kind || 'work'), t('episode.kind.work'));
 	    }
 	    function observationType(o) {
 	      var toolMap = { Read: 'file_read', Write: 'file_write', Edit: 'file_edit', Bash: 'command_run', Grep: 'search', Glob: 'search', WebFetch: 'web_fetch', WebSearch: 'web_fetch', AskUserQuestion: 'conversation', Task: 'subagent' };
@@ -4583,7 +4769,7 @@
 	      var name = first && (first._sessionName || first.sessionName);
 	      if (name && name !== 'Codex 会话') return name;
 	      var d = first && first.timestamp ? formatTime(first.timestamp) : '';
-	      return (projectName ? projectName + ' · ' : '') + (d || '工作片段');
+	      return (projectName ? projectName + ' · ' : '') + (d || t('episode.workSegment'));
 	    }
 	    function classifyEpisode(counts, title, body, importance) {
 	      var text = String((title || '') + ' ' + (body || '')).toLowerCase();
@@ -4636,7 +4822,7 @@
 	          return typeDisplayLabel(t) + ' ' + counts[t];
 	        }).join('，');
 		        var readableTitle = title || episodeFallbackTitle(first, projectName);
-		        var readableBody = bodyCandidate || ('这一段主要包含 ' + typeText + '，已从底层记录整理成可读片段。');
+		        var readableBody = bodyCandidate || (t('episode.bodyPrefix') + typeText + t('episode.bodySuffix'));
 		        var maxImportance = items.reduce(function(max, o) { return Math.max(max, typeof o.importance === 'number' ? o.importance : 5); }, 0);
 		        var kind = classifyEpisode(counts, readableTitle, readableBody, maxImportance);
 		        return {
@@ -4645,7 +4831,7 @@
 		          body: readableBody,
 		          actions: actions.slice(0, 6),
 		          count: items.length,
-		          typeText: typeText || '记录 ' + items.length,
+		          typeText: typeText || t('episode.record') + ' ' + items.length,
 		          start: first.timestamp,
 		          end: last.timestamp,
 		          importance: maxImportance,
@@ -4705,25 +4891,25 @@
       var direct = s.agentId || s.agent || s.agentName || '';
       if (direct) return String(direct);
       var pid = String(s.project || s.cwd || s.id || '').toLowerCase();
-      if (pid.indexOf('demo') >= 0) return '演示数据';
+      if (pid.indexOf('demo') >= 0) return t('project.demo');
       if (pid.indexOf('codex') >= 0) return 'Codex';
       if (pid.indexOf('claude') >= 0) return 'Claude';
       if (pid.indexOf('cursor') >= 0) return 'Cursor';
       if (pid.indexOf('openclaw') >= 0) return 'OpenClaw';
-      return '本地记录';
+      return t('source.local');
     }
     function inferSessionSource(s) {
       var direct = s.agentId || s.agent || s.agentName || '';
-      if (direct) return { name: String(direct), kind: 'agent', note: 'Agent 已写入来源标记' };
+      if (direct) return { name: String(direct), kind: 'agent', note: t('source.agentMarked') };
       var tags = Array.isArray(s.tags) ? s.tags.join(' ').toLowerCase() : '';
       var pid = String(s.project || s.cwd || s.id || '').toLowerCase();
-      if (pid.indexOf('demo') >= 0) return { name: '演示数据', kind: 'demo', note: '来自 demo 命令，不代表你的真实工作' };
-      if (tags.indexOf('jsonl-import') >= 0) return { name: 'Claude Code 历史导入', kind: 'imported', note: '从本地 JSONL 历史记录导入' };
-      if (pid.indexOf('codex') >= 0) return { name: 'Codex', kind: 'agent', note: '按项目路径识别' };
-      if (pid.indexOf('claude') >= 0) return { name: 'Claude', kind: 'agent', note: '按项目路径识别' };
-      if (pid.indexOf('cursor') >= 0) return { name: 'Cursor', kind: 'agent', note: '按项目路径识别' };
-      if (pid.indexOf('openclaw') >= 0) return { name: 'OpenClaw', kind: 'agent', note: '按项目路径识别' };
-      return { name: '本地记录', kind: 'local', note: '这条会话没有写明来自哪个 Agent' };
+      if (pid.indexOf('demo') >= 0) return { name: t('project.demo'), kind: 'demo', note: t('source.demoNote') };
+      if (tags.indexOf('jsonl-import') >= 0) return { name: t('source.importedClaude'), kind: 'imported', note: t('source.importedClaudeNote') };
+      if (pid.indexOf('codex') >= 0) return { name: 'Codex', kind: 'agent', note: t('source.pathInferred') };
+      if (pid.indexOf('claude') >= 0) return { name: 'Claude', kind: 'agent', note: t('source.pathInferred') };
+      if (pid.indexOf('cursor') >= 0) return { name: 'Cursor', kind: 'agent', note: t('source.pathInferred') };
+      if (pid.indexOf('openclaw') >= 0) return { name: 'OpenClaw', kind: 'agent', note: t('source.pathInferred') };
+      return { name: t('source.local'), kind: 'local', note: t('source.unknownAgentNote') };
     }
     function agentAvatarSpec(name) {
       var n = String(name || '').toLowerCase();
@@ -4732,15 +4918,15 @@
       if (n.indexOf('hermes') >= 0) return { label: 'Hermes', cls: 'hermes', image: '/agent-avatars/hermes.png' };
       if (n.indexOf('openclaw') >= 0) return { label: 'OpenClaw', cls: 'openclaw', image: '/agent-avatars/openclaw.png' };
       if (n.indexOf('cursor') >= 0) return { label: 'Cursor', cls: 'cursor' };
-      if (n.indexOf('演示') >= 0 || n.indexOf('demo') >= 0) return { label: '演', cls: 'unknown' };
-      if (n.indexOf('导入') >= 0) return { label: '导', cls: 'claude', image: '/agent-avatars/claude.png' };
-      if (n.indexOf('本地记录') >= 0 || n.indexOf('未标记') >= 0 || n.indexOf('unknown') >= 0) return { label: '本', cls: 'unknown' };
+      if (n.indexOf('演示') >= 0 || n.indexOf('demo') >= 0) return { label: I18N_LANG === 'zh' ? '演' : 'D', cls: 'unknown' };
+      if (n.indexOf('导入') >= 0 || n.indexOf('import') >= 0) return { label: I18N_LANG === 'zh' ? '导' : 'I', cls: 'claude', image: '/agent-avatars/claude.png' };
+      if (n.indexOf('本地记录') >= 0 || n.indexOf('local record') >= 0 || n.indexOf('未标记') >= 0 || n.indexOf('unknown') >= 0) return { label: I18N_LANG === 'zh' ? '本' : 'L', cls: 'unknown' };
       return { label: String(name || '?').replace(/\s+/g, '').slice(0, 2).toUpperCase(), cls: 'unknown' };
     }
     function renderAgentAvatar(avatar) {
       var cls = 'agent-avatar ' + esc(avatar.cls || 'unknown') + (avatar.image ? ' has-image' : '');
       if (avatar.image) {
-        return '<span class="' + cls + '" data-label="' + esc(avatar.label || '?') + '"><img src="' + esc(avatar.image) + '" alt="' + esc(avatar.label || 'Agent') + ' 头像" loading="lazy" /></span>';
+        return '<span class="' + cls + '" data-label="' + esc(avatar.label || '?') + '"><img src="' + esc(avatar.image) + '" alt="' + esc(avatar.label || 'Agent') + ' ' + esc(t('agent.avatarAlt')) + '" loading="lazy" /></span>';
       }
       return '<span class="' + cls + '" data-label="' + esc(avatar.label || '?') + '">' + esc(avatar.label || '?') + '</span>';
     }
@@ -4761,27 +4947,28 @@
     function sessionDisplayName(s) {
       var project = s && s.project ? String(s.project).split('/').pop() : '';
       if (project) return project;
-      return shortSessionId(s, 8) || '未命名会话';
+      return shortSessionId(s, 8) || t('dash.unnamedSession');
     }
     function sessionLabel(s) {
       var id = shortSessionId(s, 8);
       var name = sessionDisplayName(s);
-      return id ? name + ' (' + id + ')' : name + '（无记录 ID）';
+      return id ? name + ' (' + id + ')' : name + ' (' + t('ses.noRecordId') + ')';
     }
     function sessionProjectKey(s) {
-      var raw = (s && (s.cwd || s.project)) ? String(s.cwd || s.project) : '未归类';
-      if (raw.indexOf('/tmp/agentmemory-demo') >= 0) return '演示数据';
+      var raw = (s && (s.cwd || s.project)) ? String(s.cwd || s.project) : t('project.uncategorized');
+      if (raw.indexOf('/tmp/agentmemory-demo') >= 0) return t('project.demo');
       if (raw.indexOf('/Users/szn') === 0) {
         var parts = raw.split('/').filter(Boolean);
         if (parts.length >= 3) return parts.slice(0, 3).join('/');
       }
-      return raw.replace(/\/$/, '') || '未归类';
+      return raw.replace(/\/$/, '') || t('project.uncategorized');
     }
     function projectDisplayName(key) {
-      var k = String(key || '未归类');
-      if (k === 'all') return '全部项目';
-      if (k === 'browser') return '浏览器';
-      if (k === '未归类' || k === '演示数据') return k;
+      var k = String(key || t('project.uncategorized'));
+      if (k === 'all') return t('project.all');
+      if (k === 'browser') return t('project.browser');
+      if (k === '未归类' || k === 'Uncategorized') return t('project.uncategorized');
+      if (k === '演示数据' || k === 'Demo data') return t('project.demo');
       var parts = k.split('/').filter(Boolean);
       return parts.length ? parts[parts.length - 1] : k;
     }
@@ -8408,16 +8595,16 @@
     }
 
     function todoExtractionSummary(result) {
-      if (!result || result.success !== true) return '抽取失败，已显示现有待办';
+      if (!result || result.success !== true) return t('act.extract.failedExisting');
       var delta = todoExtractionDelta(result);
       var hidden = Number(result.hiddenHistory || 0);
       var discarded = Number(result.discarded || 0);
       var cleaned = Number(result.cleanedActions || 0) + Number(result.cleanedReviews || 0);
       var engine = result.engine || 'rules';
-      var prefix = engine === 'langextract' ? '大模型整理完成' : (engine === 'mixed' ? '部分大模型整理完成' : '未走大模型，已用规则整理');
-      var parts = [prefix, '新增 ' + delta, '历史 ' + hidden, '丢弃 ' + discarded];
-      if (cleaned > 0) parts.push('清理 ' + cleaned);
-      if (result.fallbackReason) parts.push('原因: ' + result.fallbackReason);
+      var prefix = engine === 'langextract' ? t('act.extract.doneLlm') : (engine === 'mixed' ? t('act.extract.doneMixed') : t('act.extract.doneRules'));
+      var parts = [prefix, t('act.extract.created') + ' ' + delta, t('act.extract.history') + ' ' + hidden, t('act.extract.discarded') + ' ' + discarded];
+      if (cleaned > 0) parts.push(t('act.extract.cleaned') + ' ' + cleaned);
+      if (result.fallbackReason) parts.push(t('act.extract.reason') + ': ' + result.fallbackReason);
       return parts.join(' · ');
     }
 
@@ -8472,18 +8659,18 @@
         if (Object.prototype.hasOwnProperty.call(draft, key)) return esc(draft[key] || '');
         return esc(cfg[key] || fallback || '');
       };
-      var keyLabel = cfg.LANGEXTRACT_API_KEY_CONFIGURED ? '输入新 API key 覆盖，留空保持不变' : '未配置';
+      var keyLabel = cfg.LANGEXTRACT_API_KEY_CONFIGURED ? t('settings.apiKeyKeep') : t('settings.apiKeyMissing');
       var maskedKey = cfg.LANGEXTRACT_API_KEY_MASKED || '';
       var html = '<div class="settings-head">';
-      html += '<div><div class="settings-title">设置</div><div class="settings-sub">本机配置会写入用户配置文件，重启服务后生效。</div></div>';
-      html += '<button class="btn" data-action="close-settings" type="button">关闭</button>';
+      html += '<div><div class="settings-title">' + esc(t('settings.title')) + '</div><div class="settings-sub">' + esc(t('settings.subtitle')) + '</div></div>';
+      html += '<button class="btn" data-action="close-settings" type="button">' + esc(t('settings.close')) + '</button>';
       html += '</div>';
-      html += '<section class="settings-section"><div class="settings-section-title">界面语言</div>';
+      html += '<section class="settings-section"><div class="settings-section-title">' + esc(t('settings.language')) + '</div>';
       html += '<div class="settings-language">';
       html += '<button class="btn' + (I18N_LANG === 'zh' ? ' active' : '') + '" data-action="set-ui-language" data-lang="zh" type="button">中文</button>';
       html += '<button class="btn' + (I18N_LANG === 'en' ? ' active' : '') + '" data-action="set-ui-language" data-lang="en" type="button">English</button>';
       html += '</div></section>';
-      html += '<section class="settings-section"><div class="settings-section-title">大模型抽取配置</div>';
+      html += '<section class="settings-section"><div class="settings-section-title">' + esc(t('settings.extractor')) + '</div>';
       html += '<div class="settings-grid">';
       html += '<input id="todo-config-AGENTMEMORY_TODO_EXTRACTOR" class="search-input" value="' + value('AGENTMEMORY_TODO_EXTRACTOR', 'auto') + '" placeholder="auto|rules|langextract" />';
       html += '<input id="todo-config-LANGEXTRACT_PYTHON" class="search-input" value="' + value('LANGEXTRACT_PYTHON', 'python3') + '" placeholder="python3" />';
@@ -8492,10 +8679,10 @@
       html += '<input id="todo-config-LANGEXTRACT_BASE_URL" class="search-input" value="' + value('LANGEXTRACT_BASE_URL', '') + '" placeholder="https://api.novita.ai/openai/v1" />';
       html += '<input id="todo-config-LANGEXTRACT_THINKING_DEPTH" class="search-input" value="' + value('LANGEXTRACT_THINKING_DEPTH', 'medium') + '" placeholder="medium" />';
       html += '<div><input id="todo-config-LANGEXTRACT_API_KEY" class="search-input" type="password" placeholder="' + esc(keyLabel) + '" />';
-      if (maskedKey) html += '<div class="action-meta-text" style="margin-top:4px;">API key: ' + esc(maskedKey) + '</div>';
+      if (maskedKey) html += '<div class="action-meta-text" style="margin-top:4px;">' + esc(t('settings.apiKeyLabel')) + ' ' + esc(maskedKey) + '</div>';
       html += '</div></div>';
       html += '<div style="display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap;">';
-      html += '<button class="btn btn-primary" data-action="save-todo-config" type="button"' + (state.actions.configSaving ? ' disabled' : '') + '>' + (state.actions.configSaving ? '保存中...' : '保存配置') + '</button>';
+      html += '<button class="btn btn-primary" data-action="save-todo-config" type="button"' + (state.actions.configSaving ? ' disabled' : '') + '>' + esc(state.actions.configSaving ? t('settings.saving') : t('settings.save')) + '</button>';
       if (state.actions.config && state.actions.config.envPath) html += '<span class="action-meta-text">' + esc(state.actions.config.envPath) + '</span>';
       html += '</div>';
       if (state.actions.extractMessage) html += '<div class="settings-sub" style="margin-top:8px;">' + esc(state.actions.extractMessage) + '</div>';
@@ -9282,13 +9469,13 @@
         });
         html += '</div>';
         html += '<span style="font-size:12px;color:var(--ink-faint);align-self:center;">' + reviewItems.length + ' ' + t('act.nToConfirm') + ' · ' + items.length + ' ' + t('act.nConfirmed') + '</span>';
-        var extractTitle = state.actions.extractMessage || '调用大模型整理最近会话';
-        var extractLabel = '用大模型整理';
-        if (state.actions.extractInFlight) extractLabel = '整理中...';
-        else if (state.actions.extractStatus === 'done') extractLabel = /未走大模型/.test(state.actions.extractMessage || '') ? '未走大模型' : '已整理';
-        else if (state.actions.extractStatus === 'error') extractLabel = '整理失败';
+        var extractTitle = state.actions.extractMessage || t('act.extract.title');
+        var extractLabel = t('act.extract.run');
+        if (state.actions.extractInFlight) extractLabel = t('act.extract.running');
+        else if (state.actions.extractStatus === 'done') extractLabel = /未走大模型|Rules extraction complete/.test(state.actions.extractMessage || '') ? t('act.extract.rules') : t('act.extract.done');
+        else if (state.actions.extractStatus === 'error') extractLabel = t('act.extract.error');
         html += '<button class="btn btn-primary' + (state.actions.extractInFlight ? ' btn-working' : '') + '" data-action="extract-actions" type="button" title="' + esc(extractTitle) + '" style="margin-left:auto;"' + (state.actions.extractInFlight ? ' disabled aria-busy="true"' : '') + '>' + esc(extractLabel) + '</button>';
-        html += '<button class="btn' + (state.actions.stale ? ' btn-soft-alert' : '') + '" data-action="refresh-actions" type="button">' + (state.actions.stale ? '刷新待办' : t('act.refresh')) + '</button>';
+        html += '<button class="btn' + (state.actions.stale ? ' btn-soft-alert' : '') + '" data-action="refresh-actions" type="button">' + (state.actions.stale ? t('act.refresh') : t('act.refresh')) + '</button>';
         html += '</div>';
         return html;
       }
@@ -9335,9 +9522,9 @@
         if (a.updatedAt) html += '<span class="action-meta-text">' + t('act.updated') + ' ' + esc(shortTime(a.updatedAt)) + '</span>';
         html += '</div></div>';
         html += '<div class="action-item-actions">';
-        if (a.status !== 'done') html += '<button class="btn" data-action="action-status" data-action-id="' + esc(a.id || '') + '" data-status="done" type="button">完成</button>';
-        if (a.status !== 'cancelled') html += '<button class="btn" data-action="action-status" data-action-id="' + esc(a.id || '') + '" data-status="cancelled" type="button">归档</button>';
-        if (a.status !== 'cancelled') html += '<button class="btn btn-danger" data-action="action-status" data-action-id="' + esc(a.id || '') + '" data-status="cancelled" type="button">删除</button>';
+        if (a.status !== 'done') html += '<button class="btn" data-action="action-status" data-action-id="' + esc(a.id || '') + '" data-status="done" type="button">' + esc(t('act.status.complete')) + '</button>';
+        if (a.status !== 'cancelled') html += '<button class="btn" data-action="action-status" data-action-id="' + esc(a.id || '') + '" data-status="cancelled" type="button">' + esc(t('act.status.archive')) + '</button>';
+        if (a.status !== 'cancelled') html += '<button class="btn btn-danger" data-action="action-status" data-action-id="' + esc(a.id || '') + '" data-status="cancelled" type="button">' + esc(t('act.status.delete')) + '</button>';
         html += statusIconMarkup(a.status, statusLabel(a.status));
         html += '</div>';
         html += '</article>';

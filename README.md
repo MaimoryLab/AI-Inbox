@@ -8,7 +8,7 @@ It scans local agent sessions and captures browser AI conversations, extracts th
 
 People work across coding agents, browser AI assistants, and project tools, and useful follow-ups stay buried in conversations: an agent waiting for confirmation, a failed command that blocked a task, a draft never reviewed, a plan never turned into an issue. AI Todo turns these open loops into local, reviewable todo candidates **with evidence**.
 
-> **Status: internal trial / prototype.** It runs end to end locally. Some package names, CLI commands, and API paths still use the earlier implementation name while the project is being renamed to AI Todo. The UI is currently Chinese-first; English localization is in progress (`?lang=en` covers part of the UI today).
+> **Status: internal trial / prototype.** It runs end to end locally. Some package names, CLI commands, and API paths still use the earlier implementation name while the project is being renamed to AI Todo. The UI defaults to English for open-source use, with Chinese available from Settings or `?lang=zh`.
 
 ## Quick start
 

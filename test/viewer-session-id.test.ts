@@ -239,7 +239,7 @@ describe("viewer session rendering", () => {
     };
 
     expect(() => sandbox.renderDashboard()).not.toThrow();
-    expect(getElement("view-dashboard").innerHTML).toContain("未命名会话");
+    expect(getElement("view-dashboard").innerHTML).toContain("Unnamed session");
   });
 
   it("does not throw when timeline and sessions tabs receive sessions missing ids", () => {
@@ -248,12 +248,12 @@ describe("viewer session rendering", () => {
 
     sandbox.state.timeline.sessions = sessions;
     expect(() => sandbox.renderTimelineToolbar(sessions)).not.toThrow();
-    expect(getElement("view-timeline").innerHTML).toContain("未归类");
+    expect(getElement("view-timeline").innerHTML).toContain("Uncategorized");
     expect(getElement("view-timeline").innerHTML).not.toContain("undefined");
 
     sandbox.state.sessions.items = sessions;
     expect(() => sandbox.renderSessions()).not.toThrow();
-    expect(getElement("view-sessions").innerHTML).toContain("未命名会话");
+    expect(getElement("view-sessions").innerHTML).toContain("Unnamed session");
 
     const tabButtons = sandbox.document.querySelectorAll(".tab-bar button");
     expect(tabButtons.length).toBeGreaterThan(0);
@@ -833,7 +833,7 @@ describe("viewer session rendering", () => {
       maxObservationsPerSession: 120,
       force: true,
     });
-    expect(sandbox.state.actions.extractMessage).toContain("新增 1");
+    expect(sandbox.state.actions.extractMessage).toContain("new 1");
   });
 
   it("does not start duplicate todo extraction while one is in flight", async () => {
@@ -908,7 +908,7 @@ describe("viewer session rendering", () => {
 
     expect(sandbox.state.actions.stale).toBe(true);
     expect(getElement("view-actions").innerHTML).not.toContain("有新记录");
-    expect(getElement("view-actions").innerHTML).toContain("刷新待办");
+    expect(getElement("view-actions").innerHTML).toContain("Refresh");
   });
 
   it("uses the explicit LLM extract button instead of refresh for generation", () => {
@@ -958,9 +958,9 @@ describe("viewer session rendering", () => {
     };
     sandbox.state.inbox = { loaded: true, items: [] };
     sandbox.renderActions();
-    expect(getElement("view-actions").innerHTML).toContain("完成");
-    expect(getElement("view-actions").innerHTML).toContain("归档");
-    expect(getElement("view-actions").innerHTML).toContain("删除");
+    expect(getElement("view-actions").innerHTML).toContain("Complete");
+    expect(getElement("view-actions").innerHTML).toContain("Archive");
+    expect(getElement("view-actions").innerHTML).toContain("Delete");
 
     const target = Object.create(sandbox.Element.prototype);
     target.getAttribute = (name: string) => {
@@ -1000,11 +1000,11 @@ describe("viewer session rendering", () => {
     };
     sandbox.state.inbox = { loaded: true, items: [] };
     sandbox.renderActions();
-    expect(getElement("view-actions").innerHTML).not.toContain("大模型抽取配置");
+    expect(getElement("view-actions").innerHTML).not.toContain("LLM extraction config");
     expect(getElement("view-actions").innerHTML).not.toContain("LANGEXTRACT_API_KEY=secret");
     sandbox.state.settings.open = true;
     sandbox.renderSettingsPanel();
-    expect(getElement("settings-panel").innerHTML).toContain("大模型抽取配置");
+    expect(getElement("settings-panel").innerHTML).toContain("LLM extraction config");
 
     getElement("todo-config-LANGEXTRACT_MODEL").value = "pa/gpt-5.5";
     getElement("todo-config-LANGEXTRACT_API_KEY").value = "secret";
@@ -1067,7 +1067,7 @@ describe("viewer session rendering", () => {
     sandbox.renderSettingsPanel();
     const html = getElement("view-actions").innerHTML;
     const settingsHtml = getElement("settings-panel").innerHTML;
-    expect(html).toContain("整理中...");
+    expect(html).toContain("Organizing...");
     expect(html).toContain('title="正在从最近会话整理待办..."');
     expect(settingsHtml).toContain("API key: sk_****7890");
   });
@@ -1141,10 +1141,10 @@ describe("viewer session rendering", () => {
     sandbox.state.inbox = { loaded: true, items: [] };
     sandbox.renderActions();
     const html = getElement("view-actions").innerHTML;
-    expect(html).toContain("待回应");
-    expect(html).toContain("还没有待办");
+    expect(html).toContain("Awaiting reply");
+    expect(html).toContain("No todos yet");
     expect(html).not.toContain("awaiting-reply-section");
-    expect(html).not.toContain("暂无待回应");
+    expect(html).not.toContain("No awaiting replies");
     // STEP-C2 已接通后端,不再出现「尚未接通」「即将上线」
     expect(html).not.toContain("尚未接通");
     expect(html).not.toContain("即将上线");
@@ -1281,9 +1281,9 @@ describe("viewer session rendering", () => {
     const html = getElement("view-actions").innerHTML;
 
     expect(html).toContain("整理验收截图");
-    expect(html).toContain("1 条待确认");
+    expect(html).toContain("1 to confirm");
     expect(html).not.toContain("action-candidate-card");
-    expect(html).not.toContain("还没有待办");
+    expect(html).not.toContain("No todos yet");
   });
 
   it("renders action reviews as compact decision cards while keeping tool pollution hidden", () => {
@@ -1339,10 +1339,10 @@ describe("viewer session rendering", () => {
 
     expect(html).toContain("修复待办候选展示");
     expect(html).toContain("action-candidate-card");
-    expect(html).toContain("待确认");
-    expect(html).toContain("确认");
-    expect(html).toContain("忽略");
-    expect(html).not.toContain("查看原文");
+    expect(html).toContain("Review");
+    expect(html).toContain("Confirm");
+    expect(html).toContain("Ignore");
+    expect(html).not.toContain("View original");
     expect(html).not.toContain("待办生成链路与前端展示修复计划");
     expect(html).not.toContain("## Summary");
     expect(html).not.toContain("src/functions/action-candidates.ts");

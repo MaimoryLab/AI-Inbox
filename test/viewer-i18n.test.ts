@@ -22,11 +22,11 @@ function loadI18nCore() {
 }
 
 describe("viewer i18n base", () => {
-  it("t() resolves the active locale, defaulting to zh", () => {
+  it("t() resolves the active locale, defaulting to en with zh still available", () => {
     const i18n = loadI18nCore();
-    expect(i18n.t("tab.dashboard")).toBe("总览");
-    i18n.setLang("en");
     expect(i18n.t("tab.dashboard")).toBe("Overview");
+    i18n.setLang("zh");
+    expect(i18n.t("tab.dashboard")).toBe("总览");
   });
 
   it("t() falls back to en for a key missing in the active locale, then to the key itself", () => {
