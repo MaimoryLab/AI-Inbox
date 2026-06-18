@@ -826,9 +826,11 @@ async function handleReviewFallback(
   if (method === "GET") {
     const params = parseViewerQuery(qs);
     const status = params.status || "";
+    const kinds = new Set((params.kind || "").split(",").map((kind) => kind.trim()).filter(Boolean));
     const limit = Math.max(1, Math.min(200, parseInt(params.limit || "50", 10) || 50));
     const items = (await kv.list<ReviewQueueItem>(KV.reviewQueue))
       .filter((item) => !status || item.status === status)
+      .filter((item) => kinds.size === 0 || kinds.has(item.kind))
       .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
       .slice(0, limit);
     json(res, 200, { items }, req);

@@ -6871,7 +6871,7 @@
       // corpora. Older endpoints returned the full unbounded list which
       // hit the iii invocation timeout and the UI fell through to 0.
       var result = await apiGet('memories?latest=true&limit=2000');
-      var reviewResult = await apiGet('review?status=pending&limit=50');
+      var reviewResult = await apiGet('review?status=pending&kind=memory,lesson&limit=50');
       var items = (result && result.memories) || [];
       // Newest first — server returns KV-insertion order.
       items.sort(function(a, b) {
@@ -8573,7 +8573,7 @@
       var results = await Promise.all([
         apiGet('actions'),
         apiGet('frontier'),
-        apiGet('review?status=pending&limit=200'),
+        apiGet('review?status=pending&kind=action&limit=200'),
         apiGet('inbox?status=awaiting&limit=50'),
         apiGet('inbox?status=answered&limit=50'),
         apiGet('inbox?status=dismissed&limit=50')
@@ -8628,7 +8628,7 @@
       return Promise.all([
         apiGet('actions'),
         apiGet('frontier'),
-        apiGet('review?status=pending&limit=200')
+        apiGet('review?status=pending&kind=action&limit=200')
       ]).then(function(results) {
         state.actions.items = (results[0] && results[0].actions) || state.actions.items || [];
         state.actions.frontier = (results[1] && (results[1].frontier || results[1].actions)) || state.actions.frontier || [];

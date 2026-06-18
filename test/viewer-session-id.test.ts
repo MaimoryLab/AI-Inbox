@@ -826,6 +826,7 @@ describe("viewer session rendering", () => {
     expect(urls.some((url) => url.includes("inbox?status=awaiting"))).toBe(true);
     expect(urls.some((url) => url.includes("inbox?status=answered"))).toBe(true);
     expect(urls.some((url) => url.includes("inbox?status=dismissed"))).toBe(true);
+    expect(urls.some((url) => url.includes("review?status=pending&kind=action"))).toBe(true);
     expect(urls.some((url) => url.includes("todo-extract/generate"))).toBe(false);
     expect(urls.some((url) => url.includes("review/actions/generate"))).toBe(false);
     expect(posts).toHaveLength(0);
