@@ -1460,10 +1460,15 @@ export function registerApiTriggers(
       const authErr = checkAuth(req, secret);
       if (authErr) return authErr;
       const status = asNonEmptyString(req.query_params?.["status"]);
+      const kinds = new Set((asNonEmptyString(req.query_params?.["kind"]) || "")
+        .split(",")
+        .map((kind) => kind.trim())
+        .filter(Boolean));
       const rawLimit = parseOptionalInt(req.query_params?.["limit"]);
       const limit = Math.max(1, Math.min(200, rawLimit ?? 50));
       const items = (await kv.list<ReviewQueueItem>(KV.reviewQueue))
         .filter((item) => !status || item.status === status)
+        .filter((item) => kinds.size === 0 || kinds.has(item.kind))
         .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
         .slice(0, limit);
       return { status_code: 200, body: { items } };
