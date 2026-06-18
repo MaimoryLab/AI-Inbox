@@ -8,7 +8,7 @@ import { registerActionsFunction } from "../src/functions/actions.js";
 import { registerActionCandidateFunctions } from "../src/functions/action-candidates.js";
 import { registerApiTriggers } from "../src/triggers/api.js";
 import type { Action, CompressedObservation, ReviewQueueItem, Session } from "../src/types.js";
-import { KV } from "../src/state/schema.js";
+import { KV, fingerprintId } from "../src/state/schema.js";
 import { mockKV, mockSdk } from "./helpers/mocks.js";
 
 function req(body: Record<string, unknown> = {}, query_params: Record<string, string> = {}) {
@@ -353,6 +353,10 @@ describe("review action candidates", () => {
           reason: "follow_up",
           confidence: 0.8,
         },
+        todoExtraction: {
+          dedupeKey: "fix-review-action-approve",
+          typeBucket: "follow_up",
+        },
         project: "agentmemory-lab",
         tags: ["action-candidate", "follow-up"],
       },
@@ -379,6 +383,10 @@ describe("review action candidates", () => {
       project: "agentmemory-lab",
       tags: ["action-candidate", "reviewed"],
       sourceObservationIds: ["obs_1"],
+    });
+    expect(approveResponse.body.result.action.id).toBe(fingerprintId("act", "todo:fix-review-action-approve"));
+    expect(approveResponse.body.result.action.metadata?.todoExtraction).toMatchObject({
+      dedupeKey: "fix-review-action-approve",
     });
     expect(approveResponse.body.item.resultId).toBe(approveResponse.body.result.action.id);
 

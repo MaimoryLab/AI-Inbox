@@ -6,7 +6,13 @@ import type { ISdk } from "iii-sdk";
 import type { StateKV } from "../state/kv.js";
 import { KV, fingerprintId, generateId } from "../state/schema.js";
 import type { Action, CompressedObservation, ReviewQueueItem, ScanCheckpoint, Session } from "../types.js";
-import { normalizeTodoExtractorModel, getEnvVar } from "../config.js";
+import {
+  DEFAULT_LANGEXTRACT_BASE_URL,
+  DEFAULT_TODO_EXTRACT_TIMEOUT_MS,
+  getEnvVar,
+  normalizeTodoExtractorModel,
+  normalizeTodoExtractorProvider,
+} from "../config.js";
 import { scanCodexSource } from "./source-scan-codex.js";
 import {
   extractActionCandidatesFromObservations,
@@ -235,7 +241,9 @@ export async function runLangExtractSidecar(
     if (value) env[key] = value;
   }
   env.LANGEXTRACT_MODEL = normalizeTodoExtractorModel(env.LANGEXTRACT_MODEL);
-  const timeoutMs = opts.timeoutMs ?? envNumber("AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS", 30_000);
+  env.LANGEXTRACT_PROVIDER = normalizeTodoExtractorProvider(env.LANGEXTRACT_PROVIDER);
+  env.LANGEXTRACT_BASE_URL = env.LANGEXTRACT_BASE_URL || DEFAULT_LANGEXTRACT_BASE_URL;
+  const timeoutMs = opts.timeoutMs ?? envNumber("AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS", DEFAULT_TODO_EXTRACT_TIMEOUT_MS);
   return new Promise((resolvePromise, reject) => {
     const child = spawn(python, [script], { stdio: ["pipe", "pipe", "pipe"], env });
     let stdout = "";
@@ -533,6 +541,7 @@ export async function generateTodosFromSessions(
   cleanedReviews: number;
   recheckMarked: number;
   sourceScan?: { imported: number; skipped: number; errors: number };
+  llmFallback?: boolean;
   fallbackReason?: string;
 }> {
   let sourceScan: { imported: number; skipped: number; errors: number } | undefined;
@@ -636,6 +645,7 @@ export async function generateTodosFromSessions(
     cleanedReviews: cleanup.cleanedReviews,
     recheckMarked,
     ...(sourceScan ? { sourceScan } : {}),
+    ...(fallbackReasons.size ? { llmFallback: true } : {}),
     ...(fallbackReasons.size ? { fallbackReason: Array.from(fallbackReasons)[0] } : {}),
   };
 }

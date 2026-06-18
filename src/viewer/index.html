@@ -8676,7 +8676,7 @@
       html += '<input id="todo-config-LANGEXTRACT_PYTHON" class="search-input" value="' + value('LANGEXTRACT_PYTHON', 'python3') + '" placeholder="python3" />';
       html += '<input id="todo-config-LANGEXTRACT_PROVIDER" class="search-input" value="' + value('LANGEXTRACT_PROVIDER', 'openai') + '" placeholder="openai" />';
       html += '<input id="todo-config-LANGEXTRACT_MODEL" class="search-input" value="' + value('LANGEXTRACT_MODEL', 'deepseek/deepseek-v4-pro') + '" placeholder="model" />';
-      html += '<input id="todo-config-LANGEXTRACT_BASE_URL" class="search-input" value="' + value('LANGEXTRACT_BASE_URL', '') + '" placeholder="https://api.novita.ai/openai/v1" />';
+      html += '<input id="todo-config-LANGEXTRACT_BASE_URL" class="search-input" value="' + value('LANGEXTRACT_BASE_URL', 'https://api.novita.ai/openai/v1') + '" placeholder="https://api.novita.ai/openai/v1" />';
       html += '<input id="todo-config-LANGEXTRACT_THINKING_DEPTH" class="search-input" value="' + value('LANGEXTRACT_THINKING_DEPTH', 'medium') + '" placeholder="medium" />';
       html += '<div><input id="todo-config-LANGEXTRACT_API_KEY" class="search-input" type="password" placeholder="' + esc(keyLabel) + '" />';
       if (maskedKey) html += '<div class="action-meta-text" style="margin-top:4px;">' + esc(t('settings.apiKeyLabel')) + ' ' + esc(maskedKey) + '</div>';
@@ -8796,6 +8796,7 @@
           return null;
         }
         state.actions.extractStatus = 'done';
+        state.actions.extractFallback = !!result.llmFallback || result.engine === 'rules';
         state.actions.extractMessage = todoExtractionSummary(result);
         if (actionsScrolledAway()) {
           state.actions.stale = delta > 0;
@@ -9472,7 +9473,7 @@
         var extractTitle = state.actions.extractMessage || t('act.extract.title');
         var extractLabel = t('act.extract.run');
         if (state.actions.extractInFlight) extractLabel = t('act.extract.running');
-        else if (state.actions.extractStatus === 'done') extractLabel = /未走大模型|Rules extraction complete/.test(state.actions.extractMessage || '') ? t('act.extract.rules') : t('act.extract.done');
+        else if (state.actions.extractStatus === 'done') extractLabel = state.actions.extractFallback ? t('act.extract.rules') : t('act.extract.done');
         else if (state.actions.extractStatus === 'error') extractLabel = t('act.extract.error');
         html += '<button class="btn btn-primary' + (state.actions.extractInFlight ? ' btn-working' : '') + '" data-action="extract-actions" type="button" title="' + esc(extractTitle) + '" style="margin-left:auto;"' + (state.actions.extractInFlight ? ' disabled aria-busy="true"' : '') + '>' + esc(extractLabel) + '</button>';
         html += '<button class="btn' + (state.actions.stale ? ' btn-soft-alert' : '') + '" data-action="refresh-actions" type="button">' + (state.actions.stale ? t('act.refresh') : t('act.refresh')) + '</button>';

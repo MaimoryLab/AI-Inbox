@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { renderViewerDocument } from "./document.js";
 import type { Action, CompressedObservation, Memory, ReviewQueueItem, Session } from "../types.js";
-import { KV } from "../state/schema.js";
+import { KV, fingerprintId } from "../state/schema.js";
 import { buildTurnActionDrafts } from "../functions/action-candidates.js";
 import { generateTodosFromSessions } from "../functions/todo-extract.js";
 import { getTodoExtractorUserConfig, getUserEnvPath, writeUserEnv } from "../config.js";
@@ -1014,6 +1014,7 @@ async function handleReviewApproveFallback(
       ? payload.todoExtraction as Record<string, unknown>
       : {};
     const typeBucket = typeof todoExtraction.typeBucket === "string" ? todoExtraction.typeBucket : "";
+    const dedupeKey = typeof todoExtraction.dedupeKey === "string" ? todoExtraction.dedupeKey : "";
     const actionStatus =
       typeBucket === "done" ? "done" :
       typeBucket === "in_progress" || typeBucket === "processing" ? "active" :
@@ -1024,7 +1025,7 @@ async function handleReviewApproveFallback(
         )
       : [];
     const action: Action = {
-      id: `act_${Date.now().toString(36)}_${randomUUID().replace(/-/g, "").slice(0, 12)}`,
+      id: dedupeKey ? fingerprintId("act", `todo:${dedupeKey}`) : `act_${Date.now().toString(36)}_${randomUUID().replace(/-/g, "").slice(0, 12)}`,
       title,
       description: content,
       status: actionStatus,

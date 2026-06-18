@@ -1,6 +1,8 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 
 vi.mock("../src/config.js", () => ({
+  DEFAULT_LANGEXTRACT_BASE_URL: "https://api.novita.ai/openai/v1",
+  DEFAULT_TODO_EXTRACT_TIMEOUT_MS: 120_000,
   getEnvVar: (key: string) => {
     const values: Record<string, string> = {
       AGENTMEMORY_TODO_EXTRACTOR: "rules",
@@ -9,6 +11,8 @@ vi.mock("../src/config.js", () => ({
     };
     return process.env[key] ?? values[key];
   },
+  normalizeTodoExtractorModel: (value?: string) => value || "deepseek/deepseek-v4-pro",
+  normalizeTodoExtractorProvider: (value?: string) => (value || "openai").toLowerCase(),
 }));
 
 import { cleanPollutedTodoCards, cleanTodoTitle, generateTodosFromSessions, validateTodoEvidence, runLangExtractSidecar, type ExtractedTodo } from "../src/functions/todo-extract.js";
@@ -59,6 +63,7 @@ describe("todo extraction", () => {
 
     const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false });
 
+    expect(result.llmFallback).toBeUndefined();
     expect(result.directCreated).toBe(1);
     expect(result.reviewCreated).toBe(0);
     const actions = await kv.list<Action>(KV.actions);
@@ -66,7 +71,7 @@ describe("todo extraction", () => {
     expect(actions[0]).toMatchObject({
       status: "pending",
       project: "agentmemory-lab",
-      tags: expect.arrayContaining(["todo-extracted", "time:current", "type:follow_up"]),
+      tags: expect.arrayContaining(["todo-extracted", "time:recent", "type:follow_up"]),
       sourceObservationIds: ["obs_1"],
     });
     expect(actions[0].metadata?.todoExtraction).toMatchObject({
@@ -200,6 +205,21 @@ describe("todo extraction", () => {
     process.env.LANGEXTRACT_PYTHON = "__missing_python__";
     await expect(runLangExtractSidecar({ blocks: [{ text: "后续需要修复 CI。", sourceObservationId: "obs_1" }] }, { timeoutMs: 500 }))
       .rejects.toBeTruthy();
+    delete process.env.LANGEXTRACT_PYTHON;
+  });
+
+  it("reports when auto mode fell back from LangExtract to rules", async () => {
+    process.env.AGENTMEMORY_TODO_EXTRACTOR = "auto";
+    process.env.LANGEXTRACT_PYTHON = "__missing_python__";
+    await kv.set(KV.sessions, "ses_1", session());
+    await kv.set(KV.observations("ses_1"), "obs_1", obs());
+
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false });
+
+    expect(result.engine).toBe("rules");
+    expect(result.llmFallback).toBe(true);
+    expect(result.fallbackReason).toBeTruthy();
+    delete process.env.AGENTMEMORY_TODO_EXTRACTOR;
     delete process.env.LANGEXTRACT_PYTHON;
   });
 

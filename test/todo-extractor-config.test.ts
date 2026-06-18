@@ -20,6 +20,8 @@ describe("todo extractor user config", () => {
     process.env["USERPROFILE"] = sandboxHome;
     delete process.env.LANGEXTRACT_API_KEY;
     delete process.env.LANGEXTRACT_MODEL;
+    delete process.env.LANGEXTRACT_PROVIDER;
+    delete process.env.LANGEXTRACT_BASE_URL;
   });
 
   afterEach(() => {
@@ -55,5 +57,14 @@ describe("todo extractor user config", () => {
     writeUserEnv({ LANGEXTRACT_MODEL: "pa/gpt-5.5" });
 
     expect(getTodoExtractorUserConfig().LANGEXTRACT_MODEL).toBe("deepseek/deepseek-v4-pro");
+  });
+
+  it("defaults LangExtract to Novita OpenAI-compatible routing", async () => {
+    const { getTodoExtractorUserConfig, writeUserEnv } = await freshConfig();
+    writeUserEnv({ LANGEXTRACT_PROVIDER: "novita" });
+
+    const cfg = getTodoExtractorUserConfig();
+    expect(cfg.LANGEXTRACT_PROVIDER).toBe("openai");
+    expect(cfg.LANGEXTRACT_BASE_URL).toBe("https://api.novita.ai/openai/v1");
   });
 });

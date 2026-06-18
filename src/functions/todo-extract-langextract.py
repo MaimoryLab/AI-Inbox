@@ -14,6 +14,8 @@ import sys
 import textwrap
 
 DEFAULT_MODEL = "deepseek/deepseek-v4-pro"
+DEFAULT_PROVIDER = "openai"
+DEFAULT_BASE_URL = "https://api.novita.ai/openai/v1"
 LEGACY_MODELS = {"pa/gpt-5.5"}
 
 
@@ -50,9 +52,11 @@ def model_id_from_env() -> str:
 
 
 def extract_kwargs(lx, model_id: str, model_config_cls=None) -> dict:
-    provider = os.environ.get("LANGEXTRACT_PROVIDER", "").strip().lower()
+    provider = os.environ.get("LANGEXTRACT_PROVIDER", DEFAULT_PROVIDER).strip().lower()
+    if provider in ("", "novita", "deepseek"):
+        provider = DEFAULT_PROVIDER
     api_key = os.environ.get("LANGEXTRACT_API_KEY", "").strip()
-    base_url = os.environ.get("LANGEXTRACT_BASE_URL", "").strip()
+    base_url = os.environ.get("LANGEXTRACT_BASE_URL", DEFAULT_BASE_URL).strip() or DEFAULT_BASE_URL
     thinking_depth = os.environ.get("LANGEXTRACT_THINKING_DEPTH", "medium").strip()
     params = {
         "extraction_passes": int(os.environ.get("LANGEXTRACT_PASSES", "2")),

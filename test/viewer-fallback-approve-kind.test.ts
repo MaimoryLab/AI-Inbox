@@ -16,6 +16,7 @@ describe("viewer fallback approve respects kind: action", () => {
 
   it("writes approved actions to KV.actions with action-create defaults", () => {
     expect(server).toMatch(/kv\.set\(KV\.actions, action\.id, action\)/);
+    expect(server).toMatch(/fingerprintId\("act", `todo:\$\{dedupeKey\}`\)/);
     expect(server).toMatch(/createdBy: "review"/);
     expect(server).toMatch(/status: actionStatus/);
     // priority stays clamped to the 1..10 action range

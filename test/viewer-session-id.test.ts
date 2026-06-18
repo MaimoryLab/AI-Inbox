@@ -1029,7 +1029,7 @@ describe("viewer session rendering", () => {
       statusFilter: "",
       search: "",
       reviewItems: [],
-      config: { envPath: "/tmp/.env", config: { LANGEXTRACT_BASE_URL: "", LANGEXTRACT_API_KEY_CONFIGURED: false } },
+      config: { envPath: "/tmp/.env", config: { LANGEXTRACT_BASE_URL: "https://api.novita.ai/openai/v1", LANGEXTRACT_API_KEY_CONFIGURED: false } },
       configDraft: {},
     };
     sandbox.state.inbox = { loaded: true, items: [] };
