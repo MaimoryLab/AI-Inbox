@@ -8675,7 +8675,7 @@
       html += '<input id="todo-config-AGENTMEMORY_TODO_EXTRACTOR" class="search-input" value="' + value('AGENTMEMORY_TODO_EXTRACTOR', 'auto') + '" placeholder="auto|rules|langextract" />';
       html += '<input id="todo-config-LANGEXTRACT_PYTHON" class="search-input" value="' + value('LANGEXTRACT_PYTHON', 'python3') + '" placeholder="python3" />';
       html += '<input id="todo-config-LANGEXTRACT_PROVIDER" class="search-input" value="' + value('LANGEXTRACT_PROVIDER', 'openai') + '" placeholder="openai" />';
-      html += '<input id="todo-config-LANGEXTRACT_MODEL" class="search-input" value="' + value('LANGEXTRACT_MODEL', 'pa/gpt-5.5') + '" placeholder="model" />';
+      html += '<input id="todo-config-LANGEXTRACT_MODEL" class="search-input" value="' + value('LANGEXTRACT_MODEL', 'deepseek/deepseek-v4-pro') + '" placeholder="model" />';
       html += '<input id="todo-config-LANGEXTRACT_BASE_URL" class="search-input" value="' + value('LANGEXTRACT_BASE_URL', '') + '" placeholder="https://api.novita.ai/openai/v1" />';
       html += '<input id="todo-config-LANGEXTRACT_THINKING_DEPTH" class="search-input" value="' + value('LANGEXTRACT_THINKING_DEPTH', 'medium') + '" placeholder="medium" />';
       html += '<div><input id="todo-config-LANGEXTRACT_API_KEY" class="search-input" type="password" placeholder="' + esc(keyLabel) + '" />';
@@ -9349,7 +9349,7 @@
           if (tag && visible.indexOf(tag) < 0) visible.push(tag);
         }
         all.filter(function(tag) {
-          return tag === 'todo-extracted' || /^time:[a-z_]+$/i.test(tag) || /^type:[a-z_]+$/i.test(tag);
+          return tag === 'todo-extracted' || tag === 'todo-recheck' || /^time:[a-z_]+$/i.test(tag) || /^type:[a-z_]+$/i.test(tag);
         }).forEach(add);
         all.forEach(function(tag) {
           if (visible.length < 5) add(tag);

@@ -57,7 +57,7 @@ describe("todo extraction", () => {
     await kv.set(KV.sessions, "ses_1", session());
     await kv.set(KV.observations("ses_1"), "obs_1", obs());
 
-    const result = await generateTodosFromSessions(kv as never, { force: true });
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false });
 
     expect(result.directCreated).toBe(1);
     expect(result.reviewCreated).toBe(0);
@@ -71,6 +71,7 @@ describe("todo extraction", () => {
     });
     expect(actions[0].metadata?.todoExtraction).toMatchObject({
       sourceSessionId: "ses_1",
+      sourceCheckpoint: "2026-06-17T09:00:00.000Z:1",
       evidence: { sourceObservationId: "obs_1" },
     });
   });
@@ -79,8 +80,8 @@ describe("todo extraction", () => {
     await kv.set(KV.sessions, "ses_1", session());
     await kv.set(KV.observations("ses_1"), "obs_1", obs());
 
-    await generateTodosFromSessions(kv as never, { force: true });
-    const second = await generateTodosFromSessions(kv as never);
+    await generateTodosFromSessions(kv as never, { force: true, scanSources: false });
+    const second = await generateTodosFromSessions(kv as never, { scanSources: false });
 
     expect(second.scannedObservations).toBe(0);
     expect(second.directCreated).toBe(0);
@@ -92,7 +93,7 @@ describe("todo extraction", () => {
     await kv.set(KV.observations("ses_1"), "obs_1", obs({ narrative: "下一步请修复 CI 失败，并重新跑测试。" }));
 
     process.env.AGENTMEMORY_TODO_DIRECT_CONFIDENCE = "0.8";
-    const result = await generateTodosFromSessions(kv as never, { force: true });
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false });
     delete process.env.AGENTMEMORY_TODO_DIRECT_CONFIDENCE;
 
     expect(result.directCreated).toBe(0);
@@ -113,7 +114,7 @@ describe("todo extraction", () => {
     }));
     await kv.set(KV.observations("ses_1"), "obs_1", obs());
 
-    const result = await generateTodosFromSessions(kv as never, { force: true });
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false });
 
     expect(result.hiddenHistory).toBe(1);
     expect(await kv.list<Action>(KV.actions)).toHaveLength(0);
@@ -124,6 +125,39 @@ describe("todo extraction", () => {
         hiddenHistory: true,
         todoExtraction: expect.objectContaining({ timeBucket: "history" }),
       },
+    });
+  });
+
+  it("marks extracted actions for recheck when the source session changes", async () => {
+    await kv.set(KV.sessions, "ses_1", session({ observationCount: 2 }));
+    await kv.set<Action>(KV.actions, "act_1", {
+      id: "act_1",
+      title: "整理待办",
+      description: "整理待办",
+      status: "pending",
+      priority: 5,
+      createdAt: "2026-06-17T09:00:00.000Z",
+      updatedAt: "2026-06-17T09:00:00.000Z",
+      createdBy: "todo-extract",
+      tags: ["todo-extracted", "time:current", "type:to_start"],
+      sourceObservationIds: ["obs_1"],
+      sourceMemoryIds: [],
+      metadata: {
+        todoExtraction: {
+          sourceSessionId: "ses_1",
+          sourceCheckpoint: "2026-06-17T09:00:00.000Z:1",
+        },
+      },
+    });
+
+    const result = await generateTodosFromSessions(kv as never, { scanSources: false });
+
+    expect(result.recheckMarked).toBe(1);
+    const actions = await kv.list<Action>(KV.actions);
+    expect(actions[0].tags).toContain("todo-recheck");
+    expect(actions[0].metadata?.todoExtraction).toMatchObject({
+      needsRecheck: true,
+      latestSourceCheckpoint: "2026-06-17T09:00:00.000Z:2",
     });
   });
 

@@ -1005,6 +1005,7 @@ describe("viewer session rendering", () => {
     sandbox.state.settings.open = true;
     sandbox.renderSettingsPanel();
     expect(getElement("settings-panel").innerHTML).toContain("LLM extraction config");
+    expect(getElement("settings-panel").innerHTML).not.toContain("pa/gpt-5.5");
 
     getElement("todo-config-LANGEXTRACT_MODEL").value = "deepseek/deepseek-v4-pro";
     getElement("todo-config-LANGEXTRACT_API_KEY").value = "secret";

@@ -326,7 +326,7 @@ describe("viewer request handler DNS rebinding defence (e2e)", () => {
         `localhost:${port}`,
         "/agentmemory/todo-extract/generate",
         "POST",
-        JSON.stringify({ force: true }),
+        JSON.stringify({ force: true, scanSources: false }),
       );
       const actions = await request(port, `localhost:${port}`, "/agentmemory/actions");
 
