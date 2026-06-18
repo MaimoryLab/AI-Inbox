@@ -9,6 +9,8 @@
 //      the user recognises them later. The label mirrors README row 1
 //      (native plugins) and row 2 (MCP-only).
 //   2. Which LLM provider to use for compress / consolidate / graph.
+//      Todo extraction is configured separately in the viewer Settings panel
+//      via LANGEXTRACT_*.
 //      "skip — BM25-only mode" is a real first-class option; lots of
 //      users want agentmemory purely as a hybrid keyword + vector
 //      memory layer without granting LLM API keys.
@@ -177,8 +179,9 @@ export async function runOnboarding(): Promise<OnboardingResult> {
       "Welcome to agentmemory.",
       "",
       "Persistent memory for your AI coding agents. We'll pick which",
-      "agents to wire up and which provider (if any) handles compression",
-      "and consolidation. Either step can be changed later in ~/.agentmemory/.env.",
+      "agents to wire up and which provider (if any) handles memory",
+      "compression and consolidation. Todo extraction uses separate",
+      "LANGEXTRACT_* settings in the web Settings panel.",
     ].join("\n"),
     "first-run setup",
   );
@@ -207,7 +210,7 @@ export async function runOnboarding(): Promise<OnboardingResult> {
   }
 
   const providerPicked = await p.select<string>({
-    message: "Which LLM provider should agentmemory use for compress/consolidate?",
+    message: "Which LLM provider should memory compression/consolidation use? (Not To-Do extraction)",
     options: PROVIDERS.map(({ value, label }) => ({ value, label })),
     initialValue: "anthropic",
   });
@@ -239,7 +242,8 @@ export async function runOnboarding(): Promise<OnboardingResult> {
   if (provider) {
     const envKey = PROVIDERS.find((x) => x.value === provider)?.envKey;
     if (envKey) {
-      lines.push(`  Uncomment ${envKey}= in that file to enable ${provider}.`);
+      lines.push(`  Uncomment ${envKey}= in that file to enable memory compression/consolidation.`);
+      lines.push("  To-Do extraction uses LANGEXTRACT_* in the web Settings panel.");
     }
   } else {
     lines.push("  No provider chosen — agentmemory will run in BM25-only mode.");

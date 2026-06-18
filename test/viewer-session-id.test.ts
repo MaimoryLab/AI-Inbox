@@ -1013,10 +1013,10 @@ describe("viewer session rendering", () => {
     target.getAttribute = (name: string) => name === "data-action" ? "save-todo-config" : null;
     target.closest = (selector: string) => selector === "[data-action]" ? target : null;
     dispatchDocumentClick(target);
-    await waitFor(() => sandbox.state.actions.extractMessage === "配置已保存，重启后生效。");
+    await waitFor(() => sandbox.state.actions.extractMessage === "Config saved. Restart the service to apply it.");
 
     expect(posts[0]).toMatchObject({ LANGEXTRACT_MODEL: "deepseek/deepseek-v4-pro", LANGEXTRACT_API_KEY: "secret" });
-    expect(sandbox.state.actions.extractMessage).toBe("配置已保存，重启后生效。");
+    expect(sandbox.state.actions.extractMessage).toBe("Config saved. Restart the service to apply it.");
   });
 
   it("keeps unsaved todo extractor config while the settings panel rerenders", () => {
@@ -1059,7 +1059,7 @@ describe("viewer session rendering", () => {
       search: "",
       reviewItems: [],
       extractInFlight: true,
-      extractMessage: "正在从最近会话整理待办...",
+      extractMessage: "Organizing recent sessions...",
       config: { envPath: "/tmp/.env", config: { LANGEXTRACT_API_KEY_CONFIGURED: true, LANGEXTRACT_API_KEY_MASKED: "sk_****7890" } },
     };
     sandbox.state.inbox = { loaded: true, items: [] };
@@ -1069,8 +1069,30 @@ describe("viewer session rendering", () => {
     const html = getElement("view-actions").innerHTML;
     const settingsHtml = getElement("settings-panel").innerHTML;
     expect(html).toContain("Organizing...");
-    expect(html).toContain('title="正在从最近会话整理待办..."');
+    expect(html).toContain('title="Organizing recent sessions..."');
     expect(settingsHtml).toContain("API key: sk_****7890");
+  });
+
+  it("makes rules fallback visible on the extract button", () => {
+    const { sandbox, getElement } = loadViewerSandbox();
+    sandbox.state.activeTab = "actions";
+    sandbox.state.actions = {
+      loaded: true,
+      items: [],
+      frontier: [],
+      statusFilter: "",
+      search: "",
+      reviewItems: [],
+      extractStatus: "done",
+      extractFallback: true,
+      extractMessage: "Rules extraction complete · reason: missing key",
+    };
+    sandbox.state.inbox = { loaded: true, items: [] };
+    sandbox.renderActions();
+
+    const html = getElement("view-actions").innerHTML;
+    expect(html).toContain("LLM unavailable");
+    expect(html).toContain("missing key");
   });
 
   it("filters actions from metric cards", () => {
@@ -1124,7 +1146,7 @@ describe("viewer session rendering", () => {
     await waitFor(() => !!sandbox.state.actions.items[0]);
 
     expect(sandbox.state.actions.extractInFlight).toBe(true);
-    expect(sandbox.state.actions.extractMessage).toBe("已显示最新待办，后台仍在整理...");
+    expect(sandbox.state.actions.extractMessage).toBe("Latest todos are shown; still organizing...");
     expect(sandbox.state.actions.items[0].title).toBe("整理首版功能文档");
   });
 

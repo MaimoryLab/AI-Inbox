@@ -37,6 +37,7 @@ Then refresh the viewer: the dashboard fills with browsable sessions, memory, an
 - **Codex sessions (local):** the daemon scans your Codex session directories (`~/.codex/sessions` and `~/.codex/archived_sessions`) on startup and on an interval. Toggle with `AGENTMEMORY_CODEX_AUTOSCAN=false`; tune the cadence with `AGENTMEMORY_CODEX_SCAN_INTERVAL_MS` (default 5 min). You can also import a transcript on demand with `agentmemory import-jsonl <path>`.
 - **Browser AI conversations:** load the browser extension under [`browser-extension/`](browser-extension/); it captures supported AI sites and posts them to the local daemon, which extracts todos into the same queue.
 - **LangExtract extraction (optional):** install Python deps with `python3 -m pip install -r requirements-langextract.txt` (add `socksio` if your network uses a SOCKS proxy). Configure it from the viewer Settings panel or `~/.agentmemory/.env`: `AGENTMEMORY_TODO_EXTRACTOR=langextract`, `LANGEXTRACT_PYTHON=/path/to/python`, `LANGEXTRACT_PROVIDER=openai`, `LANGEXTRACT_MODEL=deepseek/deepseek-v4-pro`, `LANGEXTRACT_BASE_URL=https://api.novita.ai/openai/v1`, `LANGEXTRACT_API_KEY=<runtime secret>`, and optionally `AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS=120000`. Trigger it from the To-Do tab or with `POST /agentmemory/todo-extract/generate`.
+- **Provider note:** the first-run CLI provider choice only affects memory compression/consolidation and embeddings. To-Do extraction uses the `LANGEXTRACT_*` settings above.
 
 Everything stays on your machine — see [Privacy](#privacy).
 
@@ -45,10 +46,10 @@ Everything stays on your machine — see [Privacy](#privacy).
 ```
 local agent sessions ─┐
                        ├─▶ normalize ─▶ extractor ─▶ local DB ─▶ local API ─▶ web UI
-browser AI capture ───┘                         (rules or manual LangExtract)
+browser AI capture ───┘                         (rules or LangExtract)
 ```
 
-Built on iii-engine (file-based SQLite state), with a local REST API + MCP server + web UI. The default extractor is deterministic rules; LangExtract is opt-in and manually triggered. See [ARCHITECTURE.md](ARCHITECTURE.md) for detail.
+Built on iii-engine (file-based SQLite state), with a local REST API + MCP server + web UI. The default extractor is deterministic rules. LangExtract is opt-in: opening or refreshing the To-Do tab runs a small recent-session pass, and the **Organize with LLM** button forces a pass. See [ARCHITECTURE.md](ARCHITECTURE.md) for detail.
 
 ## Core todo statuses
 

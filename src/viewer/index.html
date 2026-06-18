@@ -4068,9 +4068,12 @@
         'act.extract.run': 'Organize with LLM',
         'act.extract.running': 'Organizing...',
         'act.extract.done': 'Organized',
-        'act.extract.rules': 'Rules used',
+        'act.extract.rules': 'LLM unavailable',
         'act.extract.error': 'Organize failed',
         'act.extract.failedExisting': 'Extraction failed; showing existing todos',
+        'act.extract.loading': 'Loading todos...',
+        'act.extract.starting': 'Organizing recent sessions...',
+        'act.extract.background': 'Latest todos are shown; still organizing...',
         'act.extract.doneLlm': 'LLM extraction complete',
         'act.extract.doneMixed': 'Partial LLM extraction complete',
         'act.extract.doneRules': 'Rules extraction complete',
@@ -4095,6 +4098,9 @@
         'settings.apiKeyLabel': 'API key:',
         'settings.save': 'Save config',
         'settings.saving': 'Saving...',
+        'settings.savedRestart': 'Config saved. Restart the service to apply it.',
+        'settings.saveFailed': 'Config save failed',
+        'act.status.updateFailed': 'Todo status update failed',
         'obs.type.file_read': 'Read file',
         'obs.type.file_write': 'Write file',
         'obs.type.file_edit': 'Edit file',
@@ -4249,6 +4255,9 @@
         'act.extract.rules': '未走大模型',
         'act.extract.error': '整理失败',
         'act.extract.failedExisting': '抽取失败，已显示现有待办',
+        'act.extract.loading': '正在整理待办...',
+        'act.extract.starting': '正在从最近会话整理待办...',
+        'act.extract.background': '已显示最新待办，后台仍在整理...',
         'act.extract.doneLlm': '大模型整理完成',
         'act.extract.doneMixed': '部分大模型整理完成',
         'act.extract.doneRules': '未走大模型，已用规则整理',
@@ -4273,6 +4282,9 @@
         'settings.apiKeyLabel': 'API key:',
         'settings.save': '保存配置',
         'settings.saving': '保存中...',
+        'settings.savedRestart': '配置已保存，重启后生效。',
+        'settings.saveFailed': '配置保存失败',
+        'act.status.updateFailed': '待办状态更新失败',
         'obs.type.file_read': '读取文件',
         'obs.type.file_write': '写入文件',
         'obs.type.file_edit': '编辑文件',
@@ -8557,7 +8569,7 @@
     async function loadActions(opts) {
       opts = opts || {};
       var el = document.getElementById('view-actions');
-      el.innerHTML = '<div class="loading">正在整理待办...</div>';
+      el.innerHTML = '<div class="loading">' + esc(t('act.extract.loading')) + '</div>';
       var results = await Promise.all([
         apiGet('actions'),
         apiGet('frontier'),
@@ -8606,6 +8618,10 @@
       if (cleaned > 0) parts.push(t('act.extract.cleaned') + ' ' + cleaned);
       if (result.fallbackReason) parts.push(t('act.extract.reason') + ': ' + result.fallbackReason);
       return parts.join(' · ');
+    }
+
+    function todoExtractionUsedLlm(result) {
+      return !!result && (result.engine === 'langextract' || result.engine === 'mixed') && !result.llmFallback;
     }
 
     function refreshActionListsAfterExtract() {
@@ -8728,10 +8744,10 @@
       apiPost('config/todo-extractor', body).then(function(res) {
         if (res && res.config) state.actions.config = res;
         state.actions.configDraft = {};
-        state.actions.extractMessage = '配置已保存，重启后生效。';
+        state.actions.extractMessage = t('settings.savedRestart');
       }).catch(function() {
         state.actions.extractStatus = 'error';
-        state.actions.extractMessage = '配置保存失败';
+        state.actions.extractMessage = t('settings.saveFailed');
       }).then(function() {
         state.actions.configSaving = false;
         renderSettingsPanel();
@@ -8744,7 +8760,7 @@
       apiPost('actions/update', { actionId: actionId, status: status }).then(function(res) {
         if (!res || res.success === false) {
           state.actions.extractStatus = 'error';
-          state.actions.extractMessage = '待办状态更新失败';
+          state.actions.extractMessage = t('act.status.updateFailed');
           renderActions();
           return;
         }
@@ -8754,7 +8770,7 @@
         renderActions();
       }).catch(function() {
         state.actions.extractStatus = 'error';
-        state.actions.extractMessage = '待办状态更新失败';
+        state.actions.extractMessage = t('act.status.updateFailed');
         renderActions();
       });
     }
@@ -8763,13 +8779,13 @@
       if (state.actions.extractInFlight) return;
       state.actions.extractInFlight = true;
       state.actions.extractStatus = 'running';
-      state.actions.extractMessage = '正在从最近会话整理待办...';
+      state.actions.extractMessage = t('act.extract.starting');
       if (state.activeTab === 'actions') renderActions();
       var softRefreshDone = false;
       var softRefreshTimer = setTimeout(function() {
         if (!state.actions.extractInFlight || softRefreshDone) return;
         softRefreshDone = true;
-        state.actions.extractMessage = '已显示最新待办，后台仍在整理...';
+        state.actions.extractMessage = t('act.extract.background');
         if (actionsScrolledAway()) {
           state.actions.stale = true;
           return;
@@ -8792,11 +8808,11 @@
         var delta = todoExtractionDelta(result);
         if (!result || result.success !== true) {
           state.actions.extractStatus = 'error';
-          state.actions.extractMessage = '抽取失败，已显示现有待办';
+          state.actions.extractMessage = t('act.extract.failedExisting');
           return null;
         }
         state.actions.extractStatus = 'done';
-        state.actions.extractFallback = !!result.llmFallback || result.engine === 'rules';
+        state.actions.extractFallback = !todoExtractionUsedLlm(result);
         state.actions.extractMessage = todoExtractionSummary(result);
         if (actionsScrolledAway()) {
           state.actions.stale = delta > 0;
@@ -8805,7 +8821,7 @@
         return refreshActionListsAfterExtract();
       }).catch(function() {
         state.actions.extractStatus = 'error';
-        state.actions.extractMessage = '抽取失败，已显示现有待办';
+        state.actions.extractMessage = t('act.extract.failedExisting');
       }).then(function() {
         clearTimeout(softRefreshTimer);
         state.actions.extractInFlight = false;
