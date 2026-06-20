@@ -13,8 +13,6 @@ const files = [
   'browser-extension/config.js',
   'browser-extension/manifest.json',
   'plugin/skills/open-workbench/SKILL.md',
-  'plugin/opencode/README.md',
-  'plugin/opencode/plugin.json',
   'plugin/plugin.json',
   'scripts/check-delivery.mjs',
   'scripts/check-browser-extension-demo-interaction.mjs',
