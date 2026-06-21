@@ -18,7 +18,7 @@ The user problem, stated before any solution. Why is this needed?
 
 ## Users
 
-Which personas this serves (see [PRD](../../PRD.md) → User Personas).
+Which personas this serves.
 
 ## Goals
 

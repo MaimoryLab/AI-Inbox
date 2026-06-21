@@ -74,7 +74,6 @@ Under the hood, the current prototype still exposes the full implementation surf
 
 ## Documentation
 
-- [PRD](PRD.md)
 - [Architecture](ARCHITECTURE.md)
 - [Rules](RULES.md)
 - [Roadmap](ROADMAP.md)
