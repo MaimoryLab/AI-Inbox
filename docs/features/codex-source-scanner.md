@@ -19,7 +19,7 @@ Today local Codex sessions become todos only through a manual `import-jsonl` com
 
 ## Users
 
-- **AI-heavy builder** and **Local-first power user** (see [PRD](../../PRD.md) → User Personas): they accumulate Codex sessions and want unfinished work surfaced automatically, on their own machine.
+- **AI-heavy builder** and **Local-first power user**: they accumulate Codex sessions and want unfinished work surfaced automatically, on their own machine.
 
 ## Goals
 
