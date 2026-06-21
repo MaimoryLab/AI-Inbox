@@ -24,6 +24,7 @@ import {
   getTodoExtractorUserConfig,
   getUserEnvPath,
   writeUserEnv,
+  WRITABLE_TODO_EXTRACT_KEYS,
   getAgentId,
   isAgentScopeIsolated,
 } from "../config.js";
@@ -508,16 +509,9 @@ export function registerApiTriggers(
       if (req.body && Object.keys(req.body as Record<string, unknown>).length) {
         const body = req.body as Record<string, unknown>;
         const updates: Record<string, string> = {};
-        const fields = [
-          "AGENTMEMORY_TODO_EXTRACTOR",
-          "LANGEXTRACT_PYTHON",
-          "LANGEXTRACT_MODEL",
-          "LANGEXTRACT_PROVIDER",
-          "LANGEXTRACT_API_KEY",
-          "LANGEXTRACT_BASE_URL",
-          "LANGEXTRACT_THINKING_DEPTH",
-        ];
-        for (const key of fields) {
+        // Iterate the single writable-keys source of truth so a UI field can
+        // never silently drop (writeUserEnv applies the same allowlist).
+        for (const key of WRITABLE_TODO_EXTRACT_KEYS) {
           const value = cleanConfigValue(body[key]);
           if (value) updates[key] = value;
         }

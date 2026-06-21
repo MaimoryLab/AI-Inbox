@@ -22,6 +22,7 @@ describe("todo extractor user config", () => {
     delete process.env.LANGEXTRACT_MODEL;
     delete process.env.LANGEXTRACT_PROVIDER;
     delete process.env.LANGEXTRACT_BASE_URL;
+    delete process.env.AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS;
   });
 
   afterEach(() => {
@@ -66,5 +67,17 @@ describe("todo extractor user config", () => {
     const cfg = getTodoExtractorUserConfig();
     expect(cfg.LANGEXTRACT_PROVIDER).toBe("openai");
     expect(cfg.LANGEXTRACT_BASE_URL).toBe("https://api.novita.ai/openai/v1");
+  });
+
+  it("round-trips the LLM extract timeout: defaults when unset, persists + reads back when set", async () => {
+    const { getTodoExtractorUserConfig, getUserEnvPath, writeUserEnv } = await freshConfig();
+
+    // read-back returns the default when unset (UI shows a real value, not blank)
+    expect(getTodoExtractorUserConfig().AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS).toBe("120000");
+
+    // it is an allowed key: write persists it, and the GET path returns it
+    writeUserEnv({ AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS: "45000" });
+    expect(readFileSync(getUserEnvPath(), "utf-8")).toContain("AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS=45000");
+    expect(getTodoExtractorUserConfig().AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS).toBe("45000");
   });
 });
