@@ -188,6 +188,10 @@ function isPollutedTodoText(value: string | undefined): boolean {
   if (/^\s*(?:gh|git|npm|pnpm|yarn|python3?|node|curl)\s+[^\n]*(?:--json|--limit|--workdir|--max-output|--yield-time|status|show|list|run|test|install|build)\b/i.test(text)) return true;
   if (/^(?:json|state|limit)\s+[\w.-]+/i.test(lower)) return true;
   if (/\b(?:namewithowner|headrefname|baserefname|databaseid)\b/i.test(lower)) return true;
+  if (/^⏺/.test(text) || /\b(?:bash|shell|exec)\(/i.test(text)) return true;
+  if (/^[a-z][a-z0-9_-]*-[0-9a-f]{6,}`?$/i.test(text)) return true;
+  if (/服务可用|页面已经能返回/.test(text)) return true;
+  if (/\b(?:Viewer|Health)\b\s*[：:]\s*(?:\[|https?:\/\/)/i.test(text)) return true;
   return false;
 }
 

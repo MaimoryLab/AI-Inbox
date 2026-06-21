@@ -63,6 +63,26 @@ describe("zero-LLM action candidates", () => {
     ]));
   });
 
+  it("filters tool-output, status reports, and git-ref fragments (STEP-08)", () => {
+    const candidates = extractActionCandidatesFromObservations([
+      obs("obs_1", {
+        type: "command_run",
+        narrative: '⏺ Bash(pwd && echo "--- branch ---" && git branch --show-current)',
+      }),
+      obs("obs_2", {
+        narrative:
+          "服务可用： - Viewer: [http://localhost:3115](http://localhost:3115) - Health: [http://localhost:3115/agentmemory/livez]",
+      }),
+      obs("obs_3", { narrative: "origin-main-e7f5ca2`" }),
+      obs("obs_4", { narrative: "下一步请修复分类边界判定错误。" }),
+    ]);
+    const titles = candidates.map((c) => c.title);
+    expect(titles.some((t) => /⏺|Bash\(/.test(t))).toBe(false);
+    expect(titles.some((t) => /服务可用|Viewer:|Health:/.test(t))).toBe(false);
+    expect(titles.some((t) => /^origin-main/.test(t))).toBe(false);
+    expect(titles).toContain("修复分类边界判定错误");
+  });
+
   it("extracts repair candidates from failures, blocked work, and failed validation", () => {
     const candidates = extractActionCandidatesFromObservations([
       obs("obs_1", {

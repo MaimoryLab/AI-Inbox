@@ -58,6 +58,9 @@ function isToolTrace(text: string): boolean {
   if (/^\s*(?:gh|git|npm|pnpm|yarn|python3?|node|curl)\s+[^\n]*(?:--json|--limit|--workdir|--max-output|--yield-time|status|show|list|run|test|install|build)\b/i.test(lower)) return true;
   if (/^(?:json|state|limit)\s+[\w.-]+/i.test(lower)) return true;
   if (/\b(?:namewithowner|headrefname|baserefname|databaseid|tooluseid)\b/i.test(lower)) return true;
+  if (/^⏺/.test(lower)) return true;
+  if (/\b(?:bash|shell|exec)\(/i.test(lower)) return true;
+  if (/^[a-z][a-z0-9_-]*-[0-9a-f]{6,}`?$/i.test(lower)) return true;
   return false;
 }
 
@@ -149,8 +152,15 @@ function hasExplicitFailureRepair(text: string): boolean {
   return /验证未通过|验证失败|测试未通过|测试失败|\b(command failed|exit code [1-9]\d*|exited with code [1-9]\d*)\b/iu.test(text);
 }
 
+function isStatusReport(text: string): boolean {
+  const t = normalizeText(text);
+  if (/服务可用|页面已经能返回/.test(t)) return true;
+  if (/\b(?:Viewer|Health)\b\s*[：:]\s*(?:\[|https?:\/\/)/i.test(t)) return true;
+  return false;
+}
+
 function sentenceReason(text: string): ActionCandidate["reason"] | null {
-  if (isToolTrace(text)) return null;
+  if (isToolTrace(text) || isStatusReport(text)) return null;
   if (/不应生成待办|不要生成待办|无需生成待办|不是待办|not an action|not a todo/i.test(text)) return null;
   if (/\b(?:TODO|FIXME)\b\s*[:：-]\s*\S/i.test(text) || /待办\s*[:：-]\s*\S/u.test(text)) return "todo";
   if (hasExplicitFollowUpAction(text)) return "follow_up";

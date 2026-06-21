@@ -31,6 +31,9 @@ PROMPT = textwrap.dedent(
     JSON, file paths, screenshots, toolUseId/call IDs, shell flags, logs, or
     truncated trace fragments as title. If the only source text is a tool log,
     command payload, path, or JSON object, do not extract a todo.
+    Never extract tool-call echo lines (starting with ⏺ or containing Bash(/Shell(),
+    service-status reports (e.g. "服务可用", "Viewer:"/"Health:" URL lists), or
+    git-ref fragments — these are not todos.
     timeBucket must be current, recent, or history.
     typeBucket must be pending, to_start, follow_up, in_progress, done, or processing.
     """
