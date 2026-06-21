@@ -14,7 +14,7 @@ import type { Action, CompressedObservation, Memory, ReviewQueueItem, Session } 
 import { KV, fingerprintId } from "../state/schema.js";
 import { buildTurnActionDrafts } from "../functions/action-candidates.js";
 import { generateTodosFromSessions } from "../functions/todo-extract.js";
-import { getTodoExtractorUserConfig, getUserEnvPath, writeUserEnv } from "../config.js";
+import { getTodoExtractorUserConfig, getUserEnvPath, writeUserEnv, WRITABLE_TODO_EXTRACT_KEYS } from "../config.js";
 
 // Self-host the viewer favicon at /favicon.svg instead of an inline
 // data: URI so the viewer CSP can stay tight at `img-src 'self'`.
@@ -1425,15 +1425,9 @@ export function startViewerServer(
         const raw = await readBody(req);
         const body = raw ? JSON.parse(raw) as Record<string, unknown> : {};
         const updates: Record<string, string> = {};
-        [
-          "AGENTMEMORY_TODO_EXTRACTOR",
-          "LANGEXTRACT_PYTHON",
-          "LANGEXTRACT_MODEL",
-          "LANGEXTRACT_PROVIDER",
-          "LANGEXTRACT_API_KEY",
-          "LANGEXTRACT_BASE_URL",
-          "LANGEXTRACT_THINKING_DEPTH",
-        ].forEach((key) => {
+        // Single writable-keys source of truth (mirrors api::todo-extractor-config)
+        // so a UI field (e.g. the LLM timeout) can never silently drop on save.
+        WRITABLE_TODO_EXTRACT_KEYS.forEach((key) => {
           const value = asText(body[key]);
           if (value && !/[\r\n]/.test(value)) updates[key] = value;
         });
