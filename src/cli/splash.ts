@@ -1,16 +1,16 @@
-// Terminal-width-aware splash banner for the agentmemory CLI.
+// Terminal-width-aware splash banner for the AI-Todo CLI.
 //
 // Three render tiers, picked from `process.stdout.columns`:
 //
 //   >= 120 cols: full block-art logo + tagline.
 //   80–119 cols: compact monospace title + tagline.
-//   <  80 cols: single-line `agentmemory v<VERSION>`.
+//   <  80 cols: single-line `ai-todo v<VERSION>`.
 //
 // The brand accent is the orange `#FF6B35` we already use in the README
 // and viewer; we render it through ANSI 38;5;208 (the closest xterm-256
 // match) when stdout is a TTY, and fall back to plain text otherwise.
 // No colour bytes are hard-coded into the strings themselves so that
-// piping the banner to a file (`agentmemory > log`) stays clean.
+// piping the banner to a file (`ai-todo > log`) stays clean.
 //
 // We don't pull in chalk/picocolors — picocolors is a transitive dep but
 // we never want to depend on transitives directly. The two ANSI escape
@@ -40,20 +40,19 @@ function getTerminalWidth(): number {
   return typeof w === "number" && w > 0 ? w : 80;
 }
 
-const TAGLINE = "Persistent memory for AI coding agents";
+const TAGLINE = "Surfaces unfinished to-dos from your AI agent sessions";
 
-// "agentmemory" rendered in figlet's standard font (verified output —
-// regenerate via `figlet agentmemory` if you change the wordmark). Each
-// row is exactly 70 columns wide so the banner aligns cleanly inside
+// "ai-todo" rendered in figlet's standard font (verified output —
+// regenerate via `figlet ai-todo` if you change the wordmark). Each
+// row is exactly 37 columns wide so the banner aligns cleanly inside
 // the 2-col left margin we add below.
 function fullBanner(version: string): string {
   const logo = [
-    "                        _                                             ",
-    "  __ _  __ _  ___ _ __ | |_ _ __ ___   ___ _ __ ___   ___  _ __ _   _ ",
-    " / _` |/ _` |/ _ \\ '_ \\| __| '_ ` _ \\ / _ \\ '_ ` _ \\ / _ \\| '__| | | |",
-    "| (_| | (_| |  __/ | | | |_| | | | | |  __/ | | | | | (_) | |  | |_| |",
-    " \\__,_|\\__, |\\___|_| |_|\\__|_| |_| |_|\\___|_| |_| |_|\\___/|_|   \\__, |",
-    "       |___/                                                    |___/ ",
+    "        _       _            _       ",
+    "   __ _(_)     | |_ ___   __| | ___  ",
+    "  / _` | |_____| __/ _ \\ / _` |/ _ \\ ",
+    " | (_| | |_____| || (_) | (_| | (_) |",
+    "  \\__,_|_|      \\__\\___/ \\__,_|\\___/ ",
   ];
   const lines: string[] = ["", ...logo.map((line) => "  " + accent(line))];
   lines.push("");
@@ -63,13 +62,13 @@ function fullBanner(version: string): string {
 }
 
 function compactBanner(version: string): string {
-  const title = "  " + bold(accent("agentmemory"));
+  const title = "  " + bold(accent("ai-todo"));
   const meta = "  " + dim(`v${version} · ${TAGLINE}`);
   return ["", title, meta, ""].join("\n");
 }
 
 function minimalBanner(version: string): string {
-  return `${accent("agentmemory")} ${dim(`v${version}`)}`;
+  return `${accent("ai-todo")} ${dim(`v${version}`)}`;
 }
 
 export function renderSplash(version: string): void {
