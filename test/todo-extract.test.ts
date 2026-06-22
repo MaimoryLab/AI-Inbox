@@ -1,13 +1,18 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 
 vi.mock("../src/config.js", () => ({
   DEFAULT_LANGEXTRACT_BASE_URL: "https://api.novita.ai/openai/v1",
   DEFAULT_TODO_EXTRACT_TIMEOUT_MS: 120_000,
+  DEFAULT_TODO_EXTRACT_SINCE_DAYS: 7,
+  DEFAULT_TODO_EXTRACT_MAX_INTERACTIONS: 10,
   getEnvVar: (key: string) => {
     const values: Record<string, string> = {
       AGENTMEMORY_TODO_EXTRACTOR: "rules",
       AGENTMEMORY_TODO_DIRECT_CONFIDENCE: "0.6",
       AGENTMEMORY_TODO_REVIEW_CONFIDENCE: "0.55",
+      // Wide default window so existing time-agnostic tests are never excluded by
+      // the STEP-11 sinceDays filter; scope tests set process.env explicitly.
+      AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS: "3650",
     };
     return process.env[key] ?? values[key];
   },
@@ -596,5 +601,103 @@ describe("todo extraction", () => {
     expect(result.scannedObservations).toBe(1);
     expect(result.directCreated).toBe(1);
     expect((await kv.list<Action>(KV.actions))[0].sourceObservationIds).toEqual(["obs_real"]);
+  });
+});
+
+describe("todo extraction scope — sinceDays + interaction window (STEP-11)", () => {
+  let kv: ReturnType<typeof mockKV>;
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+
+  beforeEach(() => {
+    kv = mockKV();
+  });
+  afterEach(() => {
+    delete process.env.AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS;
+    delete process.env.AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION;
+  });
+
+  // Two completed sessions, both inside the 14d "recent" bucket (so neither is
+  // hidden as history), but one older than a tight sinceDays window.
+  async function seedTwoSessions() {
+    await kv.set(KV.sessions, "ses_recent", session({
+      id: "ses_recent", status: "completed", startedAt: daysAgo(1), endedAt: daysAgo(1), observationCount: 1,
+    }));
+    await kv.set(KV.sessions, "ses_mid", session({
+      id: "ses_mid", status: "completed", startedAt: daysAgo(5), endedAt: daysAgo(5), observationCount: 1,
+    }));
+    await kv.set(KV.observations("ses_recent"), "o_recent", obs({
+      id: "o_recent", sessionId: "ses_recent", timestamp: daysAgo(1),
+      narrative: "后续需要修复登录接口的超时问题。",
+    }));
+    await kv.set(KV.observations("ses_mid"), "o_mid", obs({
+      id: "o_mid", sessionId: "ses_mid", timestamp: daysAgo(5),
+      narrative: "后续需要更新数据库驱动到 v5。",
+    }));
+  }
+
+  it("control: extracts both sessions when the window covers both", async () => {
+    process.env.AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS = "30";
+    await seedTwoSessions();
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false, cleanup: "none" });
+    expect(result.directCreated).toBe(2);
+    expect(await kv.list<Action>(KV.actions)).toHaveLength(2);
+  });
+
+  it("skips sessions whose endedAt is older than the sinceDays window", async () => {
+    process.env.AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS = "3";
+    await seedTwoSessions();
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false, cleanup: "none" });
+    const actions = await kv.list<Action>(KV.actions);
+    expect(actions).toHaveLength(1);
+    expect(actions[0].metadata?.todoExtraction).toMatchObject({ sourceSessionId: "ses_recent" });
+  });
+
+  it("lets a body sinceDays override the env window", async () => {
+    process.env.AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS = "30";
+    await seedTwoSessions();
+    const result = await generateTodosFromSessions(kv as never, {
+      force: true, scanSources: false, cleanup: "none", sinceDays: 3,
+    });
+    expect(result.directCreated).toBe(1);
+    expect((await kv.list<Action>(KV.actions))[0].metadata?.todoExtraction).toMatchObject({ sourceSessionId: "ses_recent" });
+  });
+
+  // A user message in synthetic-compression form: type "conversation", title
+  // === raw hookType "prompt_submit" (the interaction-boundary signal).
+  function promptObs(id: string, narrative: string, timestamp: string): CompressedObservation {
+    return obs({ id, sessionId: "ses_turns", type: "conversation", title: "prompt_submit", narrative, timestamp });
+  }
+  async function seedThreeInteractions() {
+    await kv.set(KV.sessions, "ses_turns", session({ id: "ses_turns", status: "active", observationCount: 3 }));
+    await kv.set(KV.observations("ses_turns"), "t1", promptObs("t1", "后续需要修复登录接口的超时问题。", daysAgo(3)));
+    await kv.set(KV.observations("ses_turns"), "t2", promptObs("t2", "后续需要补充新用户的上手文档。", daysAgo(2)));
+    await kv.set(KV.observations("ses_turns"), "t3", promptObs("t3", "后续需要更新数据库驱动到 v5。", daysAgo(1)));
+  }
+
+  it("control: extracts every interaction when the window covers them all", async () => {
+    process.env.AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS = "30";
+    await seedThreeInteractions();
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false, cleanup: "none" });
+    expect(result.directCreated).toBe(3);
+  });
+
+  it("keeps only the most recent N interaction records per session", async () => {
+    process.env.AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS = "30";
+    process.env.AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION = "1";
+    await seedThreeInteractions();
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false, cleanup: "none" });
+    expect(result.directCreated).toBe(1);
+    expect((await kv.list<Action>(KV.actions))[0].sourceObservationIds).toEqual(["t3"]);
+  });
+
+  it("treats a session with no user-message boundary as a single interaction", async () => {
+    process.env.AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS = "30";
+    process.env.AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION = "1";
+    await kv.set(KV.sessions, "ses_noturn", session({ id: "ses_noturn", status: "active", observationCount: 1 }));
+    await kv.set(KV.observations("ses_noturn"), "n1", obs({
+      id: "n1", sessionId: "ses_noturn", title: "assistant", narrative: "后续需要修复登录接口的超时问题。",
+    }));
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false, cleanup: "none" });
+    expect(result.directCreated).toBe(1);
   });
 });

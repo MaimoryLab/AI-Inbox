@@ -889,11 +889,11 @@ describe("viewer session rendering", () => {
     await sandbox.loadActions({ generate: true, force: true });
     await flushPromises(16);
     expect(posts).toHaveLength(1);
-    expect(posts[0].body).toMatchObject({
-      maxSessions: 1,
-      maxObservationsPerSession: 20,
-      force: true,
-    });
+    // STEP-11: the viewer no longer hard-codes maxSessions/maxObservationsPerSession;
+    // scope now comes from saved settings the backend reads from env config.
+    expect(posts[0].body).toMatchObject({ force: true });
+    expect(posts[0].body).not.toHaveProperty("maxSessions");
+    expect(posts[0].body).not.toHaveProperty("maxObservationsPerSession");
   });
 
   it("does not start duplicate todo extraction while one is in flight", async () => {

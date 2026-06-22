@@ -4168,6 +4168,8 @@
         'settings.close': 'Close',
         'settings.language': 'UI language',
         'settings.extractor': 'LLM extraction config',
+        'settings.sinceDays': 'Look-back window (days): only sessions from the last N days',
+        'settings.maxInteractions': 'Max interaction records per session (one user request → agent reply)',
         'settings.apiKeyKeep': 'Enter a new API key to replace it, or leave blank to keep the current key',
         'settings.apiKeyMissing': 'Not configured',
         'settings.apiKeyLabel': 'API key:',
@@ -4368,6 +4370,8 @@
         'settings.close': '关闭',
         'settings.language': '界面语言',
         'settings.extractor': '大模型抽取配置',
+        'settings.sinceDays': '回溯天数：只抽取最近 N 天内的会话',
+        'settings.maxInteractions': '每会话最多交互记录数（一次用户派发→Agent 回复为一条）',
         'settings.apiKeyKeep': '输入新 API key 覆盖，留空保持不变',
         'settings.apiKeyMissing': '未配置',
         'settings.apiKeyLabel': 'API key:',
@@ -8806,6 +8810,8 @@
       html += '<input id="todo-config-LANGEXTRACT_BASE_URL" class="search-input" value="' + value('LANGEXTRACT_BASE_URL', 'https://api.novita.ai/openai/v1') + '" placeholder="https://api.novita.ai/openai/v1" />';
       html += '<input id="todo-config-LANGEXTRACT_THINKING_DEPTH" class="search-input" value="' + value('LANGEXTRACT_THINKING_DEPTH', 'medium') + '" placeholder="medium" />';
       html += '<input id="todo-config-AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS" class="search-input" value="' + value('AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS', '120000') + '" placeholder="120000" />';
+      html += '<div><div class="action-meta-text" style="margin-bottom:4px;">' + esc(t('settings.sinceDays')) + '</div><input id="todo-config-AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS" class="search-input" type="number" min="1" value="' + value('AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS', '7') + '" placeholder="7" /></div>';
+      html += '<div><div class="action-meta-text" style="margin-bottom:4px;">' + esc(t('settings.maxInteractions')) + '</div><input id="todo-config-AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION" class="search-input" type="number" min="1" value="' + value('AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION', '10') + '" placeholder="10" /></div>';
       html += '<div><input id="todo-config-LANGEXTRACT_API_KEY" class="search-input" type="password" placeholder="' + esc(keyLabel) + '" />';
       if (maskedKey) html += '<div class="action-meta-text" style="margin-top:4px;">' + esc(t('settings.apiKeyLabel')) + ' ' + esc(maskedKey) + '</div>';
       html += '</div></div>';
@@ -8828,6 +8834,8 @@
         'LANGEXTRACT_BASE_URL',
         'LANGEXTRACT_THINKING_DEPTH',
         'AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS',
+        'AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS',
+        'AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION',
         'LANGEXTRACT_API_KEY'
       ].forEach(function(key) {
         var el = document.getElementById('todo-config-' + key);
@@ -8846,6 +8854,8 @@
         'LANGEXTRACT_BASE_URL',
         'LANGEXTRACT_THINKING_DEPTH',
         'AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS',
+        'AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS',
+        'AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION',
         'LANGEXTRACT_API_KEY'
       ];
       var body = {};
@@ -8914,9 +8924,11 @@
           if (state.activeTab === 'actions') renderActions();
         }).catch(function() {});
       }, 12000);
+      // STEP-11: scope is governed by saved settings (sinceDays + max
+      // interactions per session) which the backend reads from env config;
+      // don't hard-code maxSessions/maxObservationsPerSession here or the
+      // settings would never take effect on this primary extraction path.
       apiPost('todo-extract/generate', {
-        maxSessions: 1,
-        maxObservationsPerSession: 20,
         force: force === true
       }).then(function(result) {
         var delta = todoExtractionDelta(result);

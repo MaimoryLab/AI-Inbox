@@ -1520,9 +1520,19 @@ export function registerApiTriggers(
       if (maxObservationsPerSession === null) {
         return { status_code: 400, body: { error: "maxObservationsPerSession must be a positive integer" } };
       }
+      const sinceDays = parseOptionalPositiveInt(body.sinceDays);
+      if (sinceDays === null) {
+        return { status_code: 400, body: { error: "sinceDays must be a positive integer" } };
+      }
+      const maxInteractionsPerSession = parseOptionalPositiveInt(body.maxInteractionsPerSession);
+      if (maxInteractionsPerSession === null) {
+        return { status_code: 400, body: { error: "maxInteractionsPerSession must be a positive integer" } };
+      }
       const payload: Record<string, unknown> = {};
       if (maxSessions !== undefined) payload.maxSessions = maxSessions;
       if (maxObservationsPerSession !== undefined) payload.maxObservationsPerSession = maxObservationsPerSession;
+      if (sinceDays !== undefined) payload.sinceDays = sinceDays;
+      if (maxInteractionsPerSession !== undefined) payload.maxInteractionsPerSession = maxInteractionsPerSession;
       const project = asNonEmptyString(body.project);
       if (project) payload.project = project;
       if (body.force === true) payload.force = true;

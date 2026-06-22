@@ -9,6 +9,8 @@ import type { Action, CompressedObservation, ReviewQueueItem, ScanCheckpoint, Se
 import {
   DEFAULT_LANGEXTRACT_BASE_URL,
   DEFAULT_TODO_EXTRACT_TIMEOUT_MS,
+  DEFAULT_TODO_EXTRACT_SINCE_DAYS,
+  DEFAULT_TODO_EXTRACT_MAX_INTERACTIONS,
   getEnvVar,
   normalizeTodoExtractorModel,
   normalizeTodoExtractorProvider,
@@ -49,6 +51,13 @@ type ObservationBlock = {
 type TodoExtractOptions = {
   maxSessions?: number;
   maxObservationsPerSession?: number;
+  // STEP-11: scope controls. sinceDays = only sessions within the last N days
+  // are eligible (primary control). maxInteractionsPerSession = per session,
+  // keep at most M most-recent interaction records (turns). Both fall back to
+  // env (AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS / _MAX_INTERACTIONS_PER_SESSION)
+  // then the config defaults when omitted.
+  sinceDays?: number;
+  maxInteractionsPerSession?: number;
   project?: string;
   force?: boolean;
   scanSources?: boolean;
@@ -305,6 +314,36 @@ function todoForStorage(todo: ExtractedTodo): ExtractedTodo | null {
 
 function sessionSortTime(session: Session): string {
   return session.endedAt || session.startedAt || "";
+}
+
+// STEP-11 interaction windowing.
+// A compressed observation starts a new "interaction record" (turn) when it is
+// a user message. The default zero-LLM synthetic compression (replay.ts →
+// buildSyntheticCompression) types a user prompt as "conversation" and titles it
+// with its raw hookType "prompt_submit" — the only role signal that survives
+// compression. If LLM auto-compress is on (non-default), titles are richer and
+// no boundary is found, in which case takeRecentInteractions degrades to
+// "whole session = one interaction" (keep everything).
+function observationStartsInteraction(obs: CompressedObservation): boolean {
+  return obs.type === "conversation" && /^prompt_submit$/i.test((obs.title || "").trim());
+}
+
+// Keep only the most recent `maxInteractions` interaction records of a
+// timestamp-ascending observation list. One interaction = a user message
+// through everything before the next user message (its tool calls + agent
+// replies). Returns a contiguous chronological tail.
+function takeRecentInteractions(
+  observations: CompressedObservation[],
+  maxInteractions: number,
+): CompressedObservation[] {
+  if (maxInteractions <= 0 || observations.length <= 1) return observations;
+  const boundaries: number[] = [];
+  for (let i = 0; i < observations.length; i++) {
+    if (observationStartsInteraction(observations[i])) boundaries.push(i);
+  }
+  if (boundaries.length <= maxInteractions) return observations;
+  const cutoff = boundaries[boundaries.length - maxInteractions];
+  return observations.slice(cutoff);
 }
 
 function timeBucketFor(session: Session, now = Date.now()): TimeBucket {
@@ -999,6 +1038,19 @@ export async function generateTodosFromSessions(
   }
   const maxSessions = clampPositiveInt(data.maxSessions, 20, 100);
   const maxObservationsPerSession = clampPositiveInt(data.maxObservationsPerSession, 300, 1000);
+  // STEP-11: body wins, else env, else config default. sinceDays caps at ~10y
+  // (effectively unbounded); maxInteractions at 500 (well above any real cap).
+  const sinceDays = clampPositiveInt(
+    data.sinceDays ?? getEnvVar("AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS"),
+    DEFAULT_TODO_EXTRACT_SINCE_DAYS,
+    3650,
+  );
+  const maxInteractionsPerSession = clampPositiveInt(
+    data.maxInteractionsPerSession ?? getEnvVar("AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION"),
+    DEFAULT_TODO_EXTRACT_MAX_INTERACTIONS,
+    500,
+  );
+  const sinceCutoffMs = Date.now() - sinceDays * 24 * 60 * 60 * 1000;
   const mode = (getEnvVar("AGENTMEMORY_TODO_EXTRACTOR") || "auto").toLowerCase();
   const directThreshold = envNumber("AGENTMEMORY_TODO_DIRECT_CONFIDENCE", 0.82);
   const reviewThreshold = envNumber("AGENTMEMORY_TODO_REVIEW_CONFIDENCE", 0.55);
@@ -1026,6 +1078,15 @@ export async function generateTodosFromSessions(
   const processed = parseCheckpoint(checkpoint?.cursor);
   const sessions = allSessions
     .filter((session) => !data.project || session.project === data.project || session.cwd === data.project)
+    // STEP-11: day-window is the primary scope control. Sessions with no/invalid
+    // timestamp are kept (never silently drop work); maxSessions is the cap that
+    // still bounds a day with a flood of sessions.
+    .filter((session) => {
+      const raw = sessionSortTime(session);
+      if (!raw) return true;
+      const at = new Date(raw).getTime();
+      return !Number.isFinite(at) || at >= sinceCutoffMs;
+    })
     .sort((a, b) => sessionSortTime(b).localeCompare(sessionSortTime(a)))
     .slice(0, maxSessions);
   let scannedObservations = 0;
@@ -1041,9 +1102,12 @@ export async function generateTodosFromSessions(
   for (const session of sessions) {
     const key = checkpointKey(session);
     if (!data.force && processed[session.id] === key) continue;
-    const observations = (await kv.list<CompressedObservation>(KV.observations(session.id)).catch(() => []))
-      .sort((a, b) => (a.timestamp || "").localeCompare(b.timestamp || ""))
-      .slice(0, maxObservationsPerSession);
+    const sortedObservations = (await kv.list<CompressedObservation>(KV.observations(session.id)).catch(() => []))
+      .sort((a, b) => (a.timestamp || "").localeCompare(b.timestamp || ""));
+    // STEP-11: keep only the most recent N interaction records, then apply the
+    // per-session observation safety cap to the most recent tail.
+    const observations = takeRecentInteractions(sortedObservations, maxInteractionsPerSession)
+      .slice(-maxObservationsPerSession);
     const { ruleObservations, llmObservations } = prefilterTodoObservations(session, observations);
     scannedObservations += ruleObservations.length;
     const evidenceObservations = mode === "rules" ? ruleObservations : llmObservations.length ? llmObservations : ruleObservations;
