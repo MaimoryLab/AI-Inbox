@@ -52,11 +52,13 @@ type TodoExtractOptions = {
   project?: string;
   force?: boolean;
   scanSources?: boolean;
+  cleanup?: "none" | "dry-run" | "apply";
 };
 
 const TIME_BUCKETS = new Set(["current", "recent", "history"]);
 const TYPE_BUCKETS = new Set(["pending", "to_start", "follow_up", "in_progress", "done", "processing"]);
 const SIDE_CAR = "todo-extract-langextract.py";
+const MAX_LLM_OBSERVATIONS_PER_SESSION = 40;
 const SIDE_CAR_ENV_KEYS = [
   "LANGEXTRACT_API_KEY",
   "LANGEXTRACT_BASE_URL",
@@ -205,7 +207,19 @@ function looksLikeBadTitle(value: string): boolean {
 // An action being requested — used to exempt status/completed-narration text
 // from the pollution filter, so a real repair that mentions a status phrase
 // ("修复服务可用性回归", "排查…失败") is not silently dropped.
-const TODO_ACTION_TRIGGER = /(?:修复|补充|实现|调整|验证|排查|定位|需要|必须|未完成|失败|阻塞|TODO|FIXME)/i;
+const TODO_ACTION_TRIGGER = /(?:修复|补充|实现|调整|验证|排查|定位|跟进|整理|生成|上传|创建|更新|移除|删除|处理|审查|合并|推送|提交|构建|设计|重试|重新(?:运行|跑)|需要|必须|未完成|阻塞|TODO|FIXME|\b(?:fix|add|update|create|remove|validate|retry|rerun|re-run|follow up|follow-up|need to|must|blocked|blocking|investigate|debug|resolve|handle|implement)\b)/i;
+const AGENT_PROGRESS_PREFIX = /^(?:我会|我将|我要|现在我会|接下来|先|继续|等待|查看|读取|检查|确认|核对|梳理|记录|准备|进行|定位当前|开始)\b/u;
+const PROGRESS_NOUNS = /(?:仓库现状|远程元数据|关键入口|GitHub 状态|依赖安装|安装完成|空闲端口|健康检查|本地可运行性验证|静态梳理|运行验证|截图|console|服务可用|页面已经能返回|工作区状态|同名目录|PR\/issue|PR、issue|CI 配置)/i;
+const DONE_NARRATION = /(?:已(?:经)?|成功|顺利|全绿|pass(?:ed)?|merged|pushed|resolved|done|completed|works now|no action needed|完成|通过|可用|生效|能返回|能显示|已合并|已推送|已更新|已修复|无需处理)/i;
+const FAILURE_SIGNAL = /(?:失败|未通过|\b(?:failed|failing|command failed|exit code [1-9]\d*|exited with code [1-9]\d*)\b)/i;
+const FAILURE_REPAIR_TRIGGER = /(?:修复|排查|定位|重试|重新(?:运行|跑)|处理|解决|\b(?:fix|retry|rerun|re-run|investigate|debug|resolve|handle)\b)/i;
+
+function hasTodoActionTrigger(value: string | undefined): boolean {
+  const text = normalizeText(value);
+  if (!text) return false;
+  if (TODO_ACTION_TRIGGER.test(text)) return true;
+  return FAILURE_SIGNAL.test(text) && FAILURE_REPAIR_TRIGGER.test(text);
+}
 
 function isPollutedTodoText(value: string | undefined): boolean {
   const text = normalizeText(value);
@@ -225,14 +239,39 @@ function isPollutedTodoText(value: string | undefined): boolean {
   if (/^⏺/.test(text) || /\b(?:bash|shell|exec)\(/i.test(text)) return true;
   if (/^[a-z][a-z0-9_-]*-[0-9a-f]{6,}`?$/i.test(text)) return true;
   if (/\b(?:Viewer|Health)\b\s*[：:]\s*(?:\[|https?:\/\/)/i.test(text)) return true;
+  if (AGENT_PROGRESS_PREFIX.test(text) && PROGRESS_NOUNS.test(text) && !hasTodoActionTrigger(text)) return true;
   // Status-report and completed-work narration are pollution ONLY when no action
   // is being requested. The action-verb exception keeps genuine repairs like
   // "修复服务可用性回归" / "验证页面已经能返回后的边界问题" / "排查…失败" out of the filter.
-  if (!TODO_ACTION_TRIGGER.test(text)) {
-    if (/服务可用|页面已经能返回/.test(text)) return true;
-    if (/(?:都能|已(?:经)?|成功|顺利)[^。\n]{0,12}(?:显示|通过|完成|可用|生效)/.test(text)) return true;
+  if (!hasTodoActionTrigger(text)) {
+    if (/服务可用/.test(text)) return true;
   }
   return false;
+}
+
+function isCompletedTodoText(value: string | undefined): boolean {
+  const text = normalizeText(value);
+  if (!text || hasTodoActionTrigger(text)) return false;
+  return DONE_NARRATION.test(text) && (
+    /(?:验收|接口|页面|测试|CI|PR|提交|构建|服务|标签|标题|console|HTML|main|仓库|截图|tests?|build|service|deploy)/i.test(text) ||
+    /(?:已完成|已通过|已合并|已推送|全绿|能返回|能显示|no action needed|works now)/i.test(text)
+  );
+}
+
+function isPureStatusReport(value: string | undefined): boolean {
+  const text = normalizeText(value);
+  return !hasTodoActionTrigger(text) && (
+    /服务可用/.test(text) ||
+    /\b(?:Viewer|Health)\b\s*[：:]\s*(?:\[|https?:\/\/)/i.test(text) ||
+    /\b(?:no action needed|works now)\b/i.test(text)
+  );
+}
+
+function isUsefulTodoText(value: string | undefined): boolean {
+  const text = normalizeText(value);
+  if (!text || isPollutedTodoText(text) || isCompletedTodoText(text)) return false;
+  if (AGENT_PROGRESS_PREFIX.test(text) && !hasTodoActionTrigger(text)) return false;
+  return hasTodoActionTrigger(text) || /\b(?:TODO|FIXME|follow up|follow-up)\b/i.test(text);
 }
 
 export function cleanTodoTitle(title: string, description = "", quote = ""): string | null {
@@ -251,7 +290,11 @@ function todoForStorage(todo: ExtractedTodo): ExtractedTodo | null {
   if (!title) return null;
   const description = normalizeText(todo.description || todo.evidence?.quote).slice(0, 1000);
   if (!description) return null;
-  if (isPollutedTodoText(title) || isPollutedTodoText(description) || isPollutedTodoText(todo.evidence?.quote)) return null;
+  if (
+    isCompletedTodoText(title) || isCompletedTodoText(description) || isCompletedTodoText(todo.evidence?.quote) ||
+    isPollutedTodoText(title) || isPollutedTodoText(description) || isPollutedTodoText(todo.evidence?.quote)
+  )
+    return null;
   const rawDedupe = normalizeText(todo.dedupeKey);
   const dedupeKey = rawDedupe && !looksLikeBadTitle(rawDedupe)
     ? normalizedKey(rawDedupe)
@@ -282,6 +325,38 @@ function actionStatusFor(typeBucket: TypeBucket): Action["status"] {
 
 function textForObservation(obs: CompressedObservation): string {
   return normalizeText([obs.narrative, ...(obs.facts || []), obs.subtitle].filter(Boolean).join("\n"));
+}
+
+function observationUsefulForTodo(obs: CompressedObservation): boolean {
+  const text = textForObservation(obs);
+  if (!text || isPollutedTodoText(text) || isCompletedTodoText(text)) return false;
+  return isUsefulTodoText(text);
+}
+
+function todoObservationScore(obs: CompressedObservation): number {
+  const text = textForObservation(obs);
+  if (!observationUsefulForTodo(obs)) return 0;
+  let score = 1;
+  if (/(?:下一步|后续|待办|\b(?:need to|must|follow up|follow-up|TODO|FIXME)\b)/i.test(text)) score += 2;
+  if (FAILURE_SIGNAL.test(text) && hasTodoActionTrigger(text)) score += 2;
+  if (/(?:阻塞|卡住|\b(?:blocked|blocking)\b)/i.test(text)) score += 2;
+  return score;
+}
+
+function prefilterTodoObservations(session: Session, observations: CompressedObservation[]): {
+  ruleObservations: CompressedObservation[];
+  llmObservations: CompressedObservation[];
+} {
+  const scored = observations
+    .map((obs, index) => ({ obs, index, score: todoObservationScore(obs) }))
+    .filter((entry) => entry.score > 0);
+  const ruleObservations = scored.map((entry) => entry.obs);
+  if (timeBucketFor(session) === "history") return { ruleObservations, llmObservations: [] };
+  const llmObservations = [...scored]
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, MAX_LLM_OBSERVATIONS_PER_SESSION)
+    .map((entry) => entry.obs);
+  return { ruleObservations, llmObservations };
 }
 
 function blockFor(obs: CompressedObservation): ObservationBlock {
@@ -549,30 +624,95 @@ function reviewLooksGenerated(item: ReviewQueueItem): boolean {
   );
 }
 
-function actionIsPolluted(action: Action): boolean {
-  return actionLooksGenerated(action) &&
-    (isPollutedTodoText(action.title) || isPollutedTodoText(action.description));
+type CleanupDecision = "garbage" | "done" | "keep";
+
+function cleanupDecision(title: string, description: string): CleanupDecision {
+  if (isPureStatusReport(title) || isPureStatusReport(description)) return "garbage";
+  if (isCompletedTodoText(title) || isCompletedTodoText(description)) return "done";
+  if (isPollutedTodoText(title) || isPollutedTodoText(description)) return "garbage";
+  if (!isUsefulTodoText(`${title} ${description}`)) return "garbage";
+  return "keep";
 }
 
-function reviewIsPolluted(item: ReviewQueueItem): boolean {
-  return reviewLooksGenerated(item) &&
-    (isPollutedTodoText(item.title) || isPollutedTodoText(item.content));
+function actionCleanupDecision(action: Action): CleanupDecision {
+  if (!actionLooksGenerated(action)) return "keep";
+  if (action.status === "done" || action.status === "cancelled") return "keep";
+  return cleanupDecision(action.title, action.description);
 }
+
+function reviewCleanupDecision(item: ReviewQueueItem): CleanupDecision {
+  if (!reviewLooksGenerated(item) || item.status !== "pending") return "keep";
+  return cleanupDecision(item.title, item.content);
+}
+
+type CleanupMode = "dry-run" | "apply";
+type CleanupPreviewItem = { id: string; title: string; decision: "garbage" | "done" };
 
 export async function cleanPollutedTodoCards(
-  kv: Pick<StateKV, "list" | "delete">,
-): Promise<{ cleanedActions: number; cleanedReviews: number }> {
+  kv: Pick<StateKV, "list" | "set">,
+  mode: CleanupMode = "apply",
+): Promise<{
+  cleanedActions: number;
+  cleanedReviews: number;
+  completedActions: number;
+  completedReviews: number;
+  preview: { actions: CleanupPreviewItem[]; reviews: CleanupPreviewItem[] };
+}> {
   const [actions, reviews] = await Promise.all([
     kv.list<Action>(KV.actions).catch(() => []),
     kv.list<ReviewQueueItem>(KV.reviewQueue).catch(() => []),
   ]);
-  const pollutedActions = actions.filter(actionIsPolluted);
-  const pollutedReviews = reviews.filter(reviewIsPolluted);
-  await Promise.all([
-    ...pollutedActions.map((action) => kv.delete(KV.actions, action.id)),
-    ...pollutedReviews.map((item) => kv.delete(KV.reviewQueue, item.id)),
-  ]);
-  return { cleanedActions: pollutedActions.length, cleanedReviews: pollutedReviews.length };
+  const now = new Date().toISOString();
+  const actionDecisions = actions
+    .map((action) => ({ action, decision: actionCleanupDecision(action) }))
+    .filter((entry) => entry.decision !== "keep");
+  const reviewDecisions = reviews
+    .map((item) => ({ item, decision: reviewCleanupDecision(item) }))
+    .filter((entry) => entry.decision !== "keep");
+  if (mode === "apply") {
+    await Promise.all([
+      ...actionDecisions.map(({ action, decision }) => kv.set(KV.actions, action.id, {
+        ...action,
+        status: decision === "done" ? "done" : "cancelled",
+        updatedAt: now,
+        metadata: {
+          ...(action.metadata || {}),
+          cleanup: {
+            decision,
+            cleanedAt: now,
+            previousStatus: action.status,
+            title: action.title,
+            description: action.description,
+          },
+        },
+      })),
+      ...reviewDecisions.map(({ item, decision }) => kv.set(KV.reviewQueue, item.id, {
+        ...item,
+        status: "dismissed",
+        updatedAt: now,
+        payload: {
+          ...(item.payload || {}),
+          cleanup: {
+            decision,
+            cleanedAt: now,
+            previousStatus: item.status,
+            title: item.title,
+            content: item.content,
+          },
+        },
+      })),
+    ]);
+  }
+  return {
+    cleanedActions: actionDecisions.filter((entry) => entry.decision === "garbage").length,
+    cleanedReviews: reviewDecisions.filter((entry) => entry.decision === "garbage").length,
+    completedActions: actionDecisions.filter((entry) => entry.decision === "done").length,
+    completedReviews: reviewDecisions.filter((entry) => entry.decision === "done").length,
+    preview: {
+      actions: actionDecisions.map(({ action, decision }) => ({ id: action.id, title: action.title, decision })),
+      reviews: reviewDecisions.map(({ item, decision }) => ({ id: item.id, title: item.title, decision })),
+    },
+  };
 }
 
 async function extractForSession(
@@ -580,7 +720,8 @@ async function extractForSession(
   observations: CompressedObservation[],
   mode: string,
 ): Promise<{ todos: ExtractedTodo[]; engine: "langextract" | "rules"; fallbackReason?: string }> {
-  const blocks = observations.map(blockFor).filter((block) => block.text);
+  const { ruleObservations, llmObservations } = prefilterTodoObservations(session, observations);
+  const blocks = llmObservations.map(blockFor).filter((block) => block.text);
   const bucket = timeBucketFor(session);
   let fallbackReason = "";
   if (mode !== "rules" && blocks.length > 0) {
@@ -599,7 +740,7 @@ async function extractForSession(
       // Fall back to rules even in langextract mode; the sidecar is optional.
     }
   }
-  const candidates = extractActionCandidatesFromObservations(observations);
+  const candidates = extractActionCandidatesFromObservations(ruleObservations);
   return {
     todos: candidates.map((candidate) => candidateToTodo(candidate, session, bucket)).filter((todo): todo is ExtractedTodo => !!todo),
     engine: "rules",
@@ -621,6 +762,9 @@ export async function generateTodosFromSessions(
   discarded: number;
   cleanedActions: number;
   cleanedReviews: number;
+  completedActions: number;
+  completedReviews: number;
+  cleanupPreview?: { actions: CleanupPreviewItem[]; reviews: CleanupPreviewItem[] };
   recheckMarked: number;
   sourceScan?: { imported: number; skipped: number; errors: number };
   llmFallback?: boolean;
@@ -636,14 +780,23 @@ export async function generateTodosFromSessions(
   const mode = (getEnvVar("AGENTMEMORY_TODO_EXTRACTOR") || "auto").toLowerCase();
   const directThreshold = envNumber("AGENTMEMORY_TODO_DIRECT_CONFIDENCE", 0.82);
   const reviewThreshold = envNumber("AGENTMEMORY_TODO_REVIEW_CONFIDENCE", 0.55);
+  const cleanupMode = data.cleanup === "apply" ? "apply" : data.cleanup === "dry-run" ? "dry-run" : null;
   const [actions, reviews, allSessions] = await Promise.all([
     kv.list<Action>(KV.actions).catch(() => []),
     kv.list<ReviewQueueItem>(KV.reviewQueue).catch(() => []),
     kv.list<Session>(KV.sessions).catch(() => []),
   ]);
-  const cleanup = await cleanPollutedTodoCards(kv);
-  const remainingActions = cleanup.cleanedActions > 0 ? await kv.list<Action>(KV.actions).catch(() => []) : actions;
-  const remainingReviews = cleanup.cleanedReviews > 0 ? await kv.list<ReviewQueueItem>(KV.reviewQueue).catch(() => []) : reviews;
+  const cleanup = data.cleanup === "none"
+    ? { cleanedActions: 0, cleanedReviews: 0, completedActions: 0, completedReviews: 0, preview: { actions: [], reviews: [] } }
+    : cleanupMode
+      ? await cleanPollutedTodoCards(kv, cleanupMode)
+      : { cleanedActions: 0, cleanedReviews: 0, completedActions: 0, completedReviews: 0, preview: { actions: [], reviews: [] } };
+  const remainingActions = cleanup.cleanedActions > 0 || cleanup.completedActions > 0
+    ? await kv.list<Action>(KV.actions).catch(() => [])
+    : actions;
+  const remainingReviews = cleanup.cleanedReviews > 0 || cleanup.completedReviews > 0
+    ? await kv.list<ReviewQueueItem>(KV.reviewQueue).catch(() => [])
+    : reviews;
   const existing = existingDedupeKeys(remainingActions, remainingReviews);
   const seenTitles = existingActiveTitles(remainingActions, remainingReviews);
   const checkpointId = `todo-extract:${data.project || "all"}`;
@@ -669,9 +822,11 @@ export async function generateTodosFromSessions(
     const observations = (await kv.list<CompressedObservation>(KV.observations(session.id)).catch(() => []))
       .sort((a, b) => (a.timestamp || "").localeCompare(b.timestamp || ""))
       .slice(0, maxObservationsPerSession);
-    scannedObservations += observations.length;
-    const blockMap = new Map(observations.map((obs) => [obs.id, blockFor(obs)]));
-    const { todos, engine, fallbackReason } = await extractForSession(session, observations, mode);
+    const { ruleObservations, llmObservations } = prefilterTodoObservations(session, observations);
+    scannedObservations += ruleObservations.length;
+    const evidenceObservations = mode === "rules" ? ruleObservations : llmObservations.length ? llmObservations : ruleObservations;
+    const blockMap = new Map(evidenceObservations.map((obs) => [obs.id, blockFor(obs)]));
+    const { todos, engine, fallbackReason } = await extractForSession(session, ruleObservations, mode);
     engines.add(engine);
     if (fallbackReason) fallbackReasons.add(fallbackReason.slice(0, 240));
     for (const rawTodo of todos) {
@@ -742,7 +897,10 @@ export async function generateTodosFromSessions(
     discarded,
     cleanedActions: cleanup.cleanedActions,
     cleanedReviews: cleanup.cleanedReviews,
+    completedActions: cleanup.completedActions,
+    completedReviews: cleanup.completedReviews,
     recheckMarked,
+    ...(data.cleanup === "dry-run" ? { cleanupPreview: cleanup.preview } : {}),
     ...(sourceScan ? { sourceScan } : {}),
     ...(fallbackReasons.size ? { llmFallback: true } : {}),
     ...(fallbackReasons.size ? { fallbackReason: Array.from(fallbackReasons)[0] } : {}),

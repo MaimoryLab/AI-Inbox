@@ -81,6 +81,55 @@ describe("todo extraction", () => {
     });
   });
 
+  it("extracts English unresolved todos but ignores completed English summaries", async () => {
+    await kv.set(KV.sessions, "ses_1", session({ status: "active", observationCount: 2 }));
+    await kv.set(KV.observations("ses_1"), "obs_done", obs({
+      id: "obs_done",
+      narrative: "Tests passed and the PR was merged. No action needed.",
+    }));
+    await kv.set(KV.observations("ses_1"), "obs_real", obs({
+      id: "obs_real",
+      narrative: "Need to fix the failing CI and rerun tests.",
+    }));
+
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false });
+
+    expect(result.scannedObservations).toBe(1);
+    expect(result.directCreated).toBe(1);
+    expect((await kv.list<Action>(KV.actions))[0]).toMatchObject({
+      sourceObservationIds: ["obs_real"],
+      tags: expect.arrayContaining(["type:follow_up"]),
+    });
+  });
+
+  it("does not turn bare failure reports into rule todos", async () => {
+    await kv.set(KV.sessions, "ses_1", session({ status: "active" }));
+    await kv.set(KV.observations("ses_1"), "obs_1", obs({
+      narrative: "Command failed with exit code 1.",
+    }));
+
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false });
+
+    expect(result.scannedObservations).toBe(0);
+    expect(result.directCreated).toBe(0);
+    expect(await kv.list<Action>(KV.actions)).toHaveLength(0);
+  });
+
+  it("skips LangExtract when session prefilter finds no candidate blocks", async () => {
+    process.env.AGENTMEMORY_TODO_EXTRACTOR = "langextract";
+    await kv.set(KV.sessions, "ses_1", session({ status: "active" }));
+    await kv.set(KV.observations("ses_1"), "obs_1", obs({
+      narrative: "Tests passed and the PR was merged. No action needed.",
+    }));
+
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false });
+
+    expect(result.scannedObservations).toBe(0);
+    expect(result.directCreated).toBe(0);
+    expect(result.llmFallback).toBeUndefined();
+    delete process.env.AGENTMEMORY_TODO_EXTRACTOR;
+  });
+
   it("uses scan checkpoints to skip unchanged sessions", async () => {
     await kv.set(KV.sessions, "ses_1", session());
     await kv.set(KV.observations("ses_1"), "obs_1", obs());
@@ -341,9 +390,17 @@ describe("todo extraction", () => {
 
     const result = await cleanPollutedTodoCards(kv as never);
 
-    expect(result).toEqual({ cleanedActions: 1, cleanedReviews: 1 });
-    expect((await kv.list<Action>(KV.actions)).map((a) => a.id)).toEqual(["act_good"]);
-    expect(await kv.list<ReviewQueueItem>(KV.reviewQueue)).toEqual([]);
+    expect(result).toMatchObject({ cleanedActions: 1, cleanedReviews: 1, completedActions: 0, completedReviews: 0 });
+    const actions = await kv.list<Action>(KV.actions);
+    expect(actions.find((a) => a.id === "act_bad")).toMatchObject({
+      status: "cancelled",
+      metadata: { cleanup: expect.objectContaining({ decision: "garbage", previousStatus: "pending" }) },
+    });
+    expect(actions.find((a) => a.id === "act_good")).toMatchObject({ status: "pending" });
+    expect((await kv.list<ReviewQueueItem>(KV.reviewQueue))[0]).toMatchObject({
+      status: "dismissed",
+      payload: { cleanup: expect.objectContaining({ decision: "garbage" }) },
+    });
   });
 
   it("cleans completed-work narration cards but keeps genuine repairs (STEP-08 Layer 2)", async () => {
@@ -376,8 +433,13 @@ describe("todo extraction", () => {
 
     const result = await cleanPollutedTodoCards(kv as never);
 
-    expect(result.cleanedActions).toBe(1);
-    expect((await kv.list<Action>(KV.actions)).map((a) => a.id)).toEqual(["act_keep"]);
+    expect(result.completedActions).toBe(1);
+    const actions = await kv.list<Action>(KV.actions);
+    expect(actions.find((a) => a.id === "act_done")).toMatchObject({
+      status: "done",
+      metadata: { cleanup: expect.objectContaining({ decision: "done", previousStatus: "pending" }) },
+    });
+    expect(actions.find((a) => a.id === "act_keep")).toMatchObject({ status: "pending" });
   });
 
   it("cleans status-report cards but keeps repairs that mention a status phrase (STEP-08)", async () => {
@@ -413,6 +475,70 @@ describe("todo extraction", () => {
     const result = await cleanPollutedTodoCards(kv as never);
 
     expect(result.cleanedActions).toBe(1);
-    expect((await kv.list<Action>(KV.actions)).map((a) => a.id)).toEqual(["act_repair"]);
+    const actions = await kv.list<Action>(KV.actions);
+    expect(actions.find((a) => a.id === "act_status")).toMatchObject({ status: "cancelled" });
+    expect(actions.find((a) => a.id === "act_repair")).toMatchObject({ status: "pending" });
+  });
+
+  it("dry-runs cleanup without mutating cards", async () => {
+    await kv.set<Action>(KV.actions, "act_noise", {
+      id: "act_noise",
+      title: "继续检查关键入口和 GitHub 状态并输出报告",
+      description: "我会继续看关键入口文件和 GitHub 侧的分支、PR、issue、release、CI 配置。",
+      status: "pending",
+      priority: 5,
+      createdAt: "2026-06-17T08:00:00.000Z",
+      updatedAt: "2026-06-17T08:00:00.000Z",
+      createdBy: "todo-extract",
+      tags: ["todo-extracted"],
+      sourceObservationIds: [],
+      sourceMemoryIds: [],
+    });
+
+    const result = await cleanPollutedTodoCards(kv as never, "dry-run");
+
+    expect(result.cleanedActions).toBe(1);
+    expect((await kv.list<Action>(KV.actions))[0]).toMatchObject({ id: "act_noise", status: "pending" });
+  });
+
+  it("todo generation does not cleanup existing cards unless requested", async () => {
+    await kv.set<Action>(KV.actions, "act_noise", {
+      id: "act_noise",
+      title: "继续检查关键入口和 GitHub 状态并输出报告",
+      description: "我会继续看关键入口文件和 GitHub 侧的分支、PR、issue、release、CI 配置。",
+      status: "pending",
+      priority: 5,
+      createdAt: "2026-06-17T08:00:00.000Z",
+      updatedAt: "2026-06-17T08:00:00.000Z",
+      createdBy: "todo-extract",
+      tags: ["todo-extracted"],
+      sourceObservationIds: [],
+      sourceMemoryIds: [],
+    });
+    await kv.set(KV.sessions, "ses_1", session({ status: "active" }));
+    await kv.set(KV.observations("ses_1"), "obs_1", obs());
+
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false });
+
+    expect(result.cleanedActions).toBe(0);
+    expect((await kv.list<Action>(KV.actions)).find((a) => a.id === "act_noise")).toMatchObject({ status: "pending" });
+  });
+
+  it("filters agent progress observations before rules extraction", async () => {
+    await kv.set(KV.sessions, "ses_1", session({ status: "active", observationCount: 2 }));
+    await kv.set(KV.observations("ses_1"), "obs_noise", obs({
+      id: "obs_noise",
+      narrative: "我会继续看关键入口文件和 GitHub 侧的分支、PR、issue、release、CI 配置。",
+    }));
+    await kv.set(KV.observations("ses_1"), "obs_real", obs({
+      id: "obs_real",
+      narrative: "后续需要修复 CI 失败，并重新跑测试。",
+    }));
+
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false, cleanup: "none" });
+
+    expect(result.scannedObservations).toBe(1);
+    expect(result.directCreated).toBe(1);
+    expect((await kv.list<Action>(KV.actions))[0].sourceObservationIds).toEqual(["obs_real"]);
   });
 });
