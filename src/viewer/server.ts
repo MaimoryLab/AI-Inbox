@@ -13,7 +13,7 @@ import { renderViewerDocument } from "./document.js";
 import type { Action, CompressedObservation, Memory, ReviewQueueItem, Session } from "../types.js";
 import { KV, fingerprintId } from "../state/schema.js";
 import { buildTurnActionDrafts } from "../functions/action-candidates.js";
-import { generateTodosFromSessions } from "../functions/todo-extract.js";
+import { generateTodosFromSessions, cleanTodoCardsWithLlm } from "../functions/todo-extract.js";
 import { getTodoExtractorUserConfig, getUserEnvPath, writeUserEnv, WRITABLE_TODO_EXTRACT_KEYS } from "../config.js";
 
 // Self-host the viewer favicon at /favicon.svg instead of an inline
@@ -1416,6 +1416,17 @@ export function startViewerServer(
       const raw = await readBody(req);
       const body = raw ? JSON.parse(raw) as Record<string, unknown> : {};
       const result = await generateTodosFromSessions(kv as ViewerKv, body);
+      json(res, 200, result, req);
+      return;
+    }
+
+    if (method === "POST" && pathname === "/agentmemory/todo/cleanup") {
+      const raw = await readBody(req);
+      const body = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+      const mode = body.mode === "apply" ? "apply" : "dry-run";
+      const maxCards =
+        typeof body.maxCards === "number" && body.maxCards > 0 ? Math.floor(body.maxCards) : undefined;
+      const result = await cleanTodoCardsWithLlm(kv as ViewerKv, { mode, maxCards });
       json(res, 200, result, req);
       return;
     }

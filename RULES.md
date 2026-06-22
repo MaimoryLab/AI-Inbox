@@ -21,7 +21,7 @@ for setup and PR flow, see [CONTRIBUTING.md](CONTRIBUTING.md) and
 
 ## Pull requests
 
-- **One PR = one** reviewable, reversible change; keep the diff small (soft cap ~400 lines); the product stays usable at every step.
+- **One PR = one** reviewable, reversible change; keep the diff cohesive (single-developer stage — no hard line-count cap); the product stays usable at every step.
 - Sign off every commit (DCO): `git commit -s`.
 - No attribution headers in commits (no "Generated with …" / "Co-Authored-By" trailers).
 - `npm run pre-pr` (consistency + build + test) must pass before pushing.

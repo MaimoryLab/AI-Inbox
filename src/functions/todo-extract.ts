@@ -58,6 +58,7 @@ type TodoExtractOptions = {
 const TIME_BUCKETS = new Set(["current", "recent", "history"]);
 const TYPE_BUCKETS = new Set(["pending", "to_start", "follow_up", "in_progress", "done", "processing"]);
 const SIDE_CAR = "todo-extract-langextract.py";
+const CLEANUP_SIDE_CAR = "todo-cleanup-llm.py";
 const MAX_LLM_OBSERVATIONS_PER_SESSION = 40;
 const SIDE_CAR_ENV_KEYS = [
   "LANGEXTRACT_API_KEY",
@@ -369,14 +370,14 @@ function blockFor(obs: CompressedObservation): ObservationBlock {
   };
 }
 
-function sidecarPath(): string | null {
+function sidecarPath(name: string = SIDE_CAR): string | null {
   const base = dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    join(base, SIDE_CAR),
-    join(base, "functions", SIDE_CAR),
-    join(base, "..", "src", "functions", SIDE_CAR),
-    join(base, "..", "functions", SIDE_CAR),
-    resolve(process.cwd(), "src", "functions", SIDE_CAR),
+    join(base, name),
+    join(base, "functions", name),
+    join(base, "..", "src", "functions", name),
+    join(base, "..", "functions", name),
+    resolve(process.cwd(), "src", "functions", name),
   ];
   return candidates.find((candidate) => existsSync(candidate)) || null;
 }
@@ -715,6 +716,227 @@ export async function cleanPollutedTodoCards(
   };
 }
 
+// ── LLM card cleanup (STEP-10) ──────────────────────────────────────────────
+// Curate EXISTING cards (vs. extracting new ones): an LLM judges each open
+// generated card KEEP/DROP/DONE/REWRITE/MERGE. Reuses the soft-delete + cleanup
+// audit shape of cleanPollutedTodoCards; falls back to the rule-based cleaner
+// when the LLM is unavailable.
+
+type LlmCleanupDecision = "KEEP" | "DROP" | "DONE" | "REWRITE" | "MERGE";
+type LlmCleanupItem = {
+  id: string;
+  decision: LlmCleanupDecision;
+  reason?: string;
+  newTitle?: string;
+  newDescription?: string;
+  mergeIntoId?: string;
+};
+type CleanupCard = { id: string; title: string; description: string; status: string; evidence?: string };
+
+const DEFAULT_CLEANUP_MAX_CARDS = 60;
+
+async function runCleanupSidecar(
+  cards: CleanupCard[],
+  opts: { timeoutMs?: number } = {},
+): Promise<LlmCleanupItem[]> {
+  const script = sidecarPath(CLEANUP_SIDE_CAR);
+  if (!script) throw new Error("cleanup sidecar not found");
+  const python = getEnvVar("LANGEXTRACT_PYTHON") || "python3";
+  const env = { ...process.env };
+  for (const key of SIDE_CAR_ENV_KEYS) {
+    const value = getEnvVar(key);
+    if (value) env[key] = value;
+  }
+  env.LANGEXTRACT_MODEL = normalizeTodoExtractorModel(env.LANGEXTRACT_MODEL);
+  env.LANGEXTRACT_PROVIDER = normalizeTodoExtractorProvider(env.LANGEXTRACT_PROVIDER);
+  env.LANGEXTRACT_BASE_URL = env.LANGEXTRACT_BASE_URL || DEFAULT_LANGEXTRACT_BASE_URL;
+  const timeoutMs = opts.timeoutMs ?? envNumber("AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS", DEFAULT_TODO_EXTRACT_TIMEOUT_MS);
+  return new Promise((resolvePromise, reject) => {
+    const child = spawn(python, [script], { stdio: ["pipe", "pipe", "pipe"], env });
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error("cleanup sidecar timed out"));
+    }, timeoutMs);
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => { stdout += chunk; });
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.on("error", (err) => { clearTimeout(timer); reject(err); });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (code !== 0) { reject(new Error(stderr.trim() || `cleanup sidecar exited ${code}`)); return; }
+      try {
+        const parsed = JSON.parse(stdout) as { decisions?: unknown };
+        resolvePromise(Array.isArray(parsed.decisions) ? (parsed.decisions as LlmCleanupItem[]) : []);
+      } catch (err) { reject(err); }
+    });
+    child.stdin.end(JSON.stringify({ cards }));
+  });
+}
+
+function cardEvidence(meta: Record<string, unknown> | undefined): string {
+  const extraction = meta?.todoExtraction as ExtractedTodo | undefined;
+  return extraction?.evidence?.quote || "";
+}
+
+function applyActionCleanup(action: Action, d: LlmCleanupItem, now: string): Action {
+  const cleanup: Record<string, unknown> = {
+    decision: d.decision.toLowerCase(),
+    llm: true,
+    reason: d.reason || "",
+    cleanedAt: now,
+    previousStatus: action.status,
+    title: action.title,
+    description: action.description,
+    ...(d.mergeIntoId ? { mergeIntoId: d.mergeIntoId } : {}),
+  };
+  if (d.decision === "REWRITE") {
+    cleanup.previousTitle = action.title;
+    cleanup.previousDescription = action.description;
+    return {
+      ...action,
+      title: d.newTitle || action.title,
+      description: d.newDescription ?? action.description,
+      updatedAt: now,
+      metadata: { ...(action.metadata || {}), cleanup },
+    };
+  }
+  const status: Action["status"] = d.decision === "DONE" ? "done" : "cancelled";
+  return { ...action, status, updatedAt: now, metadata: { ...(action.metadata || {}), cleanup } };
+}
+
+function applyReviewCleanup(item: ReviewQueueItem, d: LlmCleanupItem, now: string): ReviewQueueItem {
+  const cleanup: Record<string, unknown> = {
+    decision: d.decision.toLowerCase(),
+    llm: true,
+    reason: d.reason || "",
+    cleanedAt: now,
+    previousStatus: item.status,
+    title: item.title,
+    content: item.content,
+    ...(d.mergeIntoId ? { mergeIntoId: d.mergeIntoId } : {}),
+  };
+  if (d.decision === "REWRITE") {
+    cleanup.previousTitle = item.title;
+    cleanup.previousContent = item.content;
+    return {
+      ...item,
+      title: d.newTitle || item.title,
+      content: d.newDescription ?? item.content,
+      updatedAt: now,
+      payload: { ...(item.payload || {}), cleanup },
+    };
+  }
+  return { ...item, status: "dismissed", updatedAt: now, payload: { ...(item.payload || {}), cleanup } };
+}
+
+export type LlmCleanupResult = {
+  engine: "llm" | "rules";
+  scanned: number;
+  kept: number;
+  dropped: number;
+  completed: number;
+  rewritten: number;
+  merged: number;
+  preview: Array<{ id: string; title: string; decision: LlmCleanupDecision; reason?: string; newTitle?: string; mergeIntoId?: string }>;
+  fallbackReason?: string;
+};
+
+export async function cleanTodoCardsWithLlm(
+  kv: Pick<StateKV, "list" | "set">,
+  opts: { mode?: CleanupMode; maxCards?: number; decide?: (cards: CleanupCard[]) => Promise<LlmCleanupItem[]> } = {},
+): Promise<LlmCleanupResult> {
+  const mode = opts.mode ?? "apply";
+  const maxCards = opts.maxCards ?? DEFAULT_CLEANUP_MAX_CARDS;
+  const decide = opts.decide ?? runCleanupSidecar;
+  const [actions, reviews] = await Promise.all([
+    kv.list<Action>(KV.actions).catch(() => []),
+    kv.list<ReviewQueueItem>(KV.reviewQueue).catch(() => []),
+  ]);
+  const openActions = actions.filter(
+    (a) => actionLooksGenerated(a) && a.status !== "done" && a.status !== "cancelled",
+  );
+  const openReviews = reviews.filter((r) => reviewLooksGenerated(r) && r.status === "pending");
+  const actionById = new Map(openActions.map((a) => [`a:${a.id}`, a] as [string, Action]));
+  const reviewById = new Map(openReviews.map((r) => [`r:${r.id}`, r] as [string, ReviewQueueItem]));
+
+  const cards: CleanupCard[] = [
+    ...openActions.map((a) => ({ id: `a:${a.id}`, title: a.title, description: a.description, status: a.status, evidence: cardEvidence(a.metadata) })),
+    ...openReviews.map((r) => ({ id: `r:${r.id}`, title: r.title, description: r.content, status: r.status, evidence: cardEvidence(r.payload) })),
+  ].slice(0, maxCards);
+
+  if (cards.length === 0) {
+    return { engine: "llm", scanned: 0, kept: 0, dropped: 0, completed: 0, rewritten: 0, merged: 0, preview: [] };
+  }
+
+  let decisions: LlmCleanupItem[];
+  try {
+    decisions = await decide(cards);
+  } catch (err) {
+    // LLM unavailable → rule-based cleanup as a safety net.
+    const rules = await cleanPollutedTodoCards(kv, mode);
+    const dropped = rules.cleanedActions + rules.cleanedReviews;
+    const completed = rules.completedActions + rules.completedReviews;
+    return {
+      engine: "rules",
+      scanned: cards.length,
+      kept: Math.max(0, cards.length - dropped - completed),
+      dropped,
+      completed,
+      rewritten: 0,
+      merged: 0,
+      preview: [...rules.preview.actions, ...rules.preview.reviews].map((p) => ({
+        id: p.id,
+        title: p.title,
+        decision: (p.decision === "done" ? "DONE" : "DROP") as LlmCleanupDecision,
+        reason: "rule-based fallback",
+      })),
+      fallbackReason: err instanceof Error ? err.message : String(err),
+    };
+  }
+
+  const now = new Date().toISOString();
+  const writes: Array<Promise<unknown>> = [];
+  let dropped = 0, completed = 0, rewritten = 0, merged = 0;
+  const preview: LlmCleanupResult["preview"] = [];
+
+  for (const d of decisions) {
+    if (!d || d.decision === "KEEP") continue;
+    const action = actionById.get(d.id);
+    const review = reviewById.get(d.id);
+    if (!action && !review) continue;
+    if (d.decision === "DROP") dropped++;
+    else if (d.decision === "DONE") completed++;
+    else if (d.decision === "REWRITE") rewritten++;
+    else if (d.decision === "MERGE") merged++;
+    preview.push({
+      id: d.id,
+      title: action?.title ?? review?.title ?? "",
+      decision: d.decision,
+      reason: d.reason,
+      newTitle: d.newTitle,
+      mergeIntoId: d.mergeIntoId,
+    });
+    if (mode !== "apply") continue;
+    if (action) writes.push(kv.set(KV.actions, action.id, applyActionCleanup(action, d, now)));
+    else if (review) writes.push(kv.set(KV.reviewQueue, review.id, applyReviewCleanup(review, d, now)));
+  }
+  await Promise.all(writes);
+  const touched = dropped + completed + rewritten + merged;
+  return {
+    engine: "llm",
+    scanned: cards.length,
+    kept: Math.max(0, cards.length - touched),
+    dropped,
+    completed,
+    rewritten,
+    merged,
+    preview,
+  };
+}
+
 async function extractForSession(
   session: Session,
   observations: CompressedObservation[],
@@ -910,5 +1132,8 @@ export async function generateTodosFromSessions(
 export function registerTodoExtractFunctions(sdk: ISdk, kv: StateKV): void {
   sdk.registerFunction("mem::todo-extract-generate", async (data: TodoExtractOptions = {}) =>
     generateTodosFromSessions(kv, data),
+  );
+  sdk.registerFunction("mem::todo-cleanup", async (data: { mode?: CleanupMode; maxCards?: number } = {}) =>
+    cleanTodoCardsWithLlm(kv, data),
   );
 }
