@@ -2038,27 +2038,6 @@
       flex-wrap: wrap;
       align-items: center;
     }
-    .actions-filter-chips {
-      display: inline-flex;
-      gap: 6px;
-      flex-wrap: wrap;
-    }
-    .actions-filter-chip {
-      border: 1px solid var(--border-light);
-      background: #ffffff;
-      color: var(--ink-muted);
-      border-radius: 999px;
-      padding: 5px 10px;
-      font-size: 12px;
-      font-family: var(--font-ui);
-      cursor: pointer;
-    }
-    .actions-filter-chip.active {
-      border-color: var(--accent);
-      color: var(--ink);
-      background: var(--bg-warm);
-      font-weight: 650;
-    }
     .action-original-disclosure {
       margin-top: 7px;
       color: var(--ink-muted);
@@ -2535,18 +2514,12 @@
       border-color: var(--border-heavy);
     }
     html[data-theme="dark"] button.action-overview-card:hover,
-    html[data-theme="dark"] .action-overview-card.primary,
-    html[data-theme="dark"] .actions-filter-chip.active {
+    html[data-theme="dark"] .action-overview-card.primary {
       background: var(--bg-inset);
     }
     html[data-theme="dark"] .action-overview-card.active {
       border-color: var(--ink);
       box-shadow: inset 0 0 0 1px var(--ink);
-    }
-    html[data-theme="dark"] .actions-filter-chip {
-      background: var(--surface-card);
-      border-color: var(--border-heavy);
-      color: var(--ink-secondary);
     }
     html[data-theme="dark"] .action-item-actions .btn {
       background: transparent;
@@ -4124,7 +4097,7 @@
         'act.prio.high': 'Important', 'act.prio.normal': 'Normal', 'act.prio.low': 'Low',
         'act.untitled': 'Untitled', 'act.untitledCandidate': 'Untitled candidate',
         'act.metric.waiting': 'Awaiting reply', 'act.metric.review': 'To confirm', 'act.metric.followUp': 'To follow up', 'act.metric.active': 'In progress', 'act.metric.done': 'Done',
-        'act.searchPlaceholder': 'Search todos...', 'act.filterAria': 'Filter todos by status',
+        'act.searchPlaceholder': 'Search todos...',
         'act.nToConfirm': 'to confirm', 'act.nConfirmed': 'confirmed', 'act.refresh': 'Refresh',
         'act.viewOriginal': 'View original', 'act.confirm': 'Confirm', 'act.ignore': 'Ignore',
         'act.from': 'From', 'act.viewSource': 'View source →', 'act.updated': 'Updated',
@@ -4326,7 +4299,7 @@
         'act.prio.high': '重要', 'act.prio.normal': '普通', 'act.prio.low': '不急',
         'act.untitled': '未命名待办', 'act.untitledCandidate': '未命名待办候选',
         'act.metric.waiting': '待回应', 'act.metric.review': '待确认', 'act.metric.followUp': '待跟进', 'act.metric.active': '进行中', 'act.metric.done': '已完成',
-        'act.searchPlaceholder': '搜索待办...', 'act.filterAria': '待办状态筛选',
+        'act.searchPlaceholder': '搜索待办...',
         'act.nToConfirm': '条待确认', 'act.nConfirmed': '件已确认', 'act.refresh': '刷新',
         'act.viewOriginal': '查看原文', 'act.confirm': '确认', 'act.ignore': '忽略',
         'act.from': '来自', 'act.viewSource': '看原文 →', 'act.updated': '更新',
@@ -8968,8 +8941,10 @@
         .replace('{merged}', r.merged || 0);
     }
 
-    // LLM card cleanup (STEP-10): curate EXISTING cards. Always dry-run first so
-    // the user confirms before anything is soft-deleted; apply only on confirm.
+    // LLM card update (STEP-12): re-judge cards whose source session changed.
+    // Always dry-run first so the user confirms before anything is dropped/closed;
+    // apply only on confirm (or silently when there is nothing to confirm — see
+    // the all-KEEP branch below).
     function startTodoUpdate() {
       if (state.actions.cleanupInFlight || state.actions.extractInFlight) return;
       state.actions.cleanupInFlight = true;
@@ -8986,8 +8961,32 @@
         }
         var touched = (preview.dropped || 0) + (preview.completed || 0) + (preview.rewritten || 0) + (preview.merged || 0);
         if (touched === 0) {
+          if (preview.fallbackReason) {
+            // LLM unavailable — nothing ran, nothing to advance.
+            state.actions.cleanupStatus = 'done';
+            state.actions.cleanupMessage = t('act.cleanup.llmUnavailable');
+            if (state.activeTab === 'actions') renderActions();
+            return;
+          }
+          if ((preview.scanned || 0) > 0) {
+            // Changed cards existed but the LLM kept them all. Silently apply so
+            // their checkpoints advance and they aren't re-evaluated (and re-sent
+            // to the LLM) on every future click. No card content changes, so no
+            // confirmation is needed.
+            state.actions.cleanupInFlight = true;
+            apiPost('todo/update', { mode: 'apply' }).then(function() {
+              return refreshActionListsAfterExtract();
+            }).catch(function() {}).then(function() {
+              state.actions.cleanupInFlight = false;
+              state.actions.cleanupStatus = 'done';
+              state.actions.cleanupMessage = t('act.cleanup.clean');
+              if (state.activeTab === 'actions') renderActions();
+            });
+            return;
+          }
+          // Nothing changed at all.
           state.actions.cleanupStatus = 'done';
-          state.actions.cleanupMessage = preview.engine === 'rules' ? t('act.cleanup.llmUnavailable') : t('act.cleanup.clean');
+          state.actions.cleanupMessage = t('act.cleanup.clean');
           if (state.activeTab === 'actions') renderActions();
           return;
         }
@@ -9504,7 +9503,12 @@
       var metricItems = items.slice();
       var metricReviewItems = reviewItems.slice();
       if (statusFilter && statusFilter !== 'review' && statusFilter !== 'awaiting') {
-        items = items.filter(function(a) { return a.status === statusFilter; });
+        // STEP-13: the "待跟进 / Follow-up" metric card counts pending + blocked
+        // and filters with data-status="pending", so the pending filter must show
+        // blocked too — otherwise its count and its results disagree.
+        items = items.filter(function(a) {
+          return statusFilter === 'pending' ? (a.status === 'pending' || a.status === 'blocked') : a.status === statusFilter;
+        });
       }
       if (statusFilter === 'review' || statusFilter === 'awaiting') {
         items = [];

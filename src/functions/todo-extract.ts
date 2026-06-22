@@ -11,6 +11,7 @@ import {
   DEFAULT_TODO_EXTRACT_TIMEOUT_MS,
   DEFAULT_TODO_EXTRACT_SINCE_DAYS,
   DEFAULT_TODO_EXTRACT_MAX_INTERACTIONS,
+  DEFAULT_TODO_EXTRACT_MAX_SESSIONS,
   getEnvVar,
   normalizeTodoExtractorModel,
   normalizeTodoExtractorProvider,
@@ -600,7 +601,10 @@ function makeReview(todo: ExtractedTodo, session: Session, now: string): ReviewQ
         confidence: todo.confidence,
         sourceObservationIds: [todo.evidence.sourceObservationId],
       },
-      todoExtraction: todo,
+      // STEP-12: store the session fingerprint like makeAction does, so a review
+      // card can also be picked up by updateChangedTodoCards when its source
+      // session later changes (otherwise the review-update path is dead).
+      todoExtraction: withSourceCheckpoint(todo, session),
     },
   };
 }
@@ -755,11 +759,13 @@ export async function cleanPollutedTodoCards(
   };
 }
 
-// ── LLM card cleanup (STEP-10) ──────────────────────────────────────────────
-// Curate EXISTING cards (vs. extracting new ones): an LLM judges each open
-// generated card KEEP/DROP/DONE/REWRITE/MERGE. Reuses the soft-delete + cleanup
-// audit shape of cleanPollutedTodoCards; falls back to the rule-based cleaner
-// when the LLM is unavailable.
+// ── LLM card update (STEP-12, evolved from the STEP-10 cleanup) ─────────────
+// Re-judges EXISTING cards whose source session changed (vs. extracting new
+// ones): an LLM decides KEEP/DROP/DONE/REWRITE/MERGE against the card plus its
+// session's recent activity. Reuses the soft-delete + audit shape below. Update
+// is LLM-only — on failure it leaves cards untouched (no rule fallback). The
+// shared helpers/types keep the "Cleanup" name for continuity with the
+// persisted metadata.cleanup audit bag.
 
 type LlmCleanupDecision = "KEEP" | "DROP" | "DONE" | "REWRITE" | "MERGE";
 type LlmCleanupItem = {
@@ -982,9 +988,10 @@ export async function updateChangedTodoCards(
   } catch (err) {
     // Update is an LLM-only operation (it re-judges cards against new session
     // content); there is no rule equivalent, so on failure leave every card
-    // untouched and report why.
+    // untouched and report why via fallbackReason. Callers detect "LLM
+    // unavailable" by fallbackReason, not by a misnomer engine value.
     return {
-      engine: "rules",
+      engine: "llm",
       scanned: cards.length,
       kept: cards.length,
       dropped: 0,
@@ -998,6 +1005,7 @@ export async function updateChangedTodoCards(
 
   const now = new Date().toISOString();
   const decisionById = new Map(decisions.filter((d) => d && d.id).map((d) => [d.id, d] as [string, LlmCleanupItem]));
+  const batchIds = new Set(cards.map((c) => c.id));
   const writes: Array<Promise<unknown>> = [];
   let kept = 0, dropped = 0, completed = 0, rewritten = 0, merged = 0;
   const preview: LlmCleanupResult["preview"] = [];
@@ -1015,7 +1023,14 @@ export async function updateChangedTodoCards(
     const session = ex?.sourceSessionId ? sessionsById.get(ex.sourceSessionId) : undefined;
     const checkpoint = session ? checkpointKey(session) : undefined;
     const d = decisionById.get(card.id);
-    const decision = d?.decision ?? "KEEP";
+    let decision = d?.decision ?? "KEEP";
+    // TS-side invariant: a MERGE whose target card isn't in this batch (or points
+    // at itself) would cancel the source with nothing to merge into. Downgrade it
+    // to KEEP so the source is preserved. (The sidecar normalizes this too, but an
+    // injected decide must not be able to bypass it.)
+    if (decision === "MERGE" && (!d?.mergeIntoId || d.mergeIntoId === card.id || !batchIds.has(d.mergeIntoId))) {
+      decision = "KEEP";
+    }
     if (decision === "KEEP") kept++;
     else if (decision === "DROP") dropped++;
     else if (decision === "DONE") completed++;
@@ -1108,7 +1123,7 @@ export async function generateTodosFromSessions(
     const scan = await scanCodexSource(kv as StateKV).catch(() => null);
     if (scan) sourceScan = { imported: scan.imported, skipped: scan.skipped, errors: scan.errors };
   }
-  const maxSessions = clampPositiveInt(data.maxSessions, 20, 100);
+  const maxSessions = clampPositiveInt(data.maxSessions, DEFAULT_TODO_EXTRACT_MAX_SESSIONS, 100);
   const maxObservationsPerSession = clampPositiveInt(data.maxObservationsPerSession, 300, 1000);
   // STEP-11: body wins, else env, else config default. sinceDays caps at ~10y
   // (effectively unbounded); maxInteractions at 500 (well above any real cap).

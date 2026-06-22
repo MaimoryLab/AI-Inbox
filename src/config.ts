@@ -29,6 +29,11 @@ export const DEFAULT_TODO_EXTRACT_TIMEOUT_MS = 120_000;
 // stays a backend safety cap (not surfaced as a setting).
 export const DEFAULT_TODO_EXTRACT_SINCE_DAYS = 7;
 export const DEFAULT_TODO_EXTRACT_MAX_INTERACTIONS = 10;
+// Interactive safety cap on how many sessions one extraction pass touches. The
+// day window is the primary control, but with the LLM extractor each session is
+// a serial sidecar call (up to the per-call timeout), so a single "organize"
+// click must stay bounded. REST callers can still pass a larger maxSessions.
+export const DEFAULT_TODO_EXTRACT_MAX_SESSIONS = 8;
 const LEGACY_LANGEXTRACT_MODELS = new Set(["pa/gpt-5.5"]);
 export const WRITABLE_TODO_EXTRACT_KEYS = new Set([
   "AGENTMEMORY_TODO_EXTRACTOR",

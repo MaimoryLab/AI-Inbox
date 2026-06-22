@@ -5,6 +5,7 @@ vi.mock("../src/config.js", () => ({
   DEFAULT_TODO_EXTRACT_TIMEOUT_MS: 120_000,
   DEFAULT_TODO_EXTRACT_SINCE_DAYS: 7,
   DEFAULT_TODO_EXTRACT_MAX_INTERACTIONS: 10,
+  DEFAULT_TODO_EXTRACT_MAX_SESSIONS: 8,
   getEnvVar: (key: string) => {
     const values: Record<string, string> = {
       AGENTMEMORY_TODO_EXTRACTOR: "rules",
@@ -624,10 +625,41 @@ describe("todo extraction", () => {
     });
     const decide = async (): Promise<never> => { throw new Error("LLM down"); };
     const result = await updateChangedTodoCards(kv as never, { mode: "apply", decide });
-    expect(result.engine).toBe("rules");
+    // update is LLM-only: failure is signalled by fallbackReason, not engine.
     expect(result.fallbackReason).toContain("LLM down");
+    expect(result.dropped).toBe(0);
     // update has no rule equivalent, so the card stays exactly as it was
     expect((await kv.list<Action>(KV.actions)).find((a) => a.id === "a_bad")).toMatchObject({ status: "pending" });
+  });
+
+  it("update also re-judges changed-session review cards (STEP-12)", async () => {
+    await kv.set(KV.sessions, "ses_x", session({ id: "ses_x", endedAt: "2026-06-18T09:00:00.000Z", observationCount: 5 }));
+    await kv.set<ReviewQueueItem>(KV.reviewQueue, "rev1", {
+      id: "rev1", createdAt: "2026-06-17T08:00:00.000Z", updatedAt: "2026-06-17T08:00:00.000Z",
+      status: "pending", kind: "action", title: "maybe fix the thing", content: "x", source: "viewer",
+      payload: { tags: ["todo-extracted"], todoExtraction: { sourceSessionId: "ses_x", sourceCheckpoint: "2026-06-17T09:00:00.000Z:1" } },
+    } as never);
+    const decide = async () => [{ id: "r:rev1", decision: "DROP" as const, reason: "noise" }];
+    const result = await updateChangedTodoCards(kv as never, { mode: "apply", decide });
+    expect(result.scanned).toBe(1);
+    expect(result.dropped).toBe(1);
+    expect((await kv.list<ReviewQueueItem>(KV.reviewQueue)).find((r) => r.id === "rev1")).toMatchObject({ status: "dismissed" });
+  });
+
+  it("update downgrades a MERGE whose target is not in the batch to KEEP (STEP-12)", async () => {
+    await kv.set(KV.sessions, "ses_x", session({ id: "ses_x", endedAt: "2026-06-18T09:00:00.000Z", observationCount: 5 }));
+    await kv.set<Action>(KV.actions, "a_src", {
+      id: "a_src", title: "real todo", description: "x", status: "pending", priority: 5,
+      createdAt: "2026-06-17T08:00:00.000Z", updatedAt: "2026-06-17T08:00:00.000Z",
+      createdBy: "todo-extract", tags: ["todo-extracted"], sourceObservationIds: [], sourceMemoryIds: [],
+      metadata: { todoExtraction: { sourceSessionId: "ses_x", sourceCheckpoint: "2026-06-17T09:00:00.000Z:1" } },
+    });
+    const decide = async () => [{ id: "a:a_src", decision: "MERGE" as const, mergeIntoId: "a:ghost" }];
+    const result = await updateChangedTodoCards(kv as never, { mode: "apply", decide });
+    expect(result.merged).toBe(0);
+    expect(result.kept).toBe(1);
+    // dangling MERGE downgraded → source preserved, not cancelled
+    expect((await kv.list<Action>(KV.actions)).find((a) => a.id === "a_src")).toMatchObject({ status: "pending" });
   });
 
   it("filters agent progress observations before rules extraction", async () => {
