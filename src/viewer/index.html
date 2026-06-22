@@ -2505,6 +2505,65 @@
       background: #dc2626;
       color: #ffffff;
     }
+    html[data-theme="dark"] .tab-bar {
+      background: rgba(12, 10, 9, 0.92);
+    }
+    html[data-theme="dark"] .tab-bar button.active {
+      background: var(--bg-inset);
+      color: var(--ink);
+      box-shadow: inset 0 0 0 1px var(--border-heavy);
+    }
+    html[data-theme="dark"] .tab-bar button.active .tab-icon {
+      filter: none;
+    }
+    html[data-theme="dark"] .btn-primary,
+    html[data-theme="dark"] .replay-controls button.active {
+      background: #ffffff;
+      border-color: #ffffff;
+      color: #0c0a09;
+    }
+    html[data-theme="dark"] .btn-primary:hover,
+    html[data-theme="dark"] .replay-controls button.active:hover {
+      background: #d6d3d1;
+      border-color: #d6d3d1;
+      color: #0c0a09;
+    }
+    html[data-theme="dark"] .action-overview-card,
+    html[data-theme="dark"] .action-group,
+    html[data-theme="dark"] .action-item-card {
+      background: var(--surface-card);
+      border-color: var(--border-heavy);
+    }
+    html[data-theme="dark"] button.action-overview-card:hover,
+    html[data-theme="dark"] .action-overview-card.primary,
+    html[data-theme="dark"] .actions-filter-chip.active {
+      background: var(--bg-inset);
+    }
+    html[data-theme="dark"] .action-overview-card.active {
+      border-color: var(--ink);
+      box-shadow: inset 0 0 0 1px var(--ink);
+    }
+    html[data-theme="dark"] .actions-filter-chip {
+      background: var(--surface-card);
+      border-color: var(--border-heavy);
+      color: var(--ink-secondary);
+    }
+    html[data-theme="dark"] .action-item-actions .btn {
+      background: transparent;
+      color: var(--ink);
+      border-color: var(--border-heavy);
+    }
+    html[data-theme="dark"] .action-item-actions .btn:hover {
+      background: var(--bg-inset);
+    }
+    html[data-theme="dark"] .action-item-actions .btn-danger {
+      color: #f87171;
+      border-color: #ef4444;
+    }
+    html[data-theme="dark"] .action-item-actions .btn-danger:hover {
+      background: #dc2626;
+      color: #ffffff;
+    }
     .toolbar input,
     .toolbar select,
     .search-input,
