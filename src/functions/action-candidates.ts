@@ -23,8 +23,9 @@ export interface ActionCandidateOptions {
 type BrowserTurn = { role?: string; text?: string };
 
 const READ_ONLY_TYPES = new Set(["file_read", "search", "web_fetch"]);
-const ACTION_VERB_PATTERN = "(修复|补充|实现|调整|验证|提交|创建|更新|移除|处理)";
-const ENGLISH_FOLLOW_UP_PATTERN = /\b(follow up|follow-up)\b.{0,80}\b(fix|add|update|create|remove|validate|submit|handle|implement)\b/i;
+const ACTION_VERB_PATTERN = "(修复|补充|实现|调整|验证|排查|定位|跟进|提交|创建|更新|移除|处理|合并|重试|重新(?:运行|跑))";
+const ENGLISH_ACTION_VERB = "(fix|add|update|create|remove|validate|retry|rerun|re-run|submit|handle|implement|investigate|debug|resolve)";
+const ENGLISH_FOLLOW_UP_PATTERN = new RegExp(`\\b(follow up|follow-up|need to|must)\\b.{0,80}\\b${ENGLISH_ACTION_VERB}\\b`, "i");
 const ACTION_DESCRIPTION_MAX_LENGTH = 180;
 
 function normalizeText(value: string | undefined): string {
@@ -153,11 +154,14 @@ function titleFromText(text: string, fallback: string): string {
 
 function hasExplicitFollowUpAction(text: string): boolean {
   return new RegExp(`(?:下一步|后续)\\s*(?:请|需要|必须)?\\s*${ACTION_VERB_PATTERN}`, "u").test(text) ||
+    new RegExp(`(?:需要|必须)\\s*${ACTION_VERB_PATTERN}`, "u").test(text) ||
     ENGLISH_FOLLOW_UP_PATTERN.test(text);
 }
 
 function hasExplicitFailureRepair(text: string): boolean {
-  return /验证未通过|验证失败|测试未通过|测试失败|\b(command failed|exit code [1-9]\d*|exited with code [1-9]\d*)\b/iu.test(text);
+  const failure = /验证未通过|验证失败|测试未通过|测试失败|失败|\b(failed|failing|command failed|exit code [1-9]\d*|exited with code [1-9]\d*)\b/iu.test(text);
+  if (!failure) return false;
+  return new RegExp(ACTION_VERB_PATTERN, "u").test(text) || new RegExp(`\\b${ENGLISH_ACTION_VERB}\\b`, "i").test(text);
 }
 
 function isStatusReport(text: string): boolean {
@@ -172,8 +176,6 @@ function sentenceReason(text: string): ActionCandidate["reason"] | null {
   if (/不应生成待办|不要生成待办|无需生成待办|不是待办|not an action|not a todo/i.test(text)) return null;
   if (/\b(?:TODO|FIXME)\b\s*[:：-]\s*\S/i.test(text) || /待办\s*[:：-]\s*\S/u.test(text)) return "todo";
   if (hasExplicitFollowUpAction(text)) return "follow_up";
-  if (/验证未通过|验证失败|测试未通过|测试失败/.test(text)) return "validation_failed";
-  if (/\b(command failed|exit code [1-9]\d*|exited with code [1-9]\d*)\b/i.test(text)) return "command_failed";
   if (/\bblocked\b|未完成|被阻塞|阻塞/u.test(text)) return "blocked";
   if (hasExplicitFailureRepair(text)) return "validation_failed";
   return null;

@@ -83,7 +83,7 @@ describe("zero-LLM action candidates", () => {
     expect(titles).toContain("修复分类边界判定错误");
   });
 
-  it("extracts repair candidates from failures, blocked work, and failed validation", () => {
+  it("extracts repair candidates only when failures include a repair action", () => {
     const candidates = extractActionCandidatesFromObservations([
       obs("obs_1", {
         type: "command_run",
@@ -102,17 +102,19 @@ describe("zero-LLM action candidates", () => {
         type: "conversation",
         narrative: "测试失败，需要修复 replay import 幂等性。",
       }),
+      obs("obs_5", {
+        type: "conversation",
+        narrative: "Need to fix the failing CI and rerun tests.",
+      }),
     ]);
 
-    expect(candidates.map((c) => c.reason)).toEqual(expect.arrayContaining([
-      "command_failed",
-      "blocked",
-      "validation_failed",
-    ]));
+    expect(candidates.some((c) => c.sourceObservationIds.includes("obs_1"))).toBe(false);
+    expect(candidates.map((c) => c.reason)).toEqual(expect.arrayContaining(["blocked", "follow_up"]));
     expect(candidates.map((c) => c.title)).toEqual(expect.arrayContaining([
       "修复 replay import 幂等性",
+      "the failing CI and rerun tests",
     ]));
-    expect(candidates.every((c) => c.priority >= 6)).toBe(true);
+    expect(candidates.find((c) => c.sourceObservationIds.includes("obs_5"))?.tags).toContain("follow-up");
   });
 
   it("does not extract from normal explanations or read-only source observations", () => {

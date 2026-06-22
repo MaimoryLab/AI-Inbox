@@ -1526,6 +1526,7 @@ export function registerApiTriggers(
       const project = asNonEmptyString(body.project);
       if (project) payload.project = project;
       if (body.force === true) payload.force = true;
+      if (body.cleanup === "none" || body.cleanup === "dry-run" || body.cleanup === "apply") payload.cleanup = body.cleanup;
       const result = await sdk.trigger({ function_id: "mem::todo-extract-generate", payload });
       return { status_code: 200, body: result };
     },

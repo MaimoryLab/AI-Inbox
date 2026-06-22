@@ -105,6 +105,7 @@ describe("review action candidates", () => {
       maxObservationsPerSession: 20,
       project: "agentmemory-lab",
       force: true,
+      cleanup: "dry-run",
     })) as { status_code: number; body: Record<string, unknown> };
 
     expect(response.status_code).toBe(200);
@@ -114,6 +115,7 @@ describe("review action candidates", () => {
       maxObservationsPerSession: 20,
       project: "agentmemory-lab",
       force: true,
+      cleanup: "dry-run",
     });
   });
 
