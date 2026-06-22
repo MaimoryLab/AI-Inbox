@@ -618,18 +618,42 @@ async function main() {
     }
   }
 
+  let shuttingDown = false;
   const shutdown = async () => {
+    // Re-entrancy guard: a second Ctrl+C while we're already shutting down
+    // must not stack another shutdown pass on top of the first.
+    if (shuttingDown) return;
+    shuttingDown = true;
     console.log(`\n[agentmemory] Shutting down...`);
+
+    // Watchdog: never let a hung resource trap Ctrl+C. If graceful cleanup
+    // doesn't finish quickly, force the exit. unref() so the timer itself
+    // can't keep the event loop alive.
+    const forceExit = setTimeout(() => {
+      console.warn(`[agentmemory] Shutdown timed out after 3s — forcing exit.`);
+      process.exit(0);
+    }, 3000);
+    forceExit.unref();
+
     replyLoop?.stop();
     healthMonitor.stop();
     dedupMap.stop();
     indexPersistence.stop();
-    await new Promise<void>((resolve) => viewerServer.close(() => resolve()));
+    // http.Server.close() only fires its callback once every socket has
+    // drained. A browser with the viewer open holds keep-alive / preconnect /
+    // in-flight sockets that never drain on their own, so close() alone would
+    // hang forever (this is what made Ctrl+C unable to exit). closeAllConnections()
+    // destroys those sockets so close() can complete.
+    await new Promise<void>((resolve) => {
+      viewerServer.close(() => resolve());
+      viewerServer.closeAllConnections();
+    });
     await indexPersistence.save().catch((err) => {
       console.warn(`[agentmemory] Failed to save index on shutdown:`, err);
     });
     await sdk.shutdown();
     clearWorkerPidfile();
+    clearTimeout(forceExit);
     process.exit(0);
   };
   process.on("SIGINT", shutdown);
