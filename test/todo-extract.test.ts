@@ -1,13 +1,19 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 
 vi.mock("../src/config.js", () => ({
   DEFAULT_LANGEXTRACT_BASE_URL: "https://api.novita.ai/openai/v1",
   DEFAULT_TODO_EXTRACT_TIMEOUT_MS: 120_000,
+  DEFAULT_TODO_EXTRACT_SINCE_DAYS: 7,
+  DEFAULT_TODO_EXTRACT_MAX_INTERACTIONS: 10,
+  DEFAULT_TODO_EXTRACT_MAX_SESSIONS: 8,
   getEnvVar: (key: string) => {
     const values: Record<string, string> = {
       AGENTMEMORY_TODO_EXTRACTOR: "rules",
       AGENTMEMORY_TODO_DIRECT_CONFIDENCE: "0.6",
       AGENTMEMORY_TODO_REVIEW_CONFIDENCE: "0.55",
+      // Wide default window so existing time-agnostic tests are never excluded by
+      // the STEP-11 sinceDays filter; scope tests set process.env explicitly.
+      AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS: "3650",
     };
     return process.env[key] ?? values[key];
   },
@@ -15,7 +21,7 @@ vi.mock("../src/config.js", () => ({
   normalizeTodoExtractorProvider: (value?: string) => (value || "openai").toLowerCase(),
 }));
 
-import { cleanPollutedTodoCards, cleanTodoCardsWithLlm, cleanTodoTitle, generateTodosFromSessions, validateTodoEvidence, runLangExtractSidecar, type ExtractedTodo } from "../src/functions/todo-extract.js";
+import { cleanPollutedTodoCards, updateChangedTodoCards, cleanTodoTitle, generateTodosFromSessions, validateTodoEvidence, runLangExtractSidecar, type ExtractedTodo } from "../src/functions/todo-extract.js";
 import type { Action, CompressedObservation, ReviewQueueItem, Session } from "../src/types.js";
 import { KV } from "../src/state/schema.js";
 import { mockKV } from "./helpers/mocks.js";
@@ -524,12 +530,14 @@ describe("todo extraction", () => {
     expect((await kv.list<Action>(KV.actions)).find((a) => a.id === "act_noise")).toMatchObject({ status: "pending" });
   });
 
-  it("LLM cleanup applies KEEP/DROP/DONE/REWRITE/MERGE with audit (STEP-10)", async () => {
+  it("update applies KEEP/DROP/DONE/REWRITE/MERGE on changed-session cards with audit (STEP-12)", async () => {
+    await kv.set(KV.sessions, "ses_x", session({ id: "ses_x", endedAt: "2026-06-18T09:00:00.000Z", observationCount: 9 }));
     const mkAction = (id: string, title: string) =>
       kv.set<Action>(KV.actions, id, {
         id, title, description: title + " — details", status: "pending", priority: 5,
         createdAt: "2026-06-17T08:00:00.000Z", updatedAt: "2026-06-17T08:00:00.000Z",
-        createdBy: "todo-extract", tags: ["todo-extracted"], sourceObservationIds: [], sourceMemoryIds: [],
+        createdBy: "todo-extract", tags: ["todo-extracted", "todo-recheck"], sourceObservationIds: [], sourceMemoryIds: [],
+        metadata: { todoExtraction: { sourceSessionId: "ses_x", sourceCheckpoint: "2026-06-17T09:00:00.000Z:1" } },
       });
     await mkAction("a_keep", "Fix the login bug");
     await mkAction("a_drop", "npm test output");
@@ -543,7 +551,7 @@ describe("todo extraction", () => {
       { id: "a:a_rw", decision: "REWRITE" as const, newTitle: "Fix the dashboard N+1", newDescription: "fix the slow query" },
       { id: "a:a_merge", decision: "MERGE" as const, mergeIntoId: "a:a_rw" },
     ];
-    const result = await cleanTodoCardsWithLlm(kv as never, { mode: "apply", decide });
+    const result = await updateChangedTodoCards(kv as never, { mode: "apply", decide });
     expect(result).toMatchObject({ engine: "llm", scanned: 5, kept: 1, dropped: 1, completed: 1, rewritten: 1, merged: 1 });
     const actions = await kv.list<Action>(KV.actions);
     const byId = (id: string) => actions.find((a) => a.id === id);
@@ -552,32 +560,180 @@ describe("todo extraction", () => {
     expect(byId("a_done")).toMatchObject({ status: "done", metadata: { cleanup: expect.objectContaining({ decision: "done" }) } });
     expect(byId("a_rw")).toMatchObject({ title: "Fix the dashboard N+1", status: "pending", metadata: { cleanup: expect.objectContaining({ decision: "rewrite", previousTitle: "fix" }) } });
     expect(byId("a_merge")).toMatchObject({ status: "cancelled", metadata: { cleanup: expect.objectContaining({ decision: "merge", mergeIntoId: "a:a_rw" }) } });
+    // every processed card advances its checkpoint and drops the recheck tag, so
+    // it won't be reprocessed until its session changes again.
+    expect(byId("a_keep")?.metadata?.todoExtraction).toMatchObject({ sourceCheckpoint: "2026-06-18T09:00:00.000Z:9", needsRecheck: false });
+    expect(byId("a_keep")?.tags).not.toContain("todo-recheck");
   });
 
-  it("LLM cleanup dry-run previews without mutating (STEP-10)", async () => {
+  it("update only touches cards whose source session changed (STEP-12)", async () => {
+    // unchanged: stored checkpoint == current session fingerprint
+    await kv.set(KV.sessions, "ses_same", session({ id: "ses_same", endedAt: "2026-06-18T09:00:00.000Z", observationCount: 3 }));
+    await kv.set<Action>(KV.actions, "a_same", {
+      id: "a_same", title: "Fix the login bug", description: "x", status: "pending", priority: 5,
+      createdAt: "2026-06-17T08:00:00.000Z", updatedAt: "2026-06-17T08:00:00.000Z",
+      createdBy: "todo-extract", tags: ["todo-extracted"], sourceObservationIds: [], sourceMemoryIds: [],
+      metadata: { todoExtraction: { sourceSessionId: "ses_same", sourceCheckpoint: "2026-06-18T09:00:00.000Z:3" } },
+    });
+    let called = false;
+    const decide = async () => { called = true; return []; };
+    const result = await updateChangedTodoCards(kv as never, { mode: "apply", decide });
+    expect(result.scanned).toBe(0);
+    expect(called).toBe(false); // decide never runs when nothing changed
+    expect((await kv.list<Action>(KV.actions)).find((a) => a.id === "a_same")).toMatchObject({ status: "pending" });
+  });
+
+  it("update passes the session delta to the LLM (STEP-12)", async () => {
+    await kv.set(KV.sessions, "ses_x", session({ id: "ses_x", endedAt: "2026-06-18T09:00:00.000Z", observationCount: 5 }));
+    await kv.set(KV.observations("ses_x"), "o1", obs({ id: "o1", sessionId: "ses_x", narrative: "刚刚已经修复并合并了登录超时。" }));
+    await kv.set<Action>(KV.actions, "a1", {
+      id: "a1", title: "Fix login timeout", description: "x", status: "pending", priority: 5,
+      createdAt: "2026-06-17T08:00:00.000Z", updatedAt: "2026-06-17T08:00:00.000Z",
+      createdBy: "todo-extract", tags: ["todo-extracted"], sourceObservationIds: [], sourceMemoryIds: [],
+      metadata: { todoExtraction: { sourceSessionId: "ses_x", sourceCheckpoint: "2026-06-17T09:00:00.000Z:1" } },
+    });
+    let captured: Array<{ sessionDelta?: string }> = [];
+    const decide = async (cards: Array<{ sessionDelta?: string }>) => { captured = cards; return [{ id: "a:a1", decision: "DONE" as const }]; };
+    const result = await updateChangedTodoCards(kv as never, { mode: "apply", decide });
+    expect(result.completed).toBe(1);
+    expect(captured[0]?.sessionDelta).toContain("登录超时");
+    expect((await kv.list<Action>(KV.actions)).find((a) => a.id === "a1")).toMatchObject({ status: "done" });
+  });
+
+  it("update rule-filters tool dumps out of the session delta (STEP-12)", async () => {
+    await kv.set(KV.sessions, "ses_x", session({ id: "ses_x", endedAt: "2026-06-18T09:00:00.000Z", observationCount: 5 }));
+    // a tool-trace observation (must be filtered) + a human one (must survive)
+    await kv.set(KV.observations("ses_x"), "o_tool", obs({ id: "o_tool", sessionId: "ses_x", timestamp: "2026-06-18T08:00:00.000Z", narrative: '{"cmd":"gh pr list --json number"}' }));
+    await kv.set(KV.observations("ses_x"), "o_human", obs({ id: "o_human", sessionId: "ses_x", timestamp: "2026-06-18T08:01:00.000Z", narrative: "刚刚已经修复并合并了登录超时。" }));
+    await kv.set<Action>(KV.actions, "a1", {
+      id: "a1", title: "Fix login timeout", description: "x", status: "pending", priority: 5,
+      createdAt: "2026-06-17T08:00:00.000Z", updatedAt: "2026-06-17T08:00:00.000Z",
+      createdBy: "todo-extract", tags: ["todo-extracted"], sourceObservationIds: [], sourceMemoryIds: [],
+      metadata: { todoExtraction: { sourceSessionId: "ses_x", sourceCheckpoint: "2026-06-17T09:00:00.000Z:1" } },
+    });
+    let captured: Array<{ sessionDelta?: string }> = [];
+    const decide = async (cards: Array<{ sessionDelta?: string }>) => { captured = cards; return [{ id: "a:a1", decision: "KEEP" as const }]; };
+    await updateChangedTodoCards(kv as never, { mode: "dry-run", decide });
+    expect(captured[0]?.sessionDelta).toContain("登录超时");      // human text kept
+    expect(captured[0]?.sessionDelta).not.toContain("gh pr list"); // tool dump dropped
+  });
+
+  it("update dry-run previews without mutating (STEP-12)", async () => {
+    await kv.set(KV.sessions, "ses_x", session({ id: "ses_x", endedAt: "2026-06-18T09:00:00.000Z", observationCount: 5 }));
     await kv.set<Action>(KV.actions, "a_drop", {
       id: "a_drop", title: "npm test output", description: "x", status: "pending", priority: 5,
       createdAt: "2026-06-17T08:00:00.000Z", updatedAt: "2026-06-17T08:00:00.000Z",
       createdBy: "todo-extract", tags: ["todo-extracted"], sourceObservationIds: [], sourceMemoryIds: [],
+      metadata: { todoExtraction: { sourceSessionId: "ses_x", sourceCheckpoint: "2026-06-17T09:00:00.000Z:1" } },
     });
     const decide = async () => [{ id: "a:a_drop", decision: "DROP" as const, reason: "noise" }];
-    const result = await cleanTodoCardsWithLlm(kv as never, { mode: "dry-run", decide });
+    const result = await updateChangedTodoCards(kv as never, { mode: "dry-run", decide });
     expect(result).toMatchObject({ engine: "llm", dropped: 1 });
     expect(result.preview).toHaveLength(1);
     expect((await kv.list<Action>(KV.actions)).find((a) => a.id === "a_drop")).toMatchObject({ status: "pending" });
   });
 
-  it("LLM cleanup falls back to rule-based cleanup when the LLM fails (STEP-10)", async () => {
+  it("update leaves cards untouched when the LLM fails — no rule fallback (STEP-12)", async () => {
+    await kv.set(KV.sessions, "ses_x", session({ id: "ses_x", endedAt: "2026-06-18T09:00:00.000Z", observationCount: 5 }));
     await kv.set<Action>(KV.actions, "a_bad", {
       id: "a_bad", title: "gh pr list --json number", description: "{\"cmd\":\"gh pr list\"}", status: "pending", priority: 5,
       createdAt: "2026-06-17T08:00:00.000Z", updatedAt: "2026-06-17T08:00:00.000Z",
       createdBy: "todo-extract", tags: ["todo-extracted"], sourceObservationIds: [], sourceMemoryIds: [],
+      metadata: { todoExtraction: { sourceSessionId: "ses_x", sourceCheckpoint: "2026-06-17T09:00:00.000Z:1" } },
     });
     const decide = async (): Promise<never> => { throw new Error("LLM down"); };
-    const result = await cleanTodoCardsWithLlm(kv as never, { mode: "apply", decide });
-    expect(result.engine).toBe("rules");
+    const result = await updateChangedTodoCards(kv as never, { mode: "apply", decide });
+    // update is LLM-only: failure is signalled by fallbackReason, not engine.
     expect(result.fallbackReason).toContain("LLM down");
-    expect((await kv.list<Action>(KV.actions)).find((a) => a.id === "a_bad")).toMatchObject({ status: "cancelled" });
+    expect(result.dropped).toBe(0);
+    // update has no rule equivalent, so the card stays exactly as it was
+    expect((await kv.list<Action>(KV.actions)).find((a) => a.id === "a_bad")).toMatchObject({ status: "pending" });
+  });
+
+  it("update also re-judges changed-session review cards (STEP-12)", async () => {
+    await kv.set(KV.sessions, "ses_x", session({ id: "ses_x", endedAt: "2026-06-18T09:00:00.000Z", observationCount: 5 }));
+    await kv.set<ReviewQueueItem>(KV.reviewQueue, "rev1", {
+      id: "rev1", createdAt: "2026-06-17T08:00:00.000Z", updatedAt: "2026-06-17T08:00:00.000Z",
+      status: "pending", kind: "action", title: "maybe fix the thing", content: "x", source: "viewer",
+      payload: { tags: ["todo-extracted"], todoExtraction: { sourceSessionId: "ses_x", sourceCheckpoint: "2026-06-17T09:00:00.000Z:1" } },
+    } as never);
+    const decide = async () => [{ id: "r:rev1", decision: "DROP" as const, reason: "noise" }];
+    const result = await updateChangedTodoCards(kv as never, { mode: "apply", decide });
+    expect(result.scanned).toBe(1);
+    expect(result.dropped).toBe(1);
+    expect((await kv.list<ReviewQueueItem>(KV.reviewQueue)).find((r) => r.id === "rev1")).toMatchObject({ status: "dismissed" });
+  });
+
+  it("update downgrades a MERGE whose target is not in the batch to KEEP (STEP-12)", async () => {
+    await kv.set(KV.sessions, "ses_x", session({ id: "ses_x", endedAt: "2026-06-18T09:00:00.000Z", observationCount: 5 }));
+    await kv.set<Action>(KV.actions, "a_src", {
+      id: "a_src", title: "real todo", description: "x", status: "pending", priority: 5,
+      createdAt: "2026-06-17T08:00:00.000Z", updatedAt: "2026-06-17T08:00:00.000Z",
+      createdBy: "todo-extract", tags: ["todo-extracted"], sourceObservationIds: [], sourceMemoryIds: [],
+      metadata: { todoExtraction: { sourceSessionId: "ses_x", sourceCheckpoint: "2026-06-17T09:00:00.000Z:1" } },
+    });
+    const decide = async () => [{ id: "a:a_src", decision: "MERGE" as const, mergeIntoId: "a:ghost" }];
+    const result = await updateChangedTodoCards(kv as never, { mode: "apply", decide });
+    expect(result.merged).toBe(0);
+    expect(result.kept).toBe(1);
+    // dangling MERGE downgraded → source preserved, not cancelled
+    expect((await kv.list<Action>(KV.actions)).find((a) => a.id === "a_src")).toMatchObject({ status: "pending" });
+  });
+
+  it("update apply reuses the dry-run decisions verbatim — no LLM re-call (STEP-12)", async () => {
+    await kv.set(KV.sessions, "ses_x", session({ id: "ses_x", endedAt: "2026-06-18T09:00:00.000Z", observationCount: 5 }));
+    await kv.set<Action>(KV.actions, "a_drop", {
+      id: "a_drop", title: "noise", description: "x", status: "pending", priority: 5,
+      createdAt: "2026-06-17T08:00:00.000Z", updatedAt: "2026-06-17T08:00:00.000Z",
+      createdBy: "todo-extract", tags: ["todo-extracted"], sourceObservationIds: [], sourceMemoryIds: [],
+      metadata: { todoExtraction: { sourceSessionId: "ses_x", sourceCheckpoint: "2026-06-17T09:00:00.000Z:1" } },
+    });
+    let decideCalled = false;
+    const decide = async () => { decideCalled = true; return [{ id: "a:a_drop", decision: "KEEP" as const }]; };
+    // The dry-run decided DROP; apply must honour that, not re-ask the LLM
+    // (which here would say KEEP).
+    const result = await updateChangedTodoCards(kv as never, {
+      mode: "apply", decide,
+      decisions: [{ id: "a:a_drop", decision: "DROP", reason: "preview said drop" }],
+    });
+    expect(decideCalled).toBe(false);
+    expect(result.dropped).toBe(1);
+    expect((await kv.list<Action>(KV.actions)).find((a) => a.id === "a_drop")).toMatchObject({ status: "cancelled" });
+  });
+
+  it("update dry-run returns the decisions so apply can replay them (STEP-12)", async () => {
+    await kv.set(KV.sessions, "ses_x", session({ id: "ses_x", endedAt: "2026-06-18T09:00:00.000Z", observationCount: 5 }));
+    await kv.set<Action>(KV.actions, "a1", {
+      id: "a1", title: "real todo", description: "x", status: "pending", priority: 5,
+      createdAt: "2026-06-17T08:00:00.000Z", updatedAt: "2026-06-17T08:00:00.000Z",
+      createdBy: "todo-extract", tags: ["todo-extracted"], sourceObservationIds: [], sourceMemoryIds: [],
+      metadata: { todoExtraction: { sourceSessionId: "ses_x", sourceCheckpoint: "2026-06-17T09:00:00.000Z:1" } },
+    });
+    const decide = async () => [{ id: "a:a1", decision: "DONE" as const, reason: "done now" }];
+    const dry = await updateChangedTodoCards(kv as never, { mode: "dry-run", decide });
+    expect(dry.decisions).toEqual([{ id: "a:a1", decision: "DONE", reason: "done now" }]);
+    expect((await kv.list<Action>(KV.actions)).find((a) => a.id === "a1")).toMatchObject({ status: "pending" }); // dry-run didn't mutate
+  });
+
+  it("extracts todos from a browser-captured session (STEP-14)", async () => {
+    // Browser sessions are recorded (recordBrowserSessionFallback) as
+    // type:conversation observations titled 用户发言/AI发言 — todo-extract must
+    // consume them like any other session (no separate action-candidate leg).
+    await kv.set(KV.sessions, "browser_sync_x", session({
+      id: "browser_sync_x", project: "ChatGPT", cwd: "browser/chatgpt.com",
+      status: "completed", observationCount: 2, tags: ["browser"], agentId: "ChatGPT",
+    }));
+    await kv.set(KV.observations("browser_sync_x"), "t_ai", obs({
+      id: "t_ai", sessionId: "browser_sync_x", title: "AI发言", type: "conversation",
+      narrative: "这里是页面说明。",
+    }));
+    await kv.set(KV.observations("browser_sync_x"), "t_user", obs({
+      id: "t_user", sessionId: "browser_sync_x", title: "用户发言", type: "conversation",
+      narrative: "后续需要修复登录接口的超时问题。",
+    }));
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false, cleanup: "none" });
+    expect(result.directCreated).toBe(1);
+    expect((await kv.list<Action>(KV.actions))[0]).toMatchObject({ project: "ChatGPT", sourceObservationIds: ["t_user"] });
   });
 
   it("filters agent progress observations before rules extraction", async () => {
@@ -596,5 +752,103 @@ describe("todo extraction", () => {
     expect(result.scannedObservations).toBe(1);
     expect(result.directCreated).toBe(1);
     expect((await kv.list<Action>(KV.actions))[0].sourceObservationIds).toEqual(["obs_real"]);
+  });
+});
+
+describe("todo extraction scope — sinceDays + interaction window (STEP-11)", () => {
+  let kv: ReturnType<typeof mockKV>;
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+
+  beforeEach(() => {
+    kv = mockKV();
+  });
+  afterEach(() => {
+    delete process.env.AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS;
+    delete process.env.AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION;
+  });
+
+  // Two completed sessions, both inside the 14d "recent" bucket (so neither is
+  // hidden as history), but one older than a tight sinceDays window.
+  async function seedTwoSessions() {
+    await kv.set(KV.sessions, "ses_recent", session({
+      id: "ses_recent", status: "completed", startedAt: daysAgo(1), endedAt: daysAgo(1), observationCount: 1,
+    }));
+    await kv.set(KV.sessions, "ses_mid", session({
+      id: "ses_mid", status: "completed", startedAt: daysAgo(5), endedAt: daysAgo(5), observationCount: 1,
+    }));
+    await kv.set(KV.observations("ses_recent"), "o_recent", obs({
+      id: "o_recent", sessionId: "ses_recent", timestamp: daysAgo(1),
+      narrative: "后续需要修复登录接口的超时问题。",
+    }));
+    await kv.set(KV.observations("ses_mid"), "o_mid", obs({
+      id: "o_mid", sessionId: "ses_mid", timestamp: daysAgo(5),
+      narrative: "后续需要更新数据库驱动到 v5。",
+    }));
+  }
+
+  it("control: extracts both sessions when the window covers both", async () => {
+    process.env.AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS = "30";
+    await seedTwoSessions();
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false, cleanup: "none" });
+    expect(result.directCreated).toBe(2);
+    expect(await kv.list<Action>(KV.actions)).toHaveLength(2);
+  });
+
+  it("skips sessions whose endedAt is older than the sinceDays window", async () => {
+    process.env.AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS = "3";
+    await seedTwoSessions();
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false, cleanup: "none" });
+    const actions = await kv.list<Action>(KV.actions);
+    expect(actions).toHaveLength(1);
+    expect(actions[0].metadata?.todoExtraction).toMatchObject({ sourceSessionId: "ses_recent" });
+  });
+
+  it("lets a body sinceDays override the env window", async () => {
+    process.env.AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS = "30";
+    await seedTwoSessions();
+    const result = await generateTodosFromSessions(kv as never, {
+      force: true, scanSources: false, cleanup: "none", sinceDays: 3,
+    });
+    expect(result.directCreated).toBe(1);
+    expect((await kv.list<Action>(KV.actions))[0].metadata?.todoExtraction).toMatchObject({ sourceSessionId: "ses_recent" });
+  });
+
+  // A user message in synthetic-compression form: type "conversation", title
+  // === raw hookType "prompt_submit" (the interaction-boundary signal).
+  function promptObs(id: string, narrative: string, timestamp: string): CompressedObservation {
+    return obs({ id, sessionId: "ses_turns", type: "conversation", title: "prompt_submit", narrative, timestamp });
+  }
+  async function seedThreeInteractions() {
+    await kv.set(KV.sessions, "ses_turns", session({ id: "ses_turns", status: "active", observationCount: 3 }));
+    await kv.set(KV.observations("ses_turns"), "t1", promptObs("t1", "后续需要修复登录接口的超时问题。", daysAgo(3)));
+    await kv.set(KV.observations("ses_turns"), "t2", promptObs("t2", "后续需要补充新用户的上手文档。", daysAgo(2)));
+    await kv.set(KV.observations("ses_turns"), "t3", promptObs("t3", "后续需要更新数据库驱动到 v5。", daysAgo(1)));
+  }
+
+  it("control: extracts every interaction when the window covers them all", async () => {
+    process.env.AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS = "30";
+    await seedThreeInteractions();
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false, cleanup: "none" });
+    expect(result.directCreated).toBe(3);
+  });
+
+  it("keeps only the most recent N interaction records per session", async () => {
+    process.env.AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS = "30";
+    process.env.AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION = "1";
+    await seedThreeInteractions();
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false, cleanup: "none" });
+    expect(result.directCreated).toBe(1);
+    expect((await kv.list<Action>(KV.actions))[0].sourceObservationIds).toEqual(["t3"]);
+  });
+
+  it("treats a session with no user-message boundary as a single interaction", async () => {
+    process.env.AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS = "30";
+    process.env.AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION = "1";
+    await kv.set(KV.sessions, "ses_noturn", session({ id: "ses_noturn", status: "active", observationCount: 1 }));
+    await kv.set(KV.observations("ses_noturn"), "n1", obs({
+      id: "n1", sessionId: "ses_noturn", title: "assistant", narrative: "后续需要修复登录接口的超时问题。",
+    }));
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false, cleanup: "none" });
+    expect(result.directCreated).toBe(1);
   });
 });

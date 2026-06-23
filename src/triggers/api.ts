@@ -13,7 +13,6 @@ import { renderViewerDocument } from "../viewer/document.js";
 import { getBoundViewerPort, getViewerSkipped } from "../viewer/server.js";
 import { MAX_FILES_UPPER_BOUND } from "../functions/replay.js";
 import { logger } from "../logger.js";
-import { buildTurnActionDrafts } from "../functions/action-candidates.js";
 import {
   isGraphExtractionEnabled,
   isConsolidationEnabled,
@@ -1401,23 +1400,9 @@ export function registerApiTriggers(
           ...(syncId ? { browserSyncId: syncId } : {}),
         },
       };
-      const actionDrafts: ReviewQueueItem[] =
-        (item.source === "browser-extension" || item.source === "browser-sync") &&
-        conversation.turns.length > 0
-          ? await buildTurnActionDrafts(kv, {
-              turns: conversation.turns,
-              now,
-              source: item.source,
-              page: item.page,
-              conversation,
-              basePayload: {
-                ...payload,
-                ...(item.payload || {}),
-                provider: conversation.provider || payload.provider,
-                pageType: item.page?.type || payload.pageType,
-              },
-            })
-          : [];
+      // STEP-14: browser sessions now flow through the todo-extract LLM pipeline
+      // (recorded below as a session + observations), not the rule-based action
+      // drafts that produced session-narration noise.
       if (item.source === "browser-extension" || item.source === "browser-sync") {
         try {
           const browserSession = await recordBrowserSessionFromReview(sdk, item);
@@ -1434,12 +1419,9 @@ export function registerApiTriggers(
         }
       }
       await kv.set(KV.reviewQueue, item.id, item);
-      for (const draft of actionDrafts) {
-        await kv.set(KV.reviewQueue, draft.id, draft);
-      }
       return {
         status_code: existing ? 200 : 201,
-        body: { success: true, item, ...(actionDrafts.length ? { actionDrafts } : {}) },
+        body: { success: true, item },
       };
     },
   );
@@ -1520,9 +1502,19 @@ export function registerApiTriggers(
       if (maxObservationsPerSession === null) {
         return { status_code: 400, body: { error: "maxObservationsPerSession must be a positive integer" } };
       }
+      const sinceDays = parseOptionalPositiveInt(body.sinceDays);
+      if (sinceDays === null) {
+        return { status_code: 400, body: { error: "sinceDays must be a positive integer" } };
+      }
+      const maxInteractionsPerSession = parseOptionalPositiveInt(body.maxInteractionsPerSession);
+      if (maxInteractionsPerSession === null) {
+        return { status_code: 400, body: { error: "maxInteractionsPerSession must be a positive integer" } };
+      }
       const payload: Record<string, unknown> = {};
       if (maxSessions !== undefined) payload.maxSessions = maxSessions;
       if (maxObservationsPerSession !== undefined) payload.maxObservationsPerSession = maxObservationsPerSession;
+      if (sinceDays !== undefined) payload.sinceDays = sinceDays;
+      if (maxInteractionsPerSession !== undefined) payload.maxInteractionsPerSession = maxInteractionsPerSession;
       const project = asNonEmptyString(body.project);
       if (project) payload.project = project;
       if (body.force === true) payload.force = true;
@@ -1537,7 +1529,7 @@ export function registerApiTriggers(
     config: { api_path: "/agentmemory/todo-extract/generate", http_method: "POST" },
   });
 
-  sdk.registerFunction("api::todo-cleanup",
+  sdk.registerFunction("api::todo-update",
     async (req: ApiRequest): Promise<Response> => {
       const authErr = checkAuth(req, secret);
       if (authErr) return authErr;
@@ -1549,14 +1541,16 @@ export function registerApiTriggers(
       const payload: Record<string, unknown> = {};
       if (body.mode === "dry-run" || body.mode === "apply") payload.mode = body.mode;
       if (maxCards !== undefined) payload.maxCards = maxCards;
-      const result = await sdk.trigger({ function_id: "mem::todo-cleanup", payload });
+      // Apply previously-previewed decisions verbatim (no LLM re-call) when given.
+      if (Array.isArray(body.decisions)) payload.decisions = body.decisions;
+      const result = await sdk.trigger({ function_id: "mem::todo-update", payload });
       return { status_code: 200, body: result };
     },
   );
   sdk.registerTrigger({
     type: "http",
-    function_id: "api::todo-cleanup",
-    config: { api_path: "/agentmemory/todo/cleanup", http_method: "POST" },
+    function_id: "api::todo-update",
+    config: { api_path: "/agentmemory/todo/update", http_method: "POST" },
   });
 
   sdk.registerFunction("api::review-approve",

@@ -23,6 +23,8 @@ describe("todo extractor user config", () => {
     delete process.env.LANGEXTRACT_PROVIDER;
     delete process.env.LANGEXTRACT_BASE_URL;
     delete process.env.AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS;
+    delete process.env.AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS;
+    delete process.env.AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION;
   });
 
   afterEach(() => {
@@ -79,5 +81,26 @@ describe("todo extractor user config", () => {
     writeUserEnv({ AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS: "45000" });
     expect(readFileSync(getUserEnvPath(), "utf-8")).toContain("AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS=45000");
     expect(getTodoExtractorUserConfig().AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS).toBe("45000");
+  });
+
+  it("round-trips the STEP-11 scope settings (sinceDays + max interactions): defaults when unset, persists when set", async () => {
+    const { getTodoExtractorUserConfig, getUserEnvPath, writeUserEnv } = await freshConfig();
+
+    // defaults surface in the GET path so the UI shows real values, not blanks
+    const defaults = getTodoExtractorUserConfig();
+    expect(defaults.AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS).toBe("7");
+    expect(defaults.AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION).toBe("10");
+
+    // both are allowed keys: writes persist and read back
+    writeUserEnv({
+      AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS: "14",
+      AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION: "5",
+    });
+    const raw = readFileSync(getUserEnvPath(), "utf-8");
+    expect(raw).toContain("AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS=14");
+    expect(raw).toContain("AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION=5");
+    const cfg = getTodoExtractorUserConfig();
+    expect(cfg.AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS).toBe("14");
+    expect(cfg.AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION).toBe("5");
   });
 });
