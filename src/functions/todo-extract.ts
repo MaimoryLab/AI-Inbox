@@ -326,7 +326,12 @@ function sessionSortTime(session: Session): string {
 // no boundary is found, in which case takeRecentInteractions degrades to
 // "whole session = one interaction" (keep everything).
 function observationStartsInteraction(obs: CompressedObservation): boolean {
-  return obs.type === "conversation" && /^prompt_submit$/i.test((obs.title || "").trim());
+  if (obs.type !== "conversation") return false;
+  const title = (obs.title || "").trim();
+  // Codex synthetic compression titles a user prompt "prompt_submit"; browser
+  // capture (recordBrowserSessionFallback) titles a user turn "用户发言". Either
+  // one starts a new interaction record.
+  return /^prompt_submit$/i.test(title) || title === "用户发言";
 }
 
 // Keep only the most recent `maxInteractions` interaction records of a

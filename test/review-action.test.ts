@@ -311,7 +311,7 @@ describe("review action candidates", () => {
     expect(reviewFindingResponse.body.error).toBe("review_content_not_displayable");
   });
 
-  it("keeps normal browser review candidates and explicit action drafts", async () => {
+  it("keeps browser review candidates but no longer spawns rule action drafts (STEP-14)", async () => {
     const normal = await sdk.trigger("api::review-create", req({
       title: "ChatGPT page",
       content: "用户希望待审阅内容保持可读。",
@@ -322,7 +322,7 @@ describe("review action candidates", () => {
     expect(normal.status_code).toBe(201);
     expect(normal.body.item.title).toBe("ChatGPT page");
 
-    const withActionDraft = await sdk.trigger("api::review-create", req({
+    const withTurns = await sdk.trigger("api::review-create", req({
       title: "ChatGPT page",
       content: "普通记忆候选",
       source: "browser-extension",
@@ -335,11 +335,11 @@ describe("review action candidates", () => {
       },
     })) as { status_code: number; body: { success: boolean; item: ReviewQueueItem; actionDrafts?: ReviewQueueItem[] } };
 
-    expect(withActionDraft.status_code).toBe(201);
-    expect(withActionDraft.body.actionDrafts?.[0]).toMatchObject({
-      kind: "action",
-      title: "修复待审阅污染过滤",
-    });
+    expect(withTurns.status_code).toBe(201);
+    // STEP-14: browser turns no longer spawn rule-based action drafts — they flow
+    // through the todo-extract LLM pipeline. The review item is still recorded.
+    expect(withTurns.body.actionDrafts).toBeUndefined();
+    expect(withTurns.body.item.title).toBe("ChatGPT page");
   });
 
   it("approves action review items into pending Actions", async () => {
@@ -450,7 +450,7 @@ describe("review action candidates", () => {
     expect(await kv.list<Action>(KV.actions)).toEqual([]);
   });
 
-  it("creates browser action review drafts from explicit conversation turns", async () => {
+  it("records the browser session but creates no action drafts — browser flows through todo-extract (STEP-14)", async () => {
     const response = await sdk.trigger("api::review-create", req({
       title: "ChatGPT page",
       content: "普通记忆候选",
@@ -467,15 +467,10 @@ describe("review action candidates", () => {
 
     expect(response.status_code).toBe(201);
     expect(response.body.item.kind).toBe("memory");
-    expect(response.body.actionDrafts).toHaveLength(1);
-    expect(response.body.actionDrafts?.[0]).toMatchObject({
-      kind: "action",
-      status: "pending",
-      title: "修复 Viewer 待审阅里的行动候选展示",
-    });
-
+    // No rule-based action drafts; only the memory review item itself.
+    expect(response.body.actionDrafts).toBeUndefined();
     const pending = await kv.list<ReviewQueueItem>(KV.reviewQueue);
-    expect(pending.filter((item) => item.kind === "action")).toHaveLength(1);
+    expect(pending.filter((item) => item.kind === "action")).toEqual([]);
   });
 
   it("does not create browser action drafts from ordinary requests or assistant plans", async () => {

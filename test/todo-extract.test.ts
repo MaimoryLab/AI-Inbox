@@ -715,6 +715,27 @@ describe("todo extraction", () => {
     expect((await kv.list<Action>(KV.actions)).find((a) => a.id === "a1")).toMatchObject({ status: "pending" }); // dry-run didn't mutate
   });
 
+  it("extracts todos from a browser-captured session (STEP-14)", async () => {
+    // Browser sessions are recorded (recordBrowserSessionFallback) as
+    // type:conversation observations titled 用户发言/AI发言 — todo-extract must
+    // consume them like any other session (no separate action-candidate leg).
+    await kv.set(KV.sessions, "browser_sync_x", session({
+      id: "browser_sync_x", project: "ChatGPT", cwd: "browser/chatgpt.com",
+      status: "completed", observationCount: 2, tags: ["browser"], agentId: "ChatGPT",
+    }));
+    await kv.set(KV.observations("browser_sync_x"), "t_ai", obs({
+      id: "t_ai", sessionId: "browser_sync_x", title: "AI发言", type: "conversation",
+      narrative: "这里是页面说明。",
+    }));
+    await kv.set(KV.observations("browser_sync_x"), "t_user", obs({
+      id: "t_user", sessionId: "browser_sync_x", title: "用户发言", type: "conversation",
+      narrative: "后续需要修复登录接口的超时问题。",
+    }));
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false, cleanup: "none" });
+    expect(result.directCreated).toBe(1);
+    expect((await kv.list<Action>(KV.actions))[0]).toMatchObject({ project: "ChatGPT", sourceObservationIds: ["t_user"] });
+  });
+
   it("filters agent progress observations before rules extraction", async () => {
     await kv.set(KV.sessions, "ses_1", session({ status: "active", observationCount: 2 }));
     await kv.set(KV.observations("ses_1"), "obs_noise", obs({

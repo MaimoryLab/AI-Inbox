@@ -13,7 +13,6 @@ import { renderViewerDocument } from "../viewer/document.js";
 import { getBoundViewerPort, getViewerSkipped } from "../viewer/server.js";
 import { MAX_FILES_UPPER_BOUND } from "../functions/replay.js";
 import { logger } from "../logger.js";
-import { buildTurnActionDrafts } from "../functions/action-candidates.js";
 import {
   isGraphExtractionEnabled,
   isConsolidationEnabled,
@@ -1401,23 +1400,9 @@ export function registerApiTriggers(
           ...(syncId ? { browserSyncId: syncId } : {}),
         },
       };
-      const actionDrafts: ReviewQueueItem[] =
-        (item.source === "browser-extension" || item.source === "browser-sync") &&
-        conversation.turns.length > 0
-          ? await buildTurnActionDrafts(kv, {
-              turns: conversation.turns,
-              now,
-              source: item.source,
-              page: item.page,
-              conversation,
-              basePayload: {
-                ...payload,
-                ...(item.payload || {}),
-                provider: conversation.provider || payload.provider,
-                pageType: item.page?.type || payload.pageType,
-              },
-            })
-          : [];
+      // STEP-14: browser sessions now flow through the todo-extract LLM pipeline
+      // (recorded below as a session + observations), not the rule-based action
+      // drafts that produced session-narration noise.
       if (item.source === "browser-extension" || item.source === "browser-sync") {
         try {
           const browserSession = await recordBrowserSessionFromReview(sdk, item);
@@ -1434,12 +1419,9 @@ export function registerApiTriggers(
         }
       }
       await kv.set(KV.reviewQueue, item.id, item);
-      for (const draft of actionDrafts) {
-        await kv.set(KV.reviewQueue, draft.id, draft);
-      }
       return {
         status_code: existing ? 200 : 201,
-        body: { success: true, item, ...(actionDrafts.length ? { actionDrafts } : {}) },
+        body: { success: true, item },
       };
     },
   );
