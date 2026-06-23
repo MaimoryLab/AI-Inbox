@@ -11,6 +11,9 @@
   "style/80-legacy-heatmap-replay.css",
   "style/90-responsive-avatars.css",
   "20-body.html",
-  "30-app.js",
+  "app/00-prelude.js",
+  "app/10-html-safe.js",
+  "app/20-format-utils.js",
+  "app/90-rest.js",
   "40-tail.html"
 ]

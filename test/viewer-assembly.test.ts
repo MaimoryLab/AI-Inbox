@@ -77,3 +77,29 @@ describe("viewer CSS fragmentation (PLAN-007 STEP-02)", () => {
   });
 });
 
+describe("viewer JS fragmentation (PLAN-007 STEP-03)", () => {
+  const jsFragments = () => manifest().filter((name) => name.endsWith(".js"));
+
+  it("delivers JS as multiple app/ fragments, not one monolith", () => {
+    const js = jsFragments();
+    expect(js.length).toBeGreaterThanOrEqual(2);
+    expect(manifest()).not.toContain("30-app.js");
+    for (const name of js) {
+      expect(name.startsWith("app/"), `JS fragment ${name} should live under app/`).toBe(true);
+    }
+  });
+
+  it("JS fragments carry no <script> tags (those live in the html fragments)", () => {
+    for (const name of jsFragments()) {
+      const body = readFileSync(join(PARTS_DIR, name), "utf-8");
+      expect(body, `${name} contains a </script> tag`).not.toMatch(/<\/script>/);
+      // a bare "<script" substring may appear inside a JS comment; only the real
+      // opening tag (with the nonce attr) is forbidden in a JS fragment.
+      expect(body, `${name} contains the nonce'd script tag`).not.toContain(
+        '<script nonce="__AGENTMEMORY_VIEWER_NONCE__">',
+      );
+    }
+  });
+});
+
+
