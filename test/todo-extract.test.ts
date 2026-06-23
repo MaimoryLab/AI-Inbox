@@ -583,6 +583,60 @@ describe("todo extraction", () => {
     expect((await kv.list<Action>(KV.actions)).find((a) => a.id === "a_same")).toMatchObject({ status: "pending" });
   });
 
+  it("update scope=all re-judges unchanged generated cards so existing vague titles can be rewritten (STEP-10)", async () => {
+    await kv.set(KV.sessions, "ses_same", session({ id: "ses_same", endedAt: "2026-06-18T09:00:00.000Z", observationCount: 3 }));
+    await kv.set<Action>(KV.actions, "a_vague", {
+      id: "a_vague", title: "克隆仓库并全面了解其状况", description: "需要克隆 MaimoryLab/AI-Todo 并了解项目现状。", status: "pending", priority: 5,
+      createdAt: "2026-06-17T08:00:00.000Z", updatedAt: "2026-06-17T08:00:00.000Z",
+      createdBy: "todo-extract", tags: ["todo-extracted"], sourceObservationIds: [], sourceMemoryIds: [],
+      metadata: { todoExtraction: { sourceSessionId: "ses_same", sourceCheckpoint: "2026-06-18T09:00:00.000Z:3" } },
+    });
+    let captured: Array<{ titleQualityHint?: string }> = [];
+    const decide = async (cards: Array<{ titleQualityHint?: string }>) => {
+      captured = cards;
+      return [{
+        id: "a:a_vague",
+        decision: "REWRITE" as const,
+        newTitle: "克隆 AI-Todo 仓库",
+        newDescription: "克隆 MaimoryLab/AI-Todo 仓库并确认本地可用。",
+      }];
+    };
+
+    const result = await updateChangedTodoCards(kv as never, { mode: "apply", scope: "all", decide });
+
+    expect(captured[0]?.titleQualityHint).toContain("全面了解");
+    expect(result).toMatchObject({ engine: "llm", scanned: 1, rewritten: 1 });
+    expect((await kv.list<Action>(KV.actions)).find((a) => a.id === "a_vague")).toMatchObject({
+      title: "克隆 AI-Todo 仓库",
+      status: "pending",
+      metadata: { cleanup: expect.objectContaining({ decision: "rewrite", previousTitle: "克隆仓库并全面了解其状况" }) },
+    });
+  });
+
+  it("update sorts before maxCards so near-duplicate titles can enter the same LLM batch (STEP-10)", async () => {
+    await kv.set(KV.sessions, "ses_same", session({ id: "ses_same", endedAt: "2026-06-18T09:00:00.000Z", observationCount: 3 }));
+    const mkAction = (id: string, title: string) =>
+      kv.set<Action>(KV.actions, id, {
+        id, title, description: title, status: "pending", priority: 5,
+        createdAt: "2026-06-17T08:00:00.000Z", updatedAt: "2026-06-17T08:00:00.000Z",
+        createdBy: "todo-extract", tags: ["todo-extracted"], sourceObservationIds: [], sourceMemoryIds: [],
+        metadata: { todoExtraction: { sourceSessionId: "ses_same", sourceCheckpoint: "2026-06-18T09:00:00.000Z:3" } },
+      });
+    await mkAction("z_first", "整理 Zeta 发布记录");
+    await mkAction("clone_a", "克隆 AI-Todo 仓库并全面了解");
+    await mkAction("clone_b", "克隆AI-Todo仓库并了解现状");
+    let capturedIds: string[] = [];
+    const decide = async (cards: Array<{ id: string }>) => {
+      capturedIds = cards.map((card) => card.id);
+      return [{ id: "a:clone_b", decision: "MERGE" as const, mergeIntoId: "a:clone_a" }];
+    };
+
+    const result = await updateChangedTodoCards(kv as never, { mode: "dry-run", scope: "all", maxCards: 2, decide });
+
+    expect(capturedIds).toEqual(["a:clone_a", "a:clone_b"]);
+    expect(result).toMatchObject({ scanned: 2, merged: 1 });
+  });
+
   it("update passes the session delta to the LLM (STEP-12)", async () => {
     await kv.set(KV.sessions, "ses_x", session({ id: "ses_x", endedAt: "2026-06-18T09:00:00.000Z", observationCount: 5 }));
     await kv.set(KV.observations("ses_x"), "o1", obs({ id: "o1", sessionId: "ses_x", narrative: "刚刚已经修复并合并了登录超时。" }));
@@ -699,6 +753,51 @@ describe("todo extraction", () => {
     expect(decideCalled).toBe(false);
     expect(result.dropped).toBe(1);
     expect((await kv.list<Action>(KV.actions)).find((a) => a.id === "a_drop")).toMatchObject({ status: "cancelled" });
+  });
+
+  it("update apply replays every supplied dry-run decision without default maxCards truncation (STEP-10)", async () => {
+    await kv.set(KV.sessions, "ses_x", session({ id: "ses_x", endedAt: "2026-06-18T09:00:00.000Z", observationCount: 5 }));
+    const decisions = [];
+    for (let i = 0; i < 61; i++) {
+      const id = `a_${i}`;
+      await kv.set<Action>(KV.actions, id, {
+        id, title: `noise ${i}`, description: "x", status: "pending", priority: 5,
+        createdAt: "2026-06-17T08:00:00.000Z", updatedAt: "2026-06-17T08:00:00.000Z",
+        createdBy: "todo-extract", tags: ["todo-extracted"], sourceObservationIds: [], sourceMemoryIds: [],
+        metadata: { todoExtraction: { sourceSessionId: "ses_x", sourceCheckpoint: "2026-06-17T09:00:00.000Z:1" } },
+      });
+      decisions.push({ id: `a:${id}`, decision: "DROP" as const, reason: "preview said drop" });
+    }
+
+    const result = await updateChangedTodoCards(kv as never, { mode: "apply", maxCards: 10, decisions });
+
+    expect(result.dropped).toBe(61);
+    expect((await kv.list<Action>(KV.actions)).filter((a) => a.status === "cancelled")).toHaveLength(61);
+  });
+
+  it("update apply replays decisions for unchanged scope=all cards even when scope is omitted (STEP-10)", async () => {
+    await kv.set(KV.sessions, "ses_same", session({ id: "ses_same", endedAt: "2026-06-18T09:00:00.000Z", observationCount: 3 }));
+    await kv.set<Action>(KV.actions, "a_same", {
+      id: "a_same", title: "克隆仓库并全面了解其状况", description: "x", status: "pending", priority: 5,
+      createdAt: "2026-06-17T08:00:00.000Z", updatedAt: "2026-06-17T08:00:00.000Z",
+      createdBy: "todo-extract", tags: ["todo-extracted"], sourceObservationIds: [], sourceMemoryIds: [],
+      metadata: { todoExtraction: { sourceSessionId: "ses_same", sourceCheckpoint: "2026-06-18T09:00:00.000Z:3" } },
+    });
+
+    const result = await updateChangedTodoCards(kv as never, {
+      mode: "apply",
+      decisions: [{
+        id: "a:a_same",
+        decision: "REWRITE",
+        newTitle: "克隆 AI-Todo 仓库",
+        newDescription: "x",
+      }],
+    });
+
+    expect(result.rewritten).toBe(1);
+    expect((await kv.list<Action>(KV.actions)).find((a) => a.id === "a_same")).toMatchObject({
+      title: "克隆 AI-Todo 仓库",
+    });
   });
 
   it("update dry-run returns the decisions so apply can replay them (STEP-12)", async () => {

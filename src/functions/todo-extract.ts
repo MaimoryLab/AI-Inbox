@@ -781,9 +781,32 @@ type LlmCleanupItem = {
   newDescription?: string;
   mergeIntoId?: string;
 };
-type CleanupCard = { id: string; title: string; description: string; status: string; evidence?: string; sessionDelta?: string };
+type CleanupCard = { id: string; title: string; description: string; status: string; evidence?: string; sessionDelta?: string; titleQualityHint?: string };
+type TodoUpdateScope = "changed" | "all";
+type TodoUpdateOptions = {
+  mode?: CleanupMode;
+  maxCards?: number;
+  scope?: TodoUpdateScope;
+  decide?: (cards: CleanupCard[]) => Promise<LlmCleanupItem[]>;
+  decisions?: LlmCleanupItem[];
+};
 
 const DEFAULT_CLEANUP_MAX_CARDS = 60;
+const VAGUE_TITLE_TERMS = [
+  "全面了解",
+  "了解现状",
+  "了解当前",
+  "梳理现状",
+  "梳理当前",
+  "获取信息",
+  "进行",
+  "处理",
+];
+
+function titleQualityHint(title: string): string {
+  const hits = VAGUE_TITLE_TERMS.filter((term) => title.includes(term));
+  return hits.length ? `Title contains vague filler terms: ${hits.join(", ")}.` : "";
+}
 
 async function runCleanupSidecar(
   cards: CleanupCard[],
@@ -947,10 +970,12 @@ export type LlmCleanupResult = {
 
 export async function updateChangedTodoCards(
   kv: Pick<StateKV, "list" | "set">,
-  opts: { mode?: CleanupMode; maxCards?: number; decide?: (cards: CleanupCard[]) => Promise<LlmCleanupItem[]>; decisions?: LlmCleanupItem[] } = {},
+  opts: TodoUpdateOptions = {},
 ): Promise<LlmCleanupResult> {
   const mode = opts.mode ?? "apply";
-  const maxCards = opts.maxCards ?? DEFAULT_CLEANUP_MAX_CARDS;
+  const replayDecisions = opts.decisions;
+  const maxCards = replayDecisions ? Number.POSITIVE_INFINITY : opts.maxCards ?? DEFAULT_CLEANUP_MAX_CARDS;
+  const scope: TodoUpdateScope = opts.scope === "all" ? "all" : "changed";
   const decide = opts.decide ?? runCleanupSidecar;
   const [actions, reviews, sessions] = await Promise.all([
     kv.list<Action>(KV.actions).catch(() => []),
@@ -958,23 +983,27 @@ export async function updateChangedTodoCards(
     kv.list<Session>(KV.sessions).catch(() => []),
   ]);
   const sessionsById = new Map(sessions.map((s) => [s.id, s] as [string, Session]));
-  // Only open, generated cards whose source-session fingerprint moved on since
-  // the card was recorded (sessionChangedSinceExtraction) — the "the session
-  // updated, so update its cards" scope.
-  const changedActions = actions.filter((a) => {
+  const replayIds = replayDecisions ? new Set(replayDecisions.map((d) => d.id).filter(Boolean)) : null;
+  const actionNeedsUpdate = (a: Action): boolean => {
     if (!actionLooksGenerated(a) || a.status === "done" || a.status === "cancelled") return false;
+    if (replayIds) return replayIds.has(`a:${a.id}`);
+    if (scope === "all") return true;
     const ex = a.metadata?.todoExtraction as (ExtractedTodo & { sourceCheckpoint?: string }) | undefined;
     const session = ex?.sourceSessionId ? sessionsById.get(ex.sourceSessionId) : undefined;
     return !!ex && !!session && sessionChangedSinceExtraction(ex, session);
-  });
-  const changedReviews = reviews.filter((r) => {
+  };
+  const reviewNeedsUpdate = (r: ReviewQueueItem): boolean => {
     if (!reviewLooksGenerated(r) || r.status !== "pending") return false;
+    if (replayIds) return replayIds.has(`r:${r.id}`);
+    if (scope === "all") return true;
     const ex = r.payload?.todoExtraction as (ExtractedTodo & { sourceCheckpoint?: string }) | undefined;
     const session = ex?.sourceSessionId ? sessionsById.get(ex.sourceSessionId) : undefined;
     return !!ex && !!session && sessionChangedSinceExtraction(ex, session);
-  });
-  const actionById = new Map(changedActions.map((a) => [`a:${a.id}`, a] as [string, Action]));
-  const reviewById = new Map(changedReviews.map((r) => [`r:${r.id}`, r] as [string, ReviewQueueItem]));
+  };
+  const selectedActions = actions.filter(actionNeedsUpdate);
+  const selectedReviews = reviews.filter(reviewNeedsUpdate);
+  const actionById = new Map(selectedActions.map((a) => [`a:${a.id}`, a] as [string, Action]));
+  const reviewById = new Map(selectedReviews.map((r) => [`r:${r.id}`, r] as [string, ReviewQueueItem]));
 
   // Build the LLM card batch (capped), attaching each card's session delta — the
   // session's most-recent activity — so the model can re-judge it against what
@@ -985,16 +1014,26 @@ export async function updateChangedTodoCards(
     if (!deltaCache.has(sessionId)) deltaCache.set(sessionId, await buildSessionDelta(kv, sessionId));
     return deltaCache.get(sessionId) || "";
   };
-  const entries = [
-    ...changedActions.map((a) => ({ id: `a:${a.id}`, sessionId: (a.metadata?.todoExtraction as ExtractedTodo | undefined)?.sourceSessionId, title: a.title, description: a.description, status: a.status, evidence: cardEvidence(a.metadata) })),
-    ...changedReviews.map((r) => ({ id: `r:${r.id}`, sessionId: (r.payload?.todoExtraction as ExtractedTodo | undefined)?.sourceSessionId, title: r.title, description: r.content, status: r.status, evidence: cardEvidence(r.payload) })),
-  ].slice(0, maxCards);
   // When applying a previously-previewed result, the caller passes the dry-run
   // decisions back so we apply them verbatim — no LLM re-call, no session delta.
-  const reuseDecisions = opts.decisions;
+  const reuseDecisions = replayDecisions;
+  const entries = [
+    ...selectedActions.map((a) => ({ id: `a:${a.id}`, sessionId: (a.metadata?.todoExtraction as ExtractedTodo | undefined)?.sourceSessionId, title: a.title, description: a.description, status: a.status, evidence: cardEvidence(a.metadata) })),
+    ...selectedReviews.map((r) => ({ id: `r:${r.id}`, sessionId: (r.payload?.todoExtraction as ExtractedTodo | undefined)?.sourceSessionId, title: r.title, description: r.content, status: r.status, evidence: cardEvidence(r.payload) })),
+  ]
+    .sort((a, b) => normalizedKey(a.title).localeCompare(normalizedKey(b.title)) || a.id.localeCompare(b.id))
+    .slice(0, maxCards);
   const cards: CleanupCard[] = [];
   for (const entry of entries) {
-    cards.push({ id: entry.id, title: entry.title, description: entry.description, status: entry.status, evidence: entry.evidence, sessionDelta: reuseDecisions ? "" : await sessionDeltaFor(entry.sessionId) });
+    cards.push({
+      id: entry.id,
+      title: entry.title,
+      description: entry.description,
+      status: entry.status,
+      evidence: entry.evidence,
+      titleQualityHint: titleQualityHint(entry.title),
+      sessionDelta: reuseDecisions ? "" : await sessionDeltaFor(entry.sessionId),
+    });
   }
 
   if (cards.length === 0) {
@@ -1312,7 +1351,7 @@ export function registerTodoExtractFunctions(sdk: ISdk, kv: StateKV): void {
   sdk.registerFunction("mem::todo-extract-generate", async (data: TodoExtractOptions = {}) =>
     generateTodosFromSessions(kv, data),
   );
-  sdk.registerFunction("mem::todo-update", async (data: { mode?: CleanupMode; maxCards?: number; decisions?: LlmCleanupItem[] } = {}) =>
+  sdk.registerFunction("mem::todo-update", async (data: TodoUpdateOptions = {}) =>
     updateChangedTodoCards(kv, data),
   );
 }
