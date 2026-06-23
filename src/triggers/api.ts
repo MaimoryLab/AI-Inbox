@@ -1540,6 +1540,7 @@ export function registerApiTriggers(
       }
       const payload: Record<string, unknown> = {};
       if (body.mode === "dry-run" || body.mode === "apply") payload.mode = body.mode;
+      if (body.scope === "changed" || body.scope === "all") payload.scope = body.scope;
       if (maxCards !== undefined) payload.maxCards = maxCards;
       // Apply previously-previewed decisions verbatim (no LLM re-call) when given.
       if (Array.isArray(body.decisions)) payload.decisions = body.decisions;

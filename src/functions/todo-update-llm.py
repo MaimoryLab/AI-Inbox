@@ -25,11 +25,13 @@ VALID_DECISIONS = {"KEEP", "DROP", "DONE", "REWRITE", "MERGE"}
 
 SYSTEM_PROMPT = """\
 You are a strict, conservative maintainer of a developer's personal Todo list.
-Each card was auto-extracted earlier from an AI coding-agent session, and that
-session has SINCE gained new activity, provided as `sessionDelta`. Your job is to
-UPDATE each card in light of what happened after it was recorded, keeping the
-list trustworthy — every surviving card must be a REAL, SPECIFIC, STILL-OPEN
-action.
+Each card was auto-extracted earlier from an AI coding-agent session. It may be
+selected because that session has SINCE gained new activity (`sessionDelta`), or
+because a full-list maintenance pass is improving existing card quality. Your
+job is to UPDATE each card using only the card, its evidence, its sessionDelta
+when present, and other cards in this same batch. Keep the list trustworthy —
+every surviving card must be a REAL, SPECIFIC, STILL-OPEN action with a clear
+title.
 
 For EACH input card, output exactly one decision:
 - KEEP    — still a genuine, still-open action and the new activity does not
@@ -38,11 +40,12 @@ For EACH input card, output exactly one decision:
             tool/command output, a status report, a git ref/hash fragment,
             meta-commentary, or too vague to act on.
 - DONE    — the new session activity shows this task is now completed.
-- REWRITE — still a real, still-open todo, but the new activity means its
-            title/description should be updated (clearer, or reflecting the
-            latest state). Provide a corrected concise `newTitle` (<= 80 chars)
-            and one-line `newDescription`. Stay faithful to the card + evidence +
-            sessionDelta; never invent scope or steps not supported by them.
+- REWRITE — still a real, still-open todo, but its title/description should be
+            updated because it is vague, process-narration, too broad, or stale
+            given the new activity. Provide a corrected concise `newTitle`
+            (<= 80 chars) and one-line `newDescription`. Stay faithful to the
+            card + evidence + sessionDelta; never invent scope or steps not
+            supported by them.
 - MERGE   — a duplicate of another card in this same batch; give `mergeIntoId`
             of the canonical (clearest) card to merge into.
 
@@ -57,6 +60,13 @@ Rules:
 4. KEEP bar: a specific subject + a verb/action + a discernible outcome
    (e.g. "Fix the N+1 query in the dashboard loader"). Reject pure observations,
    logs, status lines, and vibes.
+5. Title quality bar: use concrete verb + specific object (+ target/outcome when
+   it adds signal). Remove filler such as "全面了解", "了解现状", "梳理现状",
+   "获取信息", "进行", "处理". Prefer "克隆 AI-Todo 仓库" over
+   "克隆仓库并全面了解其状况".
+6. If a card has `titleQualityHint`, actively consider REWRITE even if it is
+   still open. If that card is also the best MERGE target, output REWRITE for
+   the target card and MERGE the duplicates into that same id.
 
 Output STRICT JSON only, exactly one entry per input card, same ids:
 {"decisions":[{"id":"<card id>","decision":"KEEP|DROP|DONE|REWRITE|MERGE",
@@ -66,8 +76,9 @@ REWRITE>","mergeIntoId":"<only if MERGE>"}]}
 Examples of decisions:
 - sessionDelta shows the change was committed/merged/tests passed             -> DONE
 - "⏺ Bash(npm test)" / "Viewer: http://localhost:3114" / "abc1234 (HEAD)"     -> DROP
-- a real task whose wording is now stale given the new activity               -> REWRITE
-- two cards describing the same fix                                           -> MERGE (one) + KEEP (canonical)
+- "克隆仓库并全面了解其状况" with AI-Todo evidence                            -> REWRITE to "克隆 AI-Todo 仓库"
+- a real task whose wording is vague or stale given the new activity          -> REWRITE
+- two cards describing the same fix                                           -> MERGE duplicates + KEEP/REWRITE canonical
 - a still-open task the new activity does not touch                           -> KEEP
 """
 
@@ -89,8 +100,10 @@ def call_llm(cards: list) -> list:
             {"role": "system", "content": SYSTEM_PROMPT},
             {
                 "role": "user",
-                "content": "Update these existing cards given their session's new "
-                'activity. Return strict JSON {"decisions":[...]} with one entry '
+                "content": "Update these existing cards. Use sessionDelta when "
+                'present, and otherwise judge card quality and same-batch '
+                'duplicates from the card text/evidence. Return strict JSON '
+                '{"decisions":[...]} with one entry '
                 "per card.\n"
                 + json.dumps({"cards": cards}, ensure_ascii=False),
             },
@@ -180,6 +193,7 @@ if __name__ == "__main__":
         assert _out[1]["newTitle"] == "Fix it"
         assert _out[2]["mergeIntoId"] == "b"
         assert "KEEP" in SYSTEM_PROMPT and "MERGE" in SYSTEM_PROMPT
+        assert "Title quality bar" in SYSTEM_PROMPT and "克隆 AI-Todo 仓库" in SYSTEM_PROMPT
         print("ok")
         raise SystemExit(0)
     raise SystemExit(main())

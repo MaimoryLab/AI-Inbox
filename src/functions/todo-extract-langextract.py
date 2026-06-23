@@ -30,10 +30,21 @@ PROMPT = textwrap.dedent(
     anything without a source quote.
     Use exact source text as extraction_text. Put fields in attributes:
     title, description, confidence, timeBucket, typeBucket, dedupeKey.
-    title must be a short human-readable action summary. Never use raw command
-    JSON, file paths, screenshots, toolUseId/call IDs, shell flags, logs, or
-    truncated trace fragments as title. If the only source text is a tool log,
-    command payload, path, or JSON object, do not extract a todo.
+    title must be a CRISP, SPECIFIC action summary — a concrete verb + the
+    specific object (+ the concrete target/outcome when it adds signal), so each
+    card's title alone makes clear what THIS todo is. Keep it short, but do not
+    drop the object or constraint just to hit a character target. DO NOT pad
+    with vague filler such as
+    "全面了解 / 了解现状 / 梳理现状 / 获取信息 / 进行 / 处理" — name the actual thing
+    (the repo, the file, the bug, the command's purpose), not the process of
+    "understanding" it. Prefer "克隆 AI-Todo 仓库" over "克隆仓库并全面了解其状况".
+    dedupeKey must be a short STABLE slug of the core action+object (e.g.
+    clone-aitodo-repo, read-project-config), the SAME for two todos that are the
+    same task regardless of wording, so reworded duplicates collapse.
+    Never use raw command JSON, file paths, screenshots, toolUseId/call IDs,
+    shell flags, logs, or truncated trace fragments as title. If the only source
+    text is a tool log, command payload, path, or JSON object, do not extract a
+    todo.
     Never extract tool-call echo lines (starting with ⏺ or containing Bash(/Shell(),
     service-status reports (e.g. "服务可用", "Viewer:"/"Health:" URL lists), or
     git-ref fragments — these are not todos.
@@ -125,7 +136,41 @@ def main() -> int:
                     },
                 )
             ],
-        )
+        ),
+        lx.data.ExampleData(
+            text="[obs:obs_2]\n我会先确认工作区状态，然后把远程仓库 MaimoryLab/AI-Todo 克隆到子目录，再从 Git 元数据、依赖和测试入口梳理现状。",
+            extractions=[
+                lx.data.Extraction(
+                    extraction_class="todo",
+                    extraction_text="把远程仓库 MaimoryLab/AI-Todo 克隆到子目录",
+                    attributes={
+                        "title": "克隆 AI-Todo 仓库到子目录",
+                        "description": "把 MaimoryLab/AI-Todo 克隆到子目录，避免与外层 Git 状态混在一起。",
+                        "confidence": 0.85,
+                        "timeBucket": "current",
+                        "typeBucket": "to_start",
+                        "dedupeKey": "clone-aitodo-repo",
+                    },
+                )
+            ],
+        ),
+        lx.data.ExampleData(
+            text="[obs:obs_3]\n接下来我会读项目结构、README、包管理文件和环境配置样例，再补一层远程 GitHub 元数据。",
+            extractions=[
+                lx.data.Extraction(
+                    extraction_class="todo",
+                    extraction_text="读项目结构、README、包管理文件和环境配置样例",
+                    attributes={
+                        "title": "读 README 与依赖配置",
+                        "description": "读项目结构、README、包管理与环境配置样例，并补远程 GitHub 元数据。",
+                        "confidence": 0.8,
+                        "timeBucket": "current",
+                        "typeBucket": "to_start",
+                        "dedupeKey": "read-project-config",
+                    },
+                )
+            ],
+        ),
     ]
     model_id = model_id_from_env()
     result = lx.extract(
@@ -198,6 +243,9 @@ if __name__ == "__main__":
         assert params["use_schema_constraints"] is False
         params = extract_kwargs(DummyLx, "custom/openai-compatible-model", DummyConfig)
         assert params["use_schema_constraints"] is False
+        assert "CRISP, SPECIFIC" in PROMPT
+        assert "dedupeKey must be a short STABLE slug" in PROMPT
+        assert "克隆 AI-Todo 仓库" in PROMPT
         print("ok")
         raise SystemExit(0)
     raise SystemExit(main())
