@@ -102,4 +102,18 @@ describe("viewer JS fragmentation (PLAN-007 STEP-03)", () => {
   });
 });
 
+describe("viewer i18n + transport extraction (PLAN-007 STEP-04)", () => {
+  it("isolates the i18n catalog + t() into app/05-i18n.js", () => {
+    const i18n = readFileSync(join(PARTS_DIR, "app", "05-i18n.js"), "utf-8");
+    expect(i18n).toContain("I18N_MESSAGES");
+    expect(i18n).toMatch(/function t\(/);
+  });
+
+  it("isolates the REST transport (api) into app/45-transport.js", () => {
+    const transport = readFileSync(join(PARTS_DIR, "app", "45-transport.js"), "utf-8");
+    expect(transport).toMatch(/function api\(/);
+  });
+});
+
+
 

@@ -12,8 +12,12 @@
   "style/90-responsive-avatars.css",
   "20-body.html",
   "app/00-prelude.js",
+  "app/05-i18n.js",
+  "app/08-state-expert.js",
   "app/10-html-safe.js",
   "app/20-format-utils.js",
+  "app/40-data-helpers.js",
+  "app/45-transport.js",
   "app/90-rest.js",
   "40-tail.html"
 ]
