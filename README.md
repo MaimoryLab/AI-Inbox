@@ -74,7 +74,7 @@ LLM extraction also writes classification tags such as `type:waiting_for_user`, 
 
 ## Under the hood
 
-Under the hood, the current prototype still exposes the full implementation surface: **55 MCP tools** (8 visible by default — 55 tools, 6 resources, 3 prompts over MCP) and a local REST API serving **141 endpoints on port** 3111. These counts track the implementation that is mid-rename to AI Todo.
+Under the hood, the current prototype still exposes the full implementation surface: **55 MCP tools** (8 visible by default — 55 tools, 6 resources, 3 prompts over MCP) and a local REST API serving **142 endpoints on port** 3111. These counts track the implementation that is mid-rename to AI Todo.
 
 ## Documentation
 

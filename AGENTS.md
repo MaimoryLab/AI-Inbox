@@ -134,7 +134,7 @@ A change is done only when:
 ## Current Stats (v0.9.24)
 
 - 55 MCP tools (8 visible by default, `AGENTMEMORY_TOOLS=all` for all)
-- 141 REST endpoints
+- 142 REST endpoints
 - 6 MCP resources, 3 MCP prompts
 - 12 hooks, 9 skills
 - 60+ iii functions

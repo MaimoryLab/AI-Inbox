@@ -22,18 +22,15 @@ export const DEFAULT_LANGEXTRACT_MODEL = "deepseek/deepseek-v4-flash";
 export const DEFAULT_LANGEXTRACT_PROVIDER = "openai";
 export const DEFAULT_LANGEXTRACT_BASE_URL = "https://api.novita.ai/openai/v1";
 export const DEFAULT_TODO_EXTRACT_TIMEOUT_MS = 120_000;
+export const DEFAULT_TODO_EXTRACT_MAX_LLM_SESSIONS = 12;
 // STEP-11: extraction scope. sinceDays = only sessions whose endedAt/startedAt
 // falls within the last N days are eligible (the primary scope control). Max
 // interactions = per session, keep at most M most-recent interaction records
 // (a "turn": one user message through everything before the next). maxSessions
-// stays a backend safety cap (not surfaced as a setting).
+// has no default cap; REST callers can still pass an explicit positive cap.
 export const DEFAULT_TODO_EXTRACT_SINCE_DAYS = 7;
 export const DEFAULT_TODO_EXTRACT_MAX_INTERACTIONS = 10;
-// Interactive safety cap on how many sessions one extraction pass touches. The
-// day window is the primary control, but with the LLM extractor each session is
-// a serial sidecar call (up to the per-call timeout), so a single "organize"
-// click must stay bounded. REST callers can still pass a larger maxSessions.
-export const DEFAULT_TODO_EXTRACT_MAX_SESSIONS = 8;
+export const DEFAULT_TODO_EXTRACT_MAX_SESSIONS = Number.POSITIVE_INFINITY;
 const LEGACY_LANGEXTRACT_MODELS = new Set(["pa/gpt-5.5"]);
 export const WRITABLE_TODO_EXTRACT_KEYS = new Set([
   "AGENTMEMORY_TODO_EXTRACTOR",
@@ -46,6 +43,7 @@ export const WRITABLE_TODO_EXTRACT_KEYS = new Set([
   "AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS",
   "AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS",
   "AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION",
+  "AGENTMEMORY_TODO_EXTRACT_MAX_LLM_SESSIONS",
 ]);
 
 let warnPremiumModelShown = false;
@@ -96,6 +94,8 @@ export function getTodoExtractorUserConfig(): Record<string, string | boolean> {
     LANGEXTRACT_THINKING_DEPTH: env["LANGEXTRACT_THINKING_DEPTH"] || "medium",
     AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS:
       env["AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS"] || String(DEFAULT_TODO_EXTRACT_TIMEOUT_MS),
+    AGENTMEMORY_TODO_EXTRACT_MAX_LLM_SESSIONS:
+      env["AGENTMEMORY_TODO_EXTRACT_MAX_LLM_SESSIONS"] || String(DEFAULT_TODO_EXTRACT_MAX_LLM_SESSIONS),
     AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS:
       env["AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS"] || String(DEFAULT_TODO_EXTRACT_SINCE_DAYS),
     AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION:

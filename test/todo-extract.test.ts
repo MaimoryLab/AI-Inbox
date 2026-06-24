@@ -3,9 +3,10 @@ import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 vi.mock("../src/config.js", () => ({
   DEFAULT_LANGEXTRACT_BASE_URL: "https://api.novita.ai/openai/v1",
   DEFAULT_TODO_EXTRACT_TIMEOUT_MS: 120_000,
+  DEFAULT_TODO_EXTRACT_MAX_LLM_SESSIONS: 12,
   DEFAULT_TODO_EXTRACT_SINCE_DAYS: 7,
   DEFAULT_TODO_EXTRACT_MAX_INTERACTIONS: 10,
-  DEFAULT_TODO_EXTRACT_MAX_SESSIONS: 8,
+  DEFAULT_TODO_EXTRACT_MAX_SESSIONS: Number.POSITIVE_INFINITY,
   getEnvVar: (key: string) => {
     const values: Record<string, string> = {
       AGENTMEMORY_TODO_EXTRACTOR: "rules",
@@ -21,7 +22,7 @@ vi.mock("../src/config.js", () => ({
   normalizeTodoExtractorProvider: (value?: string) => (value || "openai").toLowerCase(),
 }));
 
-import { cleanPollutedTodoCards, updateChangedTodoCards, cleanTodoTitle, generateTodosFromSessions, validateTodoEvidence, runLangExtractSidecar, type ExtractedTodo } from "../src/functions/todo-extract.js";
+import { cleanPollutedTodoCards, updateChangedTodoCards, cleanTodoTitle, generateTodosFromSessions, getTodoExtractJobStatus, runTodoExtractJob, startTodoExtractJob, validateTodoEvidence, runLangExtractSidecar, type ExtractedTodo } from "../src/functions/todo-extract.js";
 import type { Action, CompressedObservation, ReviewQueueItem, Session } from "../src/types.js";
 import { KV } from "../src/state/schema.js";
 import { mockKV } from "./helpers/mocks.js";
@@ -864,6 +865,9 @@ describe("todo extraction scope — sinceDays + interaction window (STEP-11)", (
   afterEach(() => {
     delete process.env.AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS;
     delete process.env.AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION;
+    delete process.env.AGENTMEMORY_TODO_EXTRACT_MAX_LLM_SESSIONS;
+    delete process.env.AGENTMEMORY_TODO_EXTRACTOR;
+    delete process.env.LANGEXTRACT_PYTHON;
   });
 
   // Two completed sessions, both inside the 14d "recent" bucket (so neither is
@@ -912,6 +916,38 @@ describe("todo extraction scope — sinceDays + interaction window (STEP-11)", (
     expect((await kv.list<Action>(KV.actions))[0].metadata?.todoExtraction).toMatchObject({ sourceSessionId: "ses_recent" });
   });
 
+  it("does not cap eligible sessions by default after applying the sinceDays window", async () => {
+    const narratives = [
+      "后续需要修复登录接口的超时问题。",
+      "后续需要更新数据库驱动到 v5。",
+      "后续需要补充新用户的上手文档。",
+      "后续需要确认头像资源加载。",
+      "后续需要修复设置面板保存问题。",
+      "后续需要补充会话列表分页。",
+      "后续需要校验证据引用。",
+      "后续需要调整更新按钮文案。",
+      "后续需要补充端口占用提示。",
+    ];
+    for (let i = 0; i < narratives.length; i++) {
+      const id = `ses_window_${i + 1}`;
+      const at = daysAgo(1 + i / 100);
+      await kv.set(KV.sessions, id, session({
+        id, status: "completed", startedAt: at, endedAt: at, observationCount: 1,
+      }));
+      await kv.set(KV.observations(id), `o_window_${i + 1}`, obs({
+        id: `o_window_${i + 1}`, sessionId: id, timestamp: at, narrative: narratives[i],
+      }));
+    }
+
+    const result = await generateTodosFromSessions(kv as never, {
+      force: true, scanSources: false, cleanup: "none", sinceDays: 7,
+    });
+
+    expect(result.scannedSessions).toBe(9);
+    const checkpoint = await kv.get<{ cursor: string }>(KV.scanCheckpoints, "todo-extract:all");
+    expect(Object.keys(JSON.parse(checkpoint?.cursor || "{}"))).toHaveLength(9);
+  });
+
   // A user message in synthetic-compression form: type "conversation", title
   // === raw hookType "prompt_submit" (the interaction-boundary signal).
   function promptObs(id: string, narrative: string, timestamp: string): CompressedObservation {
@@ -938,6 +974,100 @@ describe("todo extraction scope — sinceDays + interaction window (STEP-11)", (
     const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false, cleanup: "none" });
     expect(result.directCreated).toBe(1);
     expect((await kv.list<Action>(KV.actions))[0].sourceObservationIds).toEqual(["t3"]);
+  });
+
+  it("defaults to the most recent 10 interaction records per session", async () => {
+    process.env.AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS = "30";
+    await kv.set(KV.sessions, "ses_turns", session({ id: "ses_turns", status: "active", observationCount: 12 }));
+    const narratives = [
+      "后续需要修复登录接口超时。",
+      "后续需要更新数据库驱动到 v5。",
+      "后续需要创建导出报告入口。",
+      "后续需要移除废弃配置开关。",
+      "后续需要实现离线缓存同步。",
+      "后续需要补充安装故障文档。",
+      "后续需要处理浏览器插件认证失败。",
+      "后续需要调整设置保存流程。",
+      "后续需要验证头像 PNG 加载。",
+      "后续需要重试 CI 发布流程。",
+      "后续需要排查工作台空白页。",
+      "后续需要整理权限错误提示。",
+    ];
+    for (let i = 0; i < narratives.length; i++) {
+      await kv.set(KV.observations("ses_turns"), `t${i + 1}`, promptObs(`t${i + 1}`, narratives[i], daysAgo(12 - i)));
+    }
+
+    const result = await generateTodosFromSessions(kv as never, { force: true, scanSources: false, cleanup: "none" });
+
+    expect(result.scannedObservations).toBe(10);
+    const sourceIds = (await kv.list<Action>(KV.actions)).flatMap((action) => action.sourceObservationIds || []);
+    expect(sourceIds).not.toContain("t1");
+    expect(sourceIds).not.toContain("t2");
+    const checkpoint = await kv.get<{ cursor: string }>(KV.scanCheckpoints, "todo-extract:all");
+    expect(JSON.parse(checkpoint?.cursor || "{}")).toHaveProperty("ses_turns");
+  });
+
+  it("bounds LLM sidecar calls while still scanning the full session window", async () => {
+    process.env.AGENTMEMORY_TODO_EXTRACTOR = "langextract";
+    process.env.AGENTMEMORY_TODO_EXTRACT_MAX_LLM_SESSIONS = "1";
+    process.env.LANGEXTRACT_PYTHON = "definitely-missing-python";
+    for (let i = 0; i < 3; i++) {
+      const id = `ses_llm_budget_${i + 1}`;
+      const at = daysAgo(i + 1);
+      await kv.set(KV.sessions, id, session({ id, status: "active", startedAt: at, endedAt: at, observationCount: 1 }));
+      await kv.set(KV.observations(id), `o_llm_budget_${i + 1}`, obs({
+        id: `o_llm_budget_${i + 1}`,
+        sessionId: id,
+        timestamp: at,
+        narrative: `后续需要修复第 ${i + 1} 个抽取预算测试问题。`,
+      }));
+    }
+
+    const result = await generateTodosFromSessions(kv as never, {
+      force: true, scanSources: false, cleanup: "none", sinceDays: 30,
+    });
+
+    expect(result.scannedSessions).toBe(3);
+    expect(result.processedSessions).toBe(3);
+    expect(result.llmSessionBudget).toBe(1);
+    expect(result.llmSessionsAttempted).toBe(1);
+    expect(result.llmSessionsSkipped).toBe(2);
+    expect(result.llmFallback).toBe(true);
+    expect(result.errorCode).toBeDefined();
+    delete process.env.AGENTMEMORY_TODO_EXTRACTOR;
+    delete process.env.AGENTMEMORY_TODO_EXTRACT_MAX_LLM_SESSIONS;
+    delete process.env.LANGEXTRACT_PYTHON;
+  });
+
+  it("exposes a single running extraction job instead of starting duplicate work", async () => {
+    await kv.set(KV.sessions, "ses_job", session({ id: "ses_job", status: "active", observationCount: 1 }));
+    await kv.set(KV.observations("ses_job"), "o_job", obs({
+      id: "o_job", sessionId: "ses_job", narrative: "后续需要验证抽取任务单飞。",
+    }));
+
+    const first = await startTodoExtractJob(kv as never, { force: true, scanSources: false, cleanup: "none" });
+    const second = await startTodoExtractJob(kv as never, { force: true, scanSources: false, cleanup: "none" });
+
+    expect(first.status).toBe("running");
+    expect(second.status).toBe("running");
+    expect(second.inFlight).toBe(true);
+    expect(second.jobId).toBe(first.jobId);
+    await vi.waitFor(() => expect(getTodoExtractJobStatus().status).toBe("done"));
+  });
+
+  it("waits for the owner extraction request but lets duplicate requests observe the running job", async () => {
+    await kv.set(KV.sessions, "ses_run_job", session({ id: "ses_run_job", status: "active", observationCount: 1 }));
+    await kv.set(KV.observations("ses_run_job"), "o_run_job", obs({
+      id: "o_run_job", sessionId: "ses_run_job", narrative: "后续需要验证抽取请求等待最终结果。",
+    }));
+
+    const owner = runTodoExtractJob(kv as never, { force: true, scanSources: false, cleanup: "none" });
+    const duplicate = await runTodoExtractJob(kv as never, { force: true, scanSources: false, cleanup: "none" });
+    const completed = await owner;
+
+    expect(duplicate).toMatchObject({ status: "running", inFlight: true });
+    expect(completed.status).toBe("done");
+    expect(completed.result).toMatchObject({ success: true, processedSessions: 1 });
   });
 
   it("treats a session with no user-message boundary as a single interaction", async () => {

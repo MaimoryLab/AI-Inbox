@@ -30,9 +30,9 @@ describe("session highlights REST API wiring", () => {
     const agents = readText("AGENTS.md");
     const index = readText("src/index.ts");
 
-    expect(endpointCount).toBe(141);
-    expect(readme).toContain("141 endpoints on port");
-    expect(agents).toContain("141 REST endpoints");
-    expect(index).toContain("REST API: 141 endpoints");
+    expect(endpointCount).toBe(142);
+    expect(readme).toContain("142 endpoints on port");
+    expect(agents).toContain("142 REST endpoints");
+    expect(index).toContain("REST API: 142 endpoints");
   });
 });
