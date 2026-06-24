@@ -294,19 +294,23 @@ describe("viewer request handler DNS rebinding defence (e2e)", () => {
     process.env.AGENTMEMORY_TODO_EXTRACTOR = "rules";
     process.env.AGENTMEMORY_TODO_DIRECT_CONFIDENCE = "0.6";
     try {
+      const nowMs = Date.now();
+      const startedAt = new Date(nowMs - 2 * 60 * 60 * 1000).toISOString();
+      const observationAt = new Date(nowMs - 90 * 60 * 1000).toISOString();
+      const endedAt = new Date(nowMs - 60 * 60 * 1000).toISOString();
       const session: Session = {
         id: "ses_todo",
         project: "ai-todo",
         cwd: "/repo",
-        startedAt: "2026-06-17T08:00:00.000Z",
-        endedAt: "2026-06-17T09:00:00.000Z",
+        startedAt,
+        endedAt,
         status: "active",
         observationCount: 1,
       };
       const observation: CompressedObservation = {
         id: "obs_todo",
         sessionId: "ses_todo",
-        timestamp: "2026-06-17T08:10:00.000Z",
+        timestamp: observationAt,
         type: "conversation",
         title: "assistant",
         subtitle: "",
