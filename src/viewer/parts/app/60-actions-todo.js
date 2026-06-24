@@ -30,6 +30,7 @@
       if (state.settings.open) {
         loadTodoExtractorConfig().then(renderSettingsPanel).catch(function() {});
       }
+      apiGet('todo-extract/status').then(syncTodoExtractJob).catch(function() {});
       if (opts.generate === true) startTodoExtraction(opts.force === true);
     }
 
@@ -54,6 +55,43 @@
 
     function todoExtractionUsedLlm(result) {
       return !!result && (result.engine === 'langextract' || result.engine === 'mixed') && !result.llmFallback;
+    }
+
+    function todoExtractionErrorMessage(result) {
+      var code = result && (result.errorCode || (result.result && result.result.errorCode));
+      if (code === 'provider_timeout') return t('act.extract.timeout');
+      if (code === 'config_error') return t('act.extract.configError');
+      if (code === 'provider_error' || code === 'llm_unavailable') return t('act.extract.providerError');
+      return t('act.extract.failedExisting');
+    }
+
+    function todoExtractionResultFromJob(job) {
+      if (!job) return null;
+      return job.result || (job.success === true && job.engine ? job : null);
+    }
+
+    function syncTodoExtractJob(job) {
+      if (!job || !job.status || job.status === 'idle') return job;
+      state.actions.extractJob = job;
+      if (job.status === 'running') {
+        state.actions.extractInFlight = true;
+        state.actions.extractStatus = 'running';
+        state.actions.extractMessage = t('act.extract.runningExisting');
+        if (state.activeTab === 'actions') renderActions();
+        return job;
+      }
+      state.actions.extractInFlight = false;
+      if (job.status === 'done') {
+        var result = todoExtractionResultFromJob(job);
+        state.actions.extractStatus = 'done';
+        state.actions.extractFallback = !todoExtractionUsedLlm(result);
+        state.actions.extractMessage = todoExtractionSummary(result);
+      } else if (job.status === 'error') {
+        state.actions.extractStatus = 'error';
+        state.actions.extractMessage = todoExtractionErrorMessage(job);
+      }
+      if (state.activeTab === 'actions') renderActions();
+      return job;
     }
 
     function refreshActionListsAfterExtract() {
@@ -127,6 +165,7 @@
       html += '<input id="todo-config-LANGEXTRACT_BASE_URL" class="search-input" value="' + value('LANGEXTRACT_BASE_URL', 'https://api.novita.ai/openai/v1') + '" placeholder="https://api.novita.ai/openai/v1" />';
       html += '<input id="todo-config-LANGEXTRACT_THINKING_DEPTH" class="search-input" value="' + value('LANGEXTRACT_THINKING_DEPTH', 'medium') + '" placeholder="medium" />';
       html += '<input id="todo-config-AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS" class="search-input" value="' + value('AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS', '120000') + '" placeholder="120000" />';
+      html += '<div><div class="action-meta-text" style="margin-bottom:4px;">' + esc(t('settings.maxLlmSessions')) + '</div><input id="todo-config-AGENTMEMORY_TODO_EXTRACT_MAX_LLM_SESSIONS" class="search-input" type="number" min="1" value="' + value('AGENTMEMORY_TODO_EXTRACT_MAX_LLM_SESSIONS', '12') + '" placeholder="12" /></div>';
       html += '<div><div class="action-meta-text" style="margin-bottom:4px;">' + esc(t('settings.sinceDays')) + '</div><input id="todo-config-AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS" class="search-input" type="number" min="1" value="' + value('AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS', '7') + '" placeholder="7" /></div>';
       html += '<div><div class="action-meta-text" style="margin-bottom:4px;">' + esc(t('settings.maxInteractions')) + '</div><input id="todo-config-AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION" class="search-input" type="number" min="1" value="' + value('AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION', '10') + '" placeholder="10" /></div>';
       html += '<div><input id="todo-config-LANGEXTRACT_API_KEY" class="search-input" type="password" placeholder="' + esc(keyLabel) + '" />';
@@ -151,6 +190,7 @@
         'LANGEXTRACT_BASE_URL',
         'LANGEXTRACT_THINKING_DEPTH',
         'AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS',
+        'AGENTMEMORY_TODO_EXTRACT_MAX_LLM_SESSIONS',
         'AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS',
         'AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION',
         'LANGEXTRACT_API_KEY'
@@ -171,6 +211,7 @@
         'LANGEXTRACT_BASE_URL',
         'LANGEXTRACT_THINKING_DEPTH',
         'AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS',
+        'AGENTMEMORY_TODO_EXTRACT_MAX_LLM_SESSIONS',
         'AGENTMEMORY_TODO_EXTRACT_SINCE_DAYS',
         'AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION',
         'LANGEXTRACT_API_KEY'
@@ -247,13 +288,21 @@
       // settings would never take effect on this primary extraction path.
       apiPost('todo-extract/generate', {
         force: force === true
-      }).then(function(result) {
+      }).then(function(job) {
+        var result = todoExtractionResultFromJob(job);
+        if (job && job.status === 'running') {
+          state.actions.extractJob = job;
+          state.actions.extractStatus = 'running';
+          state.actions.extractMessage = t('act.extract.runningExisting');
+          return refreshActionListsAfterExtract();
+        }
         var delta = todoExtractionDelta(result);
         if (!result || result.success !== true) {
           state.actions.extractStatus = 'error';
-          state.actions.extractMessage = t('act.extract.failedExisting');
+          state.actions.extractMessage = todoExtractionErrorMessage(job || result);
           return null;
         }
+        state.actions.extractJob = job;
         state.actions.extractStatus = 'done';
         state.actions.extractFallback = !todoExtractionUsedLlm(result);
         state.actions.extractMessage = todoExtractionSummary(result);
@@ -267,7 +316,9 @@
         state.actions.extractMessage = t('act.extract.failedExisting');
       }).then(function() {
         clearTimeout(softRefreshTimer);
-        state.actions.extractInFlight = false;
+        if (!state.actions.extractJob || state.actions.extractJob.status !== 'running') {
+          state.actions.extractInFlight = false;
+        }
         if (state.activeTab === 'actions' && !actionsScrolledAway()) {
           renderActions();
         } else if (state.activeTab !== 'actions') {

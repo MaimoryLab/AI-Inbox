@@ -1075,10 +1075,10 @@ describe("viewer session rendering", () => {
     target.getAttribute = (name: string) => name === "data-action" ? "save-todo-config" : null;
     target.closest = (selector: string) => selector === "[data-action]" ? target : null;
     dispatchDocumentClick(target);
-    await waitFor(() => sandbox.state.actions.extractMessage === "Config saved. Restart the service to apply it.");
+    await waitFor(() => sandbox.state.actions.extractMessage === "Config saved. It applies to the next organize run.");
 
     expect(posts[0]).toMatchObject({ LANGEXTRACT_MODEL: "deepseek/deepseek-v4-flash", AGENTMEMORY_TODO_EXTRACT_TIMEOUT_MS: "120000", LANGEXTRACT_API_KEY: "secret" });
-    expect(sandbox.state.actions.extractMessage).toBe("Config saved. Restart the service to apply it.");
+    expect(sandbox.state.actions.extractMessage).toBe("Config saved. It applies to the next organize run.");
   });
 
   it("keeps unsaved todo extractor config while the settings panel rerenders", () => {
@@ -1210,6 +1210,29 @@ describe("viewer session rendering", () => {
     expect(sandbox.state.actions.extractInFlight).toBe(true);
     expect(sandbox.state.actions.extractMessage).toBe("Latest todos are shown; still organizing...");
     expect(sandbox.state.actions.items[0].title).toBe("整理首版功能文档");
+  });
+
+  it("restores running todo extraction state after the actions view reloads", async () => {
+    const { sandbox } = loadViewerSandbox();
+    sandbox.fetch = async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("todo-extract/status")) {
+        return { ok: true, json: async () => ({ success: true, jobId: "job-1", status: "running", startedAt: "2026-06-24T03:00:00Z", inFlight: true }) };
+      }
+      if (url.includes("review?status=pending")) return { ok: true, json: async () => ({ items: [] }) };
+      if (url.includes("frontier")) return { ok: true, json: async () => ({ frontier: [] }) };
+      if (url.includes("actions")) return { ok: true, json: async () => ({ actions: [] }) };
+      if (url.includes("inbox")) return { ok: true, json: async () => ({ items: [] }) };
+      return { ok: true, json: async () => ({}) };
+    };
+
+    sandbox.state.activeTab = "actions";
+    await sandbox.loadActions();
+    await waitFor(() => sandbox.state.actions.extractInFlight === true);
+
+    expect(sandbox.state.actions.extractInFlight).toBe(true);
+    expect(sandbox.state.actions.extractStatus).toBe("running");
+    expect(sandbox.state.actions.extractMessage).toBe("Still organizing from a previous request...");
   });
 
   it("renders the action classification metrics without a false waiting section when inbox is empty", () => {

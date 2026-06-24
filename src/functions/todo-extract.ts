@@ -8,6 +8,7 @@ import { KV, fingerprintId, generateId, nearDuplicateTitle } from "../state/sche
 import type { Action, CompressedObservation, ReviewQueueItem, ScanCheckpoint, Session } from "../types.js";
 import {
   DEFAULT_LANGEXTRACT_BASE_URL,
+  DEFAULT_TODO_EXTRACT_MAX_LLM_SESSIONS,
   DEFAULT_TODO_EXTRACT_TIMEOUT_MS,
   DEFAULT_TODO_EXTRACT_SINCE_DAYS,
   DEFAULT_TODO_EXTRACT_MAX_INTERACTIONS,
@@ -59,6 +60,7 @@ type TodoExtractOptions = {
   // then the config defaults when omitted.
   sinceDays?: number;
   maxInteractionsPerSession?: number;
+  maxLlmSessions?: number;
   project?: string;
   force?: boolean;
   scanSources?: boolean;
@@ -81,14 +83,78 @@ const SIDE_CAR_ENV_KEYS = [
   "LANGEXTRACT_MAX_CHAR_BUFFER",
 ];
 
+export type TodoExtractErrorCode =
+  | "llm_unavailable"
+  | "provider_timeout"
+  | "config_error"
+  | "provider_error"
+  | "extract_failed";
+
+export type TodoExtractJobStatus = "idle" | "running" | "done" | "error";
+
+export type TodoExtractResult = {
+  success: true;
+  jobId?: string;
+  status?: TodoExtractJobStatus;
+  startedAt?: string;
+  finishedAt?: string;
+  engine: "langextract" | "rules" | "mixed";
+  scannedSessions: number;
+  processedSessions: number;
+  skippedUnchangedSessions: number;
+  scannedObservations: number;
+  directCreated: number;
+  reviewCreated: number;
+  hiddenHistory: number;
+  discarded: number;
+  cleanedActions: number;
+  cleanedReviews: number;
+  completedActions: number;
+  completedReviews: number;
+  recheckMarked: number;
+  llmSessionBudget: number;
+  llmSessionsAttempted: number;
+  llmSessionsSkipped: number;
+  llmFallback?: boolean;
+  fallbackReason?: string;
+  errorCode?: TodoExtractErrorCode;
+  cleanupPreview?: { actions: unknown[]; reviews: unknown[] };
+  sourceScan?: { imported: number; skipped: number; errors: number };
+};
+
+export type TodoExtractJob = {
+  success: boolean;
+  jobId: string;
+  status: TodoExtractJobStatus;
+  startedAt: string;
+  finishedAt?: string;
+  message?: string;
+  errorCode?: TodoExtractErrorCode;
+  errorMessage?: string;
+  result?: TodoExtractResult;
+  inFlight?: boolean;
+};
+
+let activeTodoExtractJob: Promise<TodoExtractResult> | null = null;
+let currentTodoExtractJob: TodoExtractJob | null = null;
+
 function envNumber(key: string, fallback: number): number {
   const parsed = Number(getEnvVar(key));
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function classifyExtractError(message: string | undefined): TodoExtractErrorCode {
+  const text = String(message || "").toLowerCase();
+  if (/(timed out|timeout|abort)/.test(text)) return "provider_timeout";
+  if (/(api key|apikey|unauthorized|forbidden|401|403|required)/.test(text)) return "config_error";
+  if (/(rate limit|429|quota|provider|openai|novita|langextract)/.test(text)) return "provider_error";
+  return "extract_failed";
+}
+
 function clampPositiveInt(value: unknown, fallback: number, max: number): number {
   const parsed = typeof value === "number" ? value : parseInt(String(value ?? ""), 10);
   if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  if (!Number.isFinite(max)) return Math.floor(parsed);
   return Math.min(max, Math.floor(parsed));
 }
 
@@ -1134,12 +1200,13 @@ async function extractForSession(
   session: Session,
   observations: CompressedObservation[],
   mode: string,
-): Promise<{ todos: ExtractedTodo[]; engine: "langextract" | "rules"; fallbackReason?: string }> {
+  opts: { allowLlm?: boolean } = {},
+): Promise<{ todos: ExtractedTodo[]; engine: "langextract" | "rules"; fallbackReason?: string; errorCode?: TodoExtractErrorCode }> {
   const { ruleObservations, llmObservations } = prefilterTodoObservations(session, observations);
   const blocks = llmObservations.map(blockFor).filter((block) => block.text);
   const bucket = timeBucketFor(session);
   let fallbackReason = "";
-  if (mode !== "rules" && blocks.length > 0) {
+  if (mode !== "rules" && opts.allowLlm !== false && blocks.length > 0) {
     try {
       const todos = await runLangExtractSidecar({
         sessionId: session.id,
@@ -1160,31 +1227,14 @@ async function extractForSession(
     todos: candidates.map((candidate) => candidateToTodo(candidate, session, bucket)).filter((todo): todo is ExtractedTodo => !!todo),
     engine: "rules",
     ...(fallbackReason ? { fallbackReason } : {}),
+    ...(fallbackReason ? { errorCode: classifyExtractError(fallbackReason) } : {}),
   };
 }
 
 export async function generateTodosFromSessions(
   kv: Pick<StateKV, "get" | "set" | "list" | "delete">,
   data: TodoExtractOptions = {},
-): Promise<{
-  success: true;
-  engine: "langextract" | "rules" | "mixed";
-  scannedSessions: number;
-  scannedObservations: number;
-  directCreated: number;
-  reviewCreated: number;
-  hiddenHistory: number;
-  discarded: number;
-  cleanedActions: number;
-  cleanedReviews: number;
-  completedActions: number;
-  completedReviews: number;
-  cleanupPreview?: { actions: CleanupPreviewItem[]; reviews: CleanupPreviewItem[] };
-  recheckMarked: number;
-  sourceScan?: { imported: number; skipped: number; errors: number };
-  llmFallback?: boolean;
-  fallbackReason?: string;
-}> {
+): Promise<TodoExtractResult> {
   let sourceScan: { imported: number; skipped: number; errors: number } | undefined;
   if (data.scanSources !== false) {
     const scan = await scanCodexSource(kv as StateKV).catch(() => null);
@@ -1203,6 +1253,11 @@ export async function generateTodosFromSessions(
     data.maxInteractionsPerSession ?? getEnvVar("AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION"),
     DEFAULT_TODO_EXTRACT_MAX_INTERACTIONS,
     500,
+  );
+  const maxLlmSessions = clampPositiveInt(
+    data.maxLlmSessions ?? getEnvVar("AGENTMEMORY_TODO_EXTRACT_MAX_LLM_SESSIONS"),
+    DEFAULT_TODO_EXTRACT_MAX_LLM_SESSIONS,
+    100,
   );
   const sinceCutoffMs = Date.now() - sinceDays * 24 * 60 * 60 * 1000;
   const mode = (getEnvVar("AGENTMEMORY_TODO_EXTRACTOR") || "auto").toLowerCase();
@@ -1233,8 +1288,8 @@ export async function generateTodosFromSessions(
   const sessions = allSessions
     .filter((session) => !data.project || session.project === data.project || session.cwd === data.project)
     // STEP-11: day-window is the primary scope control. Sessions with no/invalid
-    // timestamp are kept (never silently drop work); maxSessions is the cap that
-    // still bounds a day with a flood of sessions.
+    // timestamp are kept (never silently drop work); maxSessions only applies
+    // when a caller explicitly passes a positive cap.
     .filter((session) => {
       const raw = sessionSortTime(session);
       if (!raw) return true;
@@ -1248,14 +1303,22 @@ export async function generateTodosFromSessions(
   let reviewCreated = 0;
   let hiddenHistory = 0;
   let discarded = 0;
+  let processedSessions = 0;
+  let skippedUnchangedSessions = 0;
+  let llmSessionsAttempted = 0;
+  let llmSessionsSkipped = 0;
   const engines = new Set<"langextract" | "rules">();
   const fallbackReasons = new Set<string>();
+  const errorCodes = new Set<TodoExtractErrorCode>();
   const now = new Date().toISOString();
   const recheckMarked = await markChangedGeneratedActions(kv, new Map(allSessions.map((session) => [session.id, session])), now);
 
   for (const session of sessions) {
     const key = checkpointKey(session);
-    if (!data.force && processed[session.id] === key) continue;
+    if (!data.force && processed[session.id] === key) {
+      skippedUnchangedSessions++;
+      continue;
+    }
     const sortedObservations = (await kv.list<CompressedObservation>(KV.observations(session.id)).catch(() => []))
       .sort((a, b) => (a.timestamp || "").localeCompare(b.timestamp || ""));
     // STEP-11: keep only the most recent N interaction records, then apply the
@@ -1266,9 +1329,14 @@ export async function generateTodosFromSessions(
     scannedObservations += ruleObservations.length;
     const evidenceObservations = mode === "rules" ? ruleObservations : llmObservations.length ? llmObservations : ruleObservations;
     const blockMap = new Map(evidenceObservations.map((obs) => [obs.id, blockFor(obs)]));
-    const { todos, engine, fallbackReason } = await extractForSession(session, ruleObservations, mode);
+    const wantsLlm = mode !== "rules" && llmObservations.length > 0 && timeBucketFor(session) !== "history";
+    const allowLlm = !wantsLlm || llmSessionsAttempted < maxLlmSessions;
+    if (wantsLlm && allowLlm) llmSessionsAttempted++;
+    if (wantsLlm && !allowLlm) llmSessionsSkipped++;
+    const { todos, engine, fallbackReason, errorCode } = await extractForSession(session, ruleObservations, mode, { allowLlm });
     engines.add(engine);
     if (fallbackReason) fallbackReasons.add(fallbackReason.slice(0, 240));
+    if (errorCode) errorCodes.add(errorCode);
     for (const rawTodo of todos) {
       const todo = todoForStorage(rawTodo);
       if (!todo || !validateTodoEvidence(todo, blockMap)) {
@@ -1318,6 +1386,7 @@ export async function generateTodosFromSessions(
       seenTitles.push(titleKey);
     }
     processed[session.id] = key;
+    processedSessions++;
   }
 
   await kv.set(KV.scanCheckpoints, checkpointId, {
@@ -1330,6 +1399,8 @@ export async function generateTodosFromSessions(
     success: true,
     engine: engines.size > 1 ? "mixed" : Array.from(engines)[0] || "rules",
     scannedSessions: sessions.length,
+    processedSessions,
+    skippedUnchangedSessions,
     scannedObservations,
     directCreated,
     reviewCreated,
@@ -1340,17 +1411,121 @@ export async function generateTodosFromSessions(
     completedActions: cleanup.completedActions,
     completedReviews: cleanup.completedReviews,
     recheckMarked,
+    llmSessionBudget: maxLlmSessions,
+    llmSessionsAttempted,
+    llmSessionsSkipped,
     ...(data.cleanup === "dry-run" ? { cleanupPreview: cleanup.preview } : {}),
     ...(sourceScan ? { sourceScan } : {}),
     ...(fallbackReasons.size ? { llmFallback: true } : {}),
     ...(fallbackReasons.size ? { fallbackReason: Array.from(fallbackReasons)[0] } : {}),
+    ...(errorCodes.size ? { errorCode: Array.from(errorCodes)[0] } : {}),
   };
 }
 
+export function getTodoExtractJobStatus(): TodoExtractJob {
+  if (!currentTodoExtractJob) {
+    return {
+      success: true,
+      jobId: "",
+      status: "idle",
+      startedAt: "",
+    };
+  }
+  return { ...currentTodoExtractJob };
+}
+
+export async function startTodoExtractJob(
+  kv: Pick<StateKV, "get" | "set" | "list" | "delete">,
+  data: TodoExtractOptions = {},
+): Promise<TodoExtractJob> {
+  if (activeTodoExtractJob && currentTodoExtractJob?.status === "running") {
+    return { ...currentTodoExtractJob, success: true, inFlight: true };
+  }
+
+  const jobId = generateId("todo_extract");
+  const startedAt = new Date().toISOString();
+  currentTodoExtractJob = {
+    success: true,
+    jobId,
+    status: "running",
+    startedAt,
+    message: "running",
+    inFlight: true,
+  };
+
+  activeTodoExtractJob = generateTodosFromSessions(kv, data)
+    .then((result) => {
+      const finishedAt = new Date().toISOString();
+      const next: TodoExtractResult = {
+        ...result,
+        jobId,
+        status: "done",
+        startedAt,
+        finishedAt,
+      };
+      currentTodoExtractJob = {
+        success: true,
+        jobId,
+        status: "done",
+        startedAt,
+        finishedAt,
+        result: next,
+      };
+      return next;
+    })
+    .catch((err) => {
+      const message = err instanceof Error ? err.message : String(err || "todo extraction failed");
+      const errorCode = classifyExtractError(message);
+      currentTodoExtractJob = {
+        success: false,
+        jobId,
+        status: "error",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        errorCode,
+        errorMessage: message,
+      };
+      throw err;
+    })
+    .finally(() => {
+      activeTodoExtractJob = null;
+    });
+
+  return { ...currentTodoExtractJob, inFlight: false };
+}
+
+function isDuplicateTodoExtractJob(job: TodoExtractJob): boolean {
+  return job.inFlight === true;
+}
+
+export async function runTodoExtractJob(
+  kv: Pick<StateKV, "get" | "set" | "list" | "delete">,
+  data: TodoExtractOptions = {},
+): Promise<TodoExtractJob> {
+  const job = await startTodoExtractJob(kv, data);
+  if (isDuplicateTodoExtractJob(job) && job.status === "running") {
+    return job;
+  }
+  if (!activeTodoExtractJob) return getTodoExtractJobStatus();
+
+  try {
+    const result = await activeTodoExtractJob;
+    return {
+      success: true,
+      jobId: result.jobId || job.jobId,
+      status: "done",
+      startedAt: result.startedAt || job.startedAt,
+      finishedAt: result.finishedAt,
+      result,
+    };
+  } catch {
+    return getTodoExtractJobStatus();
+  }
+}
+
 export function registerTodoExtractFunctions(sdk: ISdk, kv: StateKV): void {
-  sdk.registerFunction("mem::todo-extract-generate", async (data: TodoExtractOptions = {}) =>
-    generateTodosFromSessions(kv, data),
-  );
+  sdk.registerFunction("mem::todo-extract-generate", async (data: TodoExtractOptions = {}) => runTodoExtractJob(kv, data));
+  sdk.registerFunction("mem::todo-extract-status", async () => getTodoExtractJobStatus());
   sdk.registerFunction("mem::todo-update", async (data: TodoUpdateOptions = {}) =>
     updateChangedTodoCards(kv, data),
   );

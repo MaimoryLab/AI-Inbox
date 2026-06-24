@@ -522,7 +522,7 @@ export function registerApiTriggers(
           success: true,
           envPath: getUserEnvPath(),
           config: getTodoExtractorUserConfig(),
-          restartRequired: true,
+          restartRequired: false,
         },
       };
     },
@@ -1510,11 +1510,16 @@ export function registerApiTriggers(
       if (maxInteractionsPerSession === null) {
         return { status_code: 400, body: { error: "maxInteractionsPerSession must be a positive integer" } };
       }
+      const maxLlmSessions = parseOptionalPositiveInt(body.maxLlmSessions);
+      if (maxLlmSessions === null) {
+        return { status_code: 400, body: { error: "maxLlmSessions must be a positive integer" } };
+      }
       const payload: Record<string, unknown> = {};
       if (maxSessions !== undefined) payload.maxSessions = maxSessions;
       if (maxObservationsPerSession !== undefined) payload.maxObservationsPerSession = maxObservationsPerSession;
       if (sinceDays !== undefined) payload.sinceDays = sinceDays;
       if (maxInteractionsPerSession !== undefined) payload.maxInteractionsPerSession = maxInteractionsPerSession;
+      if (maxLlmSessions !== undefined) payload.maxLlmSessions = maxLlmSessions;
       const project = asNonEmptyString(body.project);
       if (project) payload.project = project;
       if (body.force === true) payload.force = true;
@@ -1527,6 +1532,19 @@ export function registerApiTriggers(
     type: "http",
     function_id: "api::todo-extract-generate",
     config: { api_path: "/agentmemory/todo-extract/generate", http_method: "POST" },
+  });
+  sdk.registerFunction("api::todo-extract-status",
+    async (req: ApiRequest): Promise<Response> => {
+      const authErr = checkAuth(req, secret);
+      if (authErr) return authErr;
+      const result = await sdk.trigger({ function_id: "mem::todo-extract-status", payload: {} });
+      return { status_code: 200, body: result };
+    },
+  );
+  sdk.registerTrigger({
+    type: "http",
+    function_id: "api::todo-extract-status",
+    config: { api_path: "/agentmemory/todo-extract/status", http_method: "GET" },
   });
 
   sdk.registerFunction("api::todo-update",
