@@ -15,6 +15,7 @@ import {
   getEnvVar,
   normalizeTodoExtractorModel,
   normalizeTodoExtractorProvider,
+  resolveLangExtractPython,
 } from "../config.js";
 import { scanCodexSource } from "./source-scan-codex.js";
 import {
@@ -821,7 +822,7 @@ export async function runLangExtractSidecar(
 ): Promise<ExtractedTodo[]> {
   const script = sidecarPath();
   if (!script) throw new Error("langextract sidecar not found");
-  const python = getEnvVar("LANGEXTRACT_PYTHON") || "python3";
+  const python = resolveLangExtractPython();
   const env = { ...process.env };
   for (const key of SIDE_CAR_ENV_KEYS) {
     const value = getEnvVar(key);
@@ -1268,7 +1269,7 @@ async function runCleanupSidecar(
 ): Promise<LlmCleanupItem[]> {
   const script = sidecarPath(CLEANUP_SIDE_CAR);
   if (!script) throw new Error("cleanup sidecar not found");
-  const python = getEnvVar("LANGEXTRACT_PYTHON") || "python3";
+  const python = resolveLangExtractPython();
   const env = { ...process.env };
   for (const key of SIDE_CAR_ENV_KEYS) {
     const value = getEnvVar(key);
