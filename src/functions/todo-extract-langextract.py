@@ -25,6 +25,12 @@ PROMPT = textwrap.dedent(
     When refreshAction metadata is provided, use it as advisory context about the
     existing card. Prefer a clearer title/description suggested by cleanup
     metadata only when the nearby source quote supports it.
+    The input may include taskChains. Treat each taskChain as the primary unit:
+    title should anchor to the user's original intent, while description should
+    anchor to the latest agent status, blocker, or next step. Low-information
+    user turns such as "继续", "重试", "再来一次", "retry", or "continue" must be
+    merged back into the previous related taskChain; do not create separate
+    cards for those turns.
     Extract only UNRESOLVED, actionable items: explicit next actions, follow-ups,
     failed validations, blocked work, and in-progress work that still needs doing.
     DO NOT extract completed work, results, status reports, confirmations, or
@@ -137,11 +143,36 @@ def main() -> int:
         return 0
 
     lx = load_langextract()
-    text = "\n\n".join(
+    task_chains = payload.get("taskChains") or []
+    chain_texts = []
+    if isinstance(task_chains, list):
+        for chain in task_chains:
+            if not isinstance(chain, dict):
+                continue
+            user_id = chain.get("userObservationId", "")
+            status_id = chain.get("latestStatusObservationId", "")
+            user_intent = chain.get("userIntent", "")
+            latest_status = chain.get("latestStatus", "")
+            summary = chain.get("completionSummary", "")
+            next_step = chain.get("nextStep", "")
+            chain_texts.append(
+                "\n".join(
+                    [
+                        f"[taskChain:{chain.get('chainId', '')}]",
+                        f"[obs:{user_id}] 用户意图: {user_intent}",
+                        f"[obs:{status_id}] Agent最新状态: {latest_status}",
+                        f"completionState: {chain.get('completionState', '')}",
+                        f"completionSummary: {summary}",
+                        f"nextStep: {next_step}",
+                    ]
+                )
+            )
+    block_text = "\n\n".join(
         f"[obs:{b.get('sourceObservationId','')}]\n{b.get('text','')}"
         for b in blocks
         if isinstance(b, dict) and b.get("text")
     )
+    text = "\n\n".join([part for part in chain_texts + [block_text] if part])
     if not text.strip():
         print(json.dumps({"todos": []}, ensure_ascii=False))
         return 0
@@ -351,6 +382,12 @@ if __name__ == "__main__":
         assert "做最后一次状态确认" in PROMPT
         assert "Negative example" in PROMPT
         assert "refreshAction metadata" in PROMPT
+        assert "taskChains" in PROMPT
+        assert "用户意图" in "\n".join([
+            f"[taskChain:test]",
+            f"[obs:u1] 用户意图: 继续",
+            f"[obs:a1] Agent最新状态: 下一步需要修复",
+        ])
         assert "0.55-0.81" in PROMPT
         assert "dedupeKey must be a short STABLE slug" in PROMPT
         assert "克隆 AI-Todo 仓库" in PROMPT

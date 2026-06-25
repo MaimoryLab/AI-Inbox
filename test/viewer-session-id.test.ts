@@ -838,7 +838,7 @@ describe("viewer session rendering", () => {
         return { ok: true, json: async () => ({ frontier: [] }) };
       }
       if (url.includes("actions")) {
-        return { ok: true, json: async () => ({ actions: [] }) };
+        return { ok: true, json: async () => ({ actions: [], todoExtract: { status: "running", startedAt: "2026-06-25T02:00:00.000Z" } }) };
       }
       return { ok: true, json: async () => ({}) };
     };
@@ -866,6 +866,56 @@ describe("viewer session rendering", () => {
     expect(urls.some((url) => url.includes("todo-extract/generate"))).toBe(false);
     expect(urls.some((url) => url.includes("review/actions/generate"))).toBe(false);
     expect(posts).toHaveLength(0);
+    expect(sandbox.state.actions.extractInFlight).toBe(true);
+    expect(sandbox.state.actions.extractMessage).toBe("Latest todos are shown; still organizing...");
+  });
+
+  it("polls persisted todo extraction state after a reload", async () => {
+    const { sandbox, runTimers } = loadViewerSandbox();
+    let actionCalls = 0;
+    sandbox.fetch = async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("frontier")) return { ok: true, json: async () => ({ frontier: [] }) };
+      if (url.includes("actions")) {
+        actionCalls++;
+        return {
+          ok: true,
+          json: async () => actionCalls === 1
+            ? { actions: [], todoExtract: { status: "running", startedAt: "2026-06-25T02:00:00.000Z" } }
+            : {
+                actions: [{ id: "act-1", title: "整理单卡刷新状态", status: "pending", updatedAt: "2026-06-25T02:02:00.000Z" }],
+                todoExtract: {
+                  status: "done",
+                  summary: { success: true, engine: "langextract", directCreated: 1, reviewCreated: 0, hiddenHistory: 0, discarded: 0 },
+                },
+              },
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    };
+
+    sandbox.state.activeTab = "actions";
+    sandbox.state.actions = {
+      loaded: true,
+      items: [],
+      frontier: [],
+      statusFilter: "",
+      search: "",
+      reviewItems: [],
+      extractStatus: "",
+      extractMessage: "",
+      extractInFlight: false,
+    };
+    await sandbox.loadActions();
+    await flushPromises(8);
+
+    expect(sandbox.state.actions.extractInFlight).toBe(true);
+    expect(runTimers()).toBeGreaterThan(0);
+    await waitFor(() => sandbox.state.actions.items[0]?.title === "整理单卡刷新状态");
+
+    expect(sandbox.state.actions.extractInFlight).toBe(false);
+    expect(sandbox.state.actions.extractStatus).toBe("done");
+    expect(sandbox.state.actions.items[0].title).toBe("整理单卡刷新状态");
   });
 
   it("runs LLM extraction only when explicitly requested", async () => {
@@ -1368,17 +1418,20 @@ describe("viewer session rendering", () => {
 
   it("soft-refreshes actions while todo extraction is still running", async () => {
     const { sandbox, runTimers } = loadViewerSandbox();
-    const actionResponses = [
-      { actions: [] },
-      { actions: [{ id: "act-1", title: "整理首版功能文档", status: "pending", updatedAt: "2026-06-17T12:00:00Z" }] },
-    ];
+    let actionCalls = 0;
     sandbox.fetch = async (input: unknown) => {
       const url = String(input);
       if (url.includes("todo-extract/generate")) return new Promise(() => undefined);
       if (url.includes("review?status=pending")) return { ok: true, json: async () => ({ items: [] }) };
       if (url.includes("frontier")) return { ok: true, json: async () => ({ frontier: [] }) };
       if (url.includes("actions")) {
-        return { ok: true, json: async () => actionResponses.shift() || { actions: [] } };
+        actionCalls++;
+        return {
+          ok: true,
+          json: async () => actionCalls === 1
+            ? { actions: [] }
+            : { actions: [{ id: "act-1", title: "整理首版功能文档", status: "pending", updatedAt: "2026-06-17T12:00:00Z" }], todoExtract: { status: "running" } },
+        };
       }
       return { ok: true, json: async () => ({}) };
     };
@@ -1392,6 +1445,179 @@ describe("viewer session rendering", () => {
     expect(sandbox.state.actions.extractInFlight).toBe(true);
     expect(sandbox.state.actions.extractMessage).toBe("Latest todos are shown; still organizing...");
     expect(sandbox.state.actions.items[0].title).toBe("整理首版功能文档");
+  });
+
+  it("folds legacy generated cards out of the default todo list", () => {
+    const { sandbox, getElement, dispatchDocumentClick } = loadViewerSandbox();
+    sandbox.state.activeTab = "actions";
+    sandbox.state.actions = {
+      loaded: true,
+      items: [
+        {
+          id: "act_chain",
+          title: "修复整理按钮状态",
+          description: "后台整理中，刷新后仍需显示状态。",
+          status: "pending",
+          priority: "normal",
+          createdBy: "todo-extract",
+          tags: ["todo-extracted", "time:current", "type:follow_up"],
+          updatedAt: daysAgo(1),
+          metadata: { todoChain: { completionState: "in_progress", completionSummary: "后台整理中，刷新后仍需显示状态。" } },
+        },
+        {
+          id: "act_legacy",
+          title: "旧链路卡片",
+          description: "来自旧抽取链路。",
+          status: "pending",
+          priority: "normal",
+          createdBy: "todo-extract",
+          tags: ["todo-extracted", "time:current", "type:follow_up"],
+          updatedAt: daysAgo(1),
+          metadata: { todoExtraction: { sourceCheckpoint: `${daysAgo(1)}:1` } },
+        },
+      ],
+      frontier: [],
+      statusFilter: "",
+      search: "",
+      reviewItems: [],
+    };
+    sandbox.state.inbox = { loaded: true, items: [] };
+
+    sandbox.renderActions();
+    let html = getElement("view-actions").innerHTML;
+    expect(html).toContain("修复整理按钮状态");
+    expect(html).toContain("Legacy extraction backlog");
+    expect(html).not.toContain("旧链路卡片");
+
+    const target = Object.create(sandbox.Element.prototype);
+    target.getAttribute = (name: string) => name === "data-action" ? "toggle-legacy-backlog" : null;
+    target.closest = (selector: string) => selector === "[data-action]" ? target : null;
+    dispatchDocumentClick(target);
+
+    html = getElement("view-actions").innerHTML;
+    expect(html).toContain("旧链路卡片");
+  });
+
+  it("folds completed or system-context task chains out of the default todo list", () => {
+    const { sandbox, getElement } = loadViewerSandbox();
+    sandbox.state.activeTab = "actions";
+    sandbox.state.actions = {
+      loaded: true,
+      items: [
+        {
+          id: "act_done_chain",
+          title: "创建 Day 1 专项复习文件",
+          description: "创建 Day 1 专项复习文件。",
+          status: "pending",
+          priority: "normal",
+          createdBy: "todo-extract",
+          tags: ["todo-extracted", "time:current", "type:to_start"],
+          updatedAt: daysAgo(1),
+          metadata: { todoChain: { completionState: "completed", completionSummary: "已完成 Day 1 专项复习资料。" } },
+        },
+        {
+          id: "act_system_chain",
+          title: "在 staging 前检查完整状态",
+          description: "staging 前查看完整状态。",
+          status: "pending",
+          priority: "normal",
+          createdBy: "todo-extract",
+          tags: ["todo-extracted", "time:current", "type:follow_up"],
+          updatedAt: daysAgo(1),
+          metadata: { todoChain: { completionState: "in_progress", completionSummary: "<collaboration_mode># Plan Mode" } },
+        },
+        {
+          id: "act_restarted_chain",
+          title: "重启服务验证页面状态",
+          description: "确认服务是否可访问。",
+          status: "pending",
+          priority: "normal",
+          createdBy: "todo-extract",
+          tags: ["todo-extracted", "time:current", "type:to_start"],
+          updatedAt: daysAgo(1),
+          metadata: { todoChain: { completionState: "in_progress", completionSummary: "服务已重启，http://localhost:3114/agentmemory/livez 正常。" } },
+        },
+        {
+          id: "act_copied_docx_chain",
+          title: "处理 DOCX 正文替换",
+          description: "需要继续读取当前 DOCX 的真实段落结构。",
+          status: "pending",
+          priority: "normal",
+          createdBy: "todo-extract",
+          tags: ["todo-extracted", "time:current", "type:to_start"],
+          updatedAt: daysAgo(1),
+          metadata: { todoChain: { completionState: "in_progress", completionSummary: "已完成，原文件未覆盖，已新建副本并只改正文文本内容。" } },
+        },
+        {
+          id: "act_real_followup",
+          title: "继续分析 DOCX 段落结构",
+          description: "需要继续读取当前 DOCX 的真实段落结构。",
+          status: "pending",
+          priority: "normal",
+          createdBy: "todo-extract",
+          tags: ["todo-extracted", "time:current", "type:follow_up"],
+          updatedAt: daysAgo(1),
+          metadata: { todoChain: { completionState: "in_progress", completionSummary: "需要继续读取当前 DOCX 的真实段落结构。" } },
+        },
+      ],
+      frontier: [],
+      statusFilter: "",
+      search: "",
+      reviewItems: [],
+    };
+    sandbox.state.inbox = { loaded: true, items: [] };
+
+    sandbox.renderActions();
+    const html = getElement("view-actions").innerHTML;
+    expect(html).toContain("Legacy extraction backlog");
+    expect(html).toContain("继续分析 DOCX 段落结构");
+    expect(html).not.toContain("创建 Day 1 专项复习文件");
+    expect(html).not.toContain("在 staging 前检查完整状态");
+    expect(html).not.toContain("重启服务验证页面状态");
+    expect(html).not.toContain("处理 DOCX 正文替换");
+  });
+
+  it("keeps the Todo filter focused on actionable cards", () => {
+    const { sandbox, getElement } = loadViewerSandbox();
+    sandbox.state.activeTab = "actions";
+    sandbox.state.actions = {
+      loaded: true,
+      items: [
+        {
+          id: "act_open",
+          title: "修复整理按钮状态",
+          description: "后台整理中，刷新后仍需显示状态。",
+          status: "pending",
+          priority: "normal",
+          createdBy: "todo-extract",
+          tags: ["todo-extracted", "time:current", "type:follow_up"],
+          updatedAt: daysAgo(1),
+          metadata: { todoChain: { completionState: "in_progress", completionSummary: "后台整理中，刷新后仍需显示状态。" } },
+        },
+        {
+          id: "act_pushed",
+          title: "检查 PR 的 CI 结果",
+          description: "观察 PR 的新 CI 状态。",
+          status: "pending",
+          priority: "normal",
+          createdBy: "todo-extract",
+          tags: ["todo-extracted", "time:current", "type:follow_up"],
+          updatedAt: daysAgo(1),
+          metadata: { todoChain: { completionState: "in_progress", completionSummary: "已提交并推送 PR：#126 feat(todo): harden extraction job flow。" } },
+        },
+      ],
+      frontier: [],
+      statusFilter: "todo",
+      search: "",
+      reviewItems: [],
+    };
+    sandbox.state.inbox = { loaded: true, items: [] };
+    sandbox.renderActions();
+    const html = getElement("view-actions").innerHTML;
+
+    expect(html).toContain("修复整理按钮状态");
+    expect(html).toContain("Legacy extraction backlog");
+    expect(html).not.toContain("检查 PR 的 CI 结果");
   });
 
   it("renders only Todo and Done metrics and never shows awaiting as a todo class", () => {
@@ -1623,7 +1849,46 @@ describe("viewer session rendering", () => {
     expect(html).not.toContain("type:to_start");
   });
 
-  it("hides generated command-log action cards from the todo view", () => {
+  it("shows task-chain completion as the card second line", () => {
+    const { sandbox, getElement } = loadViewerSandbox();
+    sandbox.state.activeTab = "actions";
+    sandbox.state.actions = {
+      loaded: true,
+      items: [
+        {
+          id: "act_chain_1",
+          title: "上传之前的修改到远程仓库",
+          description: "旧描述不应优先展示。",
+          status: "pending",
+          priority: "normal",
+          tags: ["todo-extracted", "time:current", "type:follow_up"],
+          sourceObservationIds: ["obs_1"],
+          updatedAt: daysAgo(1),
+          metadata: {
+            todoChain: {
+              completionState: "in_progress",
+              completionSummary: "已推送分支，下一步创建 PR。",
+              nextStep: "创建 PR",
+            },
+          },
+        },
+      ],
+      frontier: [],
+      statusFilter: "",
+      search: "",
+      reviewItems: [],
+    };
+    sandbox.state.inbox = { loaded: true, items: [] };
+
+    sandbox.renderActions();
+    const html = getElement("view-actions").innerHTML;
+
+    expect(html).toContain("上传之前的修改到远程仓库");
+    expect(html).toContain("→ 已推送分支，下一步创建 PR。");
+    expect(html).not.toContain("旧描述不应优先展示");
+  });
+
+  it("hides legacy generated cards from the default todo view", () => {
     const { sandbox, getElement } = loadViewerSandbox();
     sandbox.state.activeTab = "actions";
     sandbox.state.actions = {
@@ -1646,6 +1911,7 @@ describe("viewer session rendering", () => {
           priority: "normal",
           createdBy: "todo-extract",
           tags: ["todo-extracted", "time:current", "type:to_start"],
+          metadata: { todoExtraction: { sourceCheckpoint: `${daysAgo(1)}:1` } },
         },
       ],
       frontier: [],
@@ -1668,7 +1934,8 @@ describe("viewer session rendering", () => {
     sandbox.renderActions();
     const html = getElement("view-actions").innerHTML;
 
-    expect(html).toContain("整理验收截图");
+    expect(html).toContain("Legacy extraction backlog");
+    expect(html).not.toContain("整理验收截图");
     expect(html).not.toContain("json nameWithOwner");
     expect(html).not.toContain("limit 20");
   });

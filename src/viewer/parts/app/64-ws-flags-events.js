@@ -476,6 +476,11 @@
         renderActions();
         return;
       }
+      if (action === 'toggle-legacy-backlog') {
+        state.actions.legacyBacklogExpanded = !state.actions.legacyBacklogExpanded;
+        renderActions();
+        return;
+      }
       if (action === 'toggle-briefings') {
         state.inbox.briefingExpanded = !state.inbox.briefingExpanded;
         renderActions();
