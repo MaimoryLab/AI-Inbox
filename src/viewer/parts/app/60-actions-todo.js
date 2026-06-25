@@ -170,6 +170,7 @@
       html += '<div><input id="todo-config-LANGEXTRACT_API_KEY" class="search-input" type="password" placeholder="' + esc(keyLabel) + '" />';
       if (maskedKey) html += '<div class="action-meta-text" style="margin-top:4px;">' + esc(t('settings.apiKeyLabel')) + ' ' + esc(maskedKey) + '</div>';
       html += '</div></div>';
+      html += '<div class="settings-sub" style="margin-top:8px;">' + esc(cfg.LANGEXTRACT_RUNTIME_READY ? t('settings.runtimeReady') : t('settings.runtimeMissing')) + (cfg.LANGEXTRACT_RUNTIME_ERROR ? ': ' + esc(cfg.LANGEXTRACT_RUNTIME_ERROR) : '') + '</div>';
       html += '<div style="display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap;">';
       html += '<button class="btn btn-primary" data-action="save-todo-config" type="button"' + (state.actions.configSaving ? ' disabled' : '') + '>' + esc(state.actions.configSaving ? t('settings.saving') : t('settings.save')) + '</button>';
       if (state.actions.config && state.actions.config.envPath) html += '<span class="action-meta-text">' + esc(state.actions.config.envPath) + '</span>';

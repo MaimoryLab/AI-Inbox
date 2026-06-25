@@ -1560,7 +1560,7 @@ export function startViewerServer(
         success: true,
         envPath: getUserEnvPath(),
         config: getTodoExtractorUserConfig(),
-        restartRequired: true,
+        restartRequired: false,
       }, req);
       return;
     }

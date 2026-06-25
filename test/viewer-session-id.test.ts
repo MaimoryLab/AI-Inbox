@@ -1272,7 +1272,7 @@ describe("viewer session rendering", () => {
       const url = String(input);
       if (url.includes("config/todo-extractor") && init?.body) {
         posts.push(JSON.parse(init.body));
-        return { ok: true, json: async () => ({ success: true, envPath: "/tmp/.env", config: { LANGEXTRACT_MODEL: "deepseek/deepseek-v4-flash", LANGEXTRACT_API_KEY_CONFIGURED: true } }) };
+        return { ok: true, json: async () => ({ success: true, envPath: "/tmp/.env", config: { LANGEXTRACT_MODEL: "deepseek/deepseek-v4-flash", LANGEXTRACT_API_KEY_CONFIGURED: true, LANGEXTRACT_RUNTIME_READY: true, LANGEXTRACT_RUNTIME_ERROR: "" } }) };
       }
       if (url.includes("todo-extract/generate") && init?.body) {
         extractPosts.push(JSON.parse(init.body));
@@ -1281,7 +1281,7 @@ describe("viewer session rendering", () => {
       if (url.includes("actions")) return { ok: true, json: async () => ({ actions: [] }) };
       if (url.includes("frontier")) return { ok: true, json: async () => ({ frontier: [] }) };
       if (url.includes("inbox")) return { ok: true, json: async () => ({ items: [] }) };
-      return { ok: true, json: async () => ({ success: true, envPath: "/tmp/.env", config: { LANGEXTRACT_MODEL: "deepseek/deepseek-v4-flash", LANGEXTRACT_API_KEY_CONFIGURED: false } }) };
+      return { ok: true, json: async () => ({ success: true, envPath: "/tmp/.env", config: { LANGEXTRACT_MODEL: "deepseek/deepseek-v4-flash", LANGEXTRACT_API_KEY_CONFIGURED: false, LANGEXTRACT_RUNTIME_READY: false, LANGEXTRACT_RUNTIME_ERROR: "No module named langextract" } }) };
     };
     sandbox.state.activeTab = "actions";
     sandbox.state.actions = {
@@ -1291,7 +1291,7 @@ describe("viewer session rendering", () => {
       statusFilter: "",
       search: "",
       reviewItems: [],
-      config: { envPath: "/tmp/.env", config: { LANGEXTRACT_MODEL: "deepseek/deepseek-v4-flash", LANGEXTRACT_API_KEY_CONFIGURED: false } },
+      config: { envPath: "/tmp/.env", config: { LANGEXTRACT_MODEL: "deepseek/deepseek-v4-flash", LANGEXTRACT_API_KEY_CONFIGURED: false, LANGEXTRACT_RUNTIME_READY: false, LANGEXTRACT_RUNTIME_ERROR: "No module named langextract" } },
     };
     sandbox.state.inbox = { loaded: true, items: [] };
     sandbox.renderActions();
@@ -1300,6 +1300,8 @@ describe("viewer session rendering", () => {
     sandbox.state.settings.open = true;
     sandbox.renderSettingsPanel();
     expect(getElement("settings-panel").innerHTML).toContain("LLM extraction config");
+    expect(getElement("settings-panel").innerHTML).toContain("LLM runtime missing");
+    expect(getElement("settings-panel").innerHTML).not.toContain("restart");
     expect(getElement("settings-panel").innerHTML).not.toContain("pa/gpt-5.5");
 
     getElement("todo-config-LANGEXTRACT_MODEL").value = "deepseek/deepseek-v4-flash";

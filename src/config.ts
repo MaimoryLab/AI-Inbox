@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -91,6 +92,7 @@ function maskSecret(value: string | undefined): string {
 
 export function getTodoExtractorUserConfig(): Record<string, string | boolean> {
   const env = getMergedEnv();
+  const runtime = detectLangExtractRuntime(env);
   return {
     AGENTMEMORY_TODO_EXTRACTOR: env["AGENTMEMORY_TODO_EXTRACTOR"] || "auto",
     LANGEXTRACT_PYTHON: env["LANGEXTRACT_PYTHON"] || "python3",
@@ -106,6 +108,21 @@ export function getTodoExtractorUserConfig(): Record<string, string | boolean> {
       env["AGENTMEMORY_TODO_EXTRACT_MAX_INTERACTIONS_PER_SESSION"] || String(DEFAULT_TODO_EXTRACT_MAX_INTERACTIONS),
     LANGEXTRACT_API_KEY_CONFIGURED: hasRealValue(env["LANGEXTRACT_API_KEY"]),
     LANGEXTRACT_API_KEY_MASKED: maskSecret(env["LANGEXTRACT_API_KEY"]),
+    LANGEXTRACT_RUNTIME_READY: runtime.ready,
+    LANGEXTRACT_RUNTIME_ERROR: runtime.error,
+  };
+}
+
+function detectLangExtractRuntime(env: Record<string, string>): { ready: boolean; error: string } {
+  const python = env["LANGEXTRACT_PYTHON"] || "python3";
+  const result = spawnSync(python, ["-c", "import langextract"], {
+    encoding: "utf8",
+    timeout: 3000,
+  });
+  if (result.status === 0) return { ready: true, error: "" };
+  return {
+    ready: false,
+    error: String(result.stderr || result.error?.message || "langextract unavailable").replace(/\s+/g, " ").trim(),
   };
 }
 

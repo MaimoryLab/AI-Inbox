@@ -4319,7 +4319,7 @@
         'act.empty.title': 'No todos yet',
         'act.empty.lead': 'This is where todos, blocked items, and completed work extracted from your sessions will appear.',
         'settings.title': 'Settings',
-        'settings.subtitle': 'Local configuration is written to the user config file and takes effect after restarting the service.',
+        'settings.subtitle': 'Local configuration is written to the user config file and applies on the next organize run.',
         'settings.close': 'Close',
         'settings.language': 'UI language',
         'settings.extractor': 'LLM extraction config',
@@ -4328,6 +4328,8 @@
         'settings.apiKeyKeep': 'Enter a new API key to replace it, or leave blank to keep the current key',
         'settings.apiKeyMissing': 'Not configured',
         'settings.apiKeyLabel': 'API key:',
+        'settings.runtimeReady': 'LLM runtime ready',
+        'settings.runtimeMissing': 'LLM runtime missing',
         'settings.save': 'Save config',
         'settings.saving': 'Saving...',
         'settings.savedReady': 'Config saved. The next organize run will use it now.',
@@ -4547,7 +4549,7 @@
         'act.empty.title': '还没有待办',
         'act.empty.lead': '这里会放从会话里整理出的待办、卡住事项和已完成事项。',
         'settings.title': '设置',
-        'settings.subtitle': '本机配置会写入用户配置文件，重启服务后生效。',
+        'settings.subtitle': '本机配置会写入用户配置文件，下次整理会直接使用。',
         'settings.close': '关闭',
         'settings.language': '界面语言',
         'settings.extractor': '大模型抽取配置',
@@ -4556,6 +4558,8 @@
         'settings.apiKeyKeep': '输入新 API key 覆盖，留空保持不变',
         'settings.apiKeyMissing': '未配置',
         'settings.apiKeyLabel': 'API key:',
+        'settings.runtimeReady': '大模型运行环境已就绪',
+        'settings.runtimeMissing': '大模型运行环境缺失',
         'settings.save': '保存配置',
         'settings.saving': '保存中...',
         'settings.savedReady': '配置已保存，下次整理会立即使用新配置。',
@@ -9011,6 +9015,7 @@
       html += '<div><input id="todo-config-LANGEXTRACT_API_KEY" class="search-input" type="password" placeholder="' + esc(keyLabel) + '" />';
       if (maskedKey) html += '<div class="action-meta-text" style="margin-top:4px;">' + esc(t('settings.apiKeyLabel')) + ' ' + esc(maskedKey) + '</div>';
       html += '</div></div>';
+      html += '<div class="settings-sub" style="margin-top:8px;">' + esc(cfg.LANGEXTRACT_RUNTIME_READY ? t('settings.runtimeReady') : t('settings.runtimeMissing')) + (cfg.LANGEXTRACT_RUNTIME_ERROR ? ': ' + esc(cfg.LANGEXTRACT_RUNTIME_ERROR) : '') + '</div>';
       html += '<div style="display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap;">';
       html += '<button class="btn btn-primary" data-action="save-todo-config" type="button"' + (state.actions.configSaving ? ' disabled' : '') + '>' + esc(state.actions.configSaving ? t('settings.saving') : t('settings.save')) + '</button>';
       if (state.actions.config && state.actions.config.envPath) html += '<span class="action-meta-text">' + esc(state.actions.config.envPath) + '</span>';

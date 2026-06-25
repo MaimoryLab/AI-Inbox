@@ -71,6 +71,15 @@ describe("todo extractor user config", () => {
     expect(cfg.LANGEXTRACT_BASE_URL).toBe("https://api.novita.ai/openai/v1");
   });
 
+  it("exposes whether the LangExtract runtime has the Python dependency", async () => {
+    const { getTodoExtractorUserConfig } = await freshConfig();
+
+    const cfg = getTodoExtractorUserConfig();
+
+    expect(cfg.LANGEXTRACT_RUNTIME_READY).toBeTypeOf("boolean");
+    expect(cfg.LANGEXTRACT_RUNTIME_ERROR).toBeTypeOf("string");
+  });
+
   it("round-trips the LLM extract timeout: defaults when unset, persists + reads back when set", async () => {
     const { getTodoExtractorUserConfig, getUserEnvPath, writeUserEnv } = await freshConfig();
 
