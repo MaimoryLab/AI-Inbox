@@ -65,6 +65,29 @@ type ObservationBlock = {
   text: string;
 };
 
+type TodoCompletionState = "completed" | "in_progress" | "interrupted";
+
+type TodoTaskChain = {
+  chainId: string;
+  sourceSessionId: string;
+  userObservationId: string;
+  userIntent: string;
+  latestStatusObservationId: string;
+  latestStatus: string;
+  continuedByObservationIds: string[];
+  observationIds: string[];
+  confidence: number;
+  completionState: TodoCompletionState;
+  completionSummary: string;
+  nextStep?: string;
+  dedupeKey: string;
+};
+
+type ExtractedTodoWithContext = ExtractedTodo & {
+  quality?: TodoQuality;
+  taskChain?: TodoTaskChain;
+};
+
 type TodoExtractOptions = {
   maxSessions?: number;
   maxObservationsPerSession?: number;
@@ -79,6 +102,7 @@ type TodoExtractOptions = {
   force?: boolean;
   scanSources?: boolean;
   cleanup?: "none" | "dry-run" | "apply";
+  runLangExtractSidecar?: LangExtractRunner;
 };
 
 type TodoRefreshActionOptions = {
@@ -91,6 +115,7 @@ type ExtractForSessionOptions = {
   runLangExtractSidecar?: LangExtractRunner;
   refreshAction?: Record<string, unknown>;
   forceLlmContext?: boolean;
+  taskChains?: TodoTaskChain[];
 };
 
 const TIME_BUCKETS = new Set(["current", "recent", "history"]);
@@ -298,7 +323,7 @@ function todoQualityMetadata(quality: TodoQuality): Record<string, unknown> {
 }
 
 function effectiveTodoConfidence(todo: ExtractedTodo): number {
-  const quality = (todo as ExtractedTodo & { quality?: TodoQuality }).quality;
+  const quality = (todo as ExtractedTodoWithContext).quality;
   return Math.min(todo.confidence, quality?.confidence ?? 1);
 }
 
@@ -526,6 +551,170 @@ function interactionRanges(observations: CompressedObservation[]): Array<{ start
     start,
     end: starts[index + 1] ?? observations.length,
   }));
+}
+
+const LOW_INFO_USER_PROMPT = /^(?:继续|重试|再试一次|再来一次|再跑一次|看下|看一下|这个不对|不对|继续处理|继续吧|retry|continue|again|try again|rerun|re-run)$/i;
+const BLOCKED_SIGNAL = /(?:阻塞|卡住|卡在|失败|报错|没有权限|网络错误|超时|\b(?:blocked|blocking|failed|failing|error|permission denied|network error|timeout)\b)/i;
+const NEXT_STEP_SIGNAL = /(?:下一步|后续|还需|仍需|待办|待处理|需要继续|需要修|需要补|需要排查|需要重试|TODO|FIXME|\b(?:need to|needs? fixing|must|follow up|follow-up|next step)\b)/i;
+const NO_MORE_WORK_SIGNAL = /(?:无需后续|无需继续|无需处理|不需要后续|无后续|no action needed|nothing else|no further action)/i;
+
+function isLowInfoUserPrompt(value: string): boolean {
+  const text = normalizeText(value).replace(/[。！？!?,，；;：:\s]+$/u, "");
+  if (!text || Array.from(text).length > 32) return false;
+  return LOW_INFO_USER_PROMPT.test(text);
+}
+
+function hasNextStepSignal(value: string): boolean {
+  const text = normalizeText(value);
+  if (!text || NO_MORE_WORK_SIGNAL.test(text)) return false;
+  return NEXT_STEP_SIGNAL.test(text);
+}
+
+function completionStateFor(value: string): TodoCompletionState {
+  const text = normalizeText(value);
+  if (!text) return "in_progress";
+  if (BLOCKED_SIGNAL.test(text)) return "interrupted";
+  if (hasNextStepSignal(text)) return "in_progress";
+  if (NO_MORE_WORK_SIGNAL.test(text) || isCompletedTodoText(text)) return "completed";
+  return "in_progress";
+}
+
+function completionSummaryFor(value: string): string {
+  const text = normalizeText(value);
+  const first = text.match(/[^。！？!?\n]+[。！？!?]?/u)?.[0] || text;
+  return trimToTitleBoundary(first.replace(/\s+/g, " ").trim(), 140);
+}
+
+function nextStepFor(value: string): string | undefined {
+  const text = normalizeText(value);
+  if (!text || NO_MORE_WORK_SIGNAL.test(text)) return undefined;
+  const match = text.match(/(?:下一步|后续|还需|仍需|待办|待处理)[：:\s]*(需要)?([^。！？!?\n]{2,120})/u) ||
+    text.match(/\b(?:need to|next step|follow up)[:\s]+([^.!?\n]{2,120})/i);
+  const next = normalizeText((match && (match[2] || match[1])) || "");
+  return next ? next.replace(/[。！？!?,，；;：:\s]+$/u, "") : undefined;
+}
+
+function latestStatusObservation(range: CompressedObservation[], userObservationId: string | undefined): CompressedObservation | undefined {
+  for (let i = range.length - 1; i >= 0; i--) {
+    const obs = range[i];
+    if (obs.id === userObservationId) continue;
+    const text = textForObservation(obs);
+    if (text && !isPollutedTodoText(text)) return obs;
+  }
+  return range[range.length - 1];
+}
+
+function intentUsefulForTaskChain(value: string): boolean {
+  const text = normalizeText(value);
+  if (!text || isLowInfoUserPrompt(text) || isPollutedTodoText(text)) return false;
+  if (/^<environment_context>|^#\s+/i.test(text)) return false;
+  return hasTodoActionTrigger(text) || Array.from(text).length >= 8;
+}
+
+function taskChainDedupeKey(intent: string, status: string): string {
+  return normalizedKey(`${firstTitleSentence(intent)}:${firstTitleSentence(status)}`).slice(0, 180);
+}
+
+function createTaskChain(session: Session, userObs: CompressedObservation | undefined, statusObs: CompressedObservation, range: CompressedObservation[]): TodoTaskChain | null {
+  const userIntent = normalizeText(userObs ? textForObservation(userObs) : "");
+  const latestStatus = normalizeText(textForObservation(statusObs));
+  if (!intentUsefulForTaskChain(userIntent) && !observationUsefulForTodo(statusObs)) return null;
+  const anchorObs = userObs || statusObs;
+  const state = completionStateFor(latestStatus || userIntent);
+  return {
+    chainId: fingerprintId("chain", `${session.id}:${anchorObs.id}`),
+    sourceSessionId: session.id,
+    userObservationId: anchorObs.id,
+    userIntent: userIntent || latestStatus,
+    latestStatusObservationId: statusObs.id,
+    latestStatus,
+    continuedByObservationIds: [],
+    observationIds: range.map((obs) => obs.id).filter(Boolean),
+    confidence: observationUsefulForTodo(statusObs) ? 0.9 : 0.72,
+    completionState: state,
+    completionSummary: completionSummaryFor(latestStatus || userIntent),
+    ...(nextStepFor(latestStatus) ? { nextStep: nextStepFor(latestStatus) } : {}),
+    dedupeKey: taskChainDedupeKey(userIntent || latestStatus, latestStatus),
+  };
+}
+
+function mergeRangeIntoTaskChain(chain: TodoTaskChain, userObs: CompressedObservation | undefined, statusObs: CompressedObservation, range: CompressedObservation[]): TodoTaskChain {
+  const latestStatus = normalizeText(textForObservation(statusObs)) || chain.latestStatus;
+  const continued = userObs?.id ? [...chain.continuedByObservationIds, userObs.id] : chain.continuedByObservationIds;
+  const observationIds = Array.from(new Set([...chain.observationIds, ...range.map((obs) => obs.id).filter(Boolean)]));
+  return {
+    ...chain,
+    latestStatusObservationId: statusObs.id,
+    latestStatus,
+    continuedByObservationIds: continued,
+    observationIds,
+    completionState: completionStateFor(latestStatus),
+    completionSummary: completionSummaryFor(latestStatus || chain.completionSummary),
+    ...(nextStepFor(latestStatus) ? { nextStep: nextStepFor(latestStatus) } : {}),
+    dedupeKey: taskChainDedupeKey(chain.userIntent, latestStatus),
+  };
+}
+
+function buildTaskChains(session: Session, observations: CompressedObservation[]): TodoTaskChain[] {
+  const sorted = [...observations].sort((a, b) => (a.timestamp || "").localeCompare(b.timestamp || ""));
+  const chains: TodoTaskChain[] = [];
+  for (const range of interactionRanges(sorted)) {
+    const rangeObservations = sorted.slice(range.start, range.end);
+    if (!rangeObservations.length) continue;
+    const first = rangeObservations[0];
+    const userObs = observationStartsInteraction(first) ? first : undefined;
+    const userText = normalizeText(userObs ? textForObservation(userObs) : "");
+    const statusObs = latestStatusObservation(rangeObservations, userObs?.id);
+    if (!statusObs) continue;
+    if (userObs && isLowInfoUserPrompt(userText) && chains.length) {
+      chains[chains.length - 1] = mergeRangeIntoTaskChain(chains[chains.length - 1], userObs, statusObs, rangeObservations);
+      continue;
+    }
+    const chain = createTaskChain(session, userObs, statusObs, rangeObservations);
+    if (chain) chains.push(chain);
+  }
+  return chains.filter((chain) => chain.userIntent || chain.latestStatus);
+}
+
+function taskChainForPrompt(chain: TodoTaskChain): Record<string, unknown> {
+  return {
+    chainId: chain.chainId,
+    userObservationId: chain.userObservationId,
+    userIntent: chain.userIntent.slice(0, 1200),
+    latestStatusObservationId: chain.latestStatusObservationId,
+    latestStatus: chain.latestStatus.slice(0, 1200),
+    continuedByObservationIds: chain.continuedByObservationIds,
+    observationIds: chain.observationIds,
+    confidence: chain.confidence,
+    completionState: chain.completionState,
+    completionSummary: chain.completionSummary,
+    ...(chain.nextStep ? { nextStep: chain.nextStep } : {}),
+    dedupeKey: chain.dedupeKey,
+  };
+}
+
+function taskChainMetadata(chain: TodoTaskChain): Record<string, unknown> {
+  return {
+    sourceSessionId: chain.sourceSessionId,
+    userObservationId: chain.userObservationId,
+    latestStatusObservationId: chain.latestStatusObservationId,
+    continuedByObservationIds: chain.continuedByObservationIds,
+    observationIds: chain.observationIds,
+    confidence: chain.confidence,
+    completionState: chain.completionState,
+    completionSummary: chain.completionSummary,
+    ...(chain.nextStep ? { nextStep: chain.nextStep } : {}),
+    dedupeKey: chain.dedupeKey,
+  };
+}
+
+function attachTaskChains(todos: ExtractedTodo[], chains: TodoTaskChain[]): ExtractedTodo[] {
+  if (!chains.length) return todos;
+  return todos.map((todo) => {
+    const sourceId = todo.evidence?.sourceObservationId;
+    const chain = chains.find((item) => sourceId && item.observationIds.includes(sourceId)) || (chains.length === 1 ? chains[0] : undefined);
+    return chain ? { ...todo, taskChain: chain } : todo;
+  });
 }
 
 function nearbyObservationContext(
@@ -765,7 +954,8 @@ function parseCheckpoint(cursor: string | undefined): Record<string, string> {
 }
 
 function makeAction(todo: ExtractedTodo, session: Session, now: string): Action {
-  const quality = (todo as ExtractedTodo & { quality?: TodoQuality }).quality;
+  const quality = (todo as ExtractedTodoWithContext).quality;
+  const taskChain = (todo as ExtractedTodoWithContext).taskChain;
   const changed = sessionChangedSinceExtraction(todo, session);
   const tags = ["todo-extracted", `time:${todo.timeBucket}`, `type:${todo.typeBucket}`, ...(changed ? ["todo-recheck"] : [])];
   return {
@@ -784,12 +974,14 @@ function makeAction(todo: ExtractedTodo, session: Session, now: string): Action 
     metadata: {
       todoExtraction: withSourceCheckpoint(todo, session),
       ...(quality ? { todoQuality: todoQualityMetadata(quality) } : {}),
+      ...(taskChain ? { todoChain: taskChainMetadata(taskChain) } : {}),
     },
   };
 }
 
 function makeReview(todo: ExtractedTodo, session: Session, now: string): ReviewQueueItem {
-  const quality = (todo as ExtractedTodo & { quality?: TodoQuality }).quality;
+  const quality = (todo as ExtractedTodoWithContext).quality;
+  const taskChain = (todo as ExtractedTodoWithContext).taskChain;
   const tags = ["todo-extracted", `time:${todo.timeBucket}`, `type:${todo.typeBucket}`];
   return {
     id: generateId("review"),
@@ -815,6 +1007,7 @@ function makeReview(todo: ExtractedTodo, session: Session, now: string): ReviewQ
       // session later changes (otherwise the review-update path is dead).
       todoExtraction: withSourceCheckpoint(todo, session),
       ...(quality ? { todoQuality: todoQualityMetadata(quality) } : {}),
+      ...(taskChain ? { todoChain: taskChainMetadata(taskChain) } : {}),
     },
   };
 }
@@ -843,6 +1036,7 @@ function replaceActionFromTodo(action: Action, fresh: Action, engine: "langextra
       ...(action.metadata || {}),
       todoExtraction: fresh.metadata?.todoExtraction,
       ...(fresh.metadata?.todoQuality ? { todoQuality: fresh.metadata.todoQuality } : {}),
+      ...(fresh.metadata?.todoChain ? { todoChain: fresh.metadata.todoChain } : {}),
       refresh: {
         refreshedAt: now,
         engine,
@@ -859,7 +1053,17 @@ function sessionChangedSinceExtraction(todo: ExtractedTodo, session: Session): b
 }
 
 function withSourceCheckpoint(todo: ExtractedTodo, session: Session): ExtractedTodo & { sourceCheckpoint: string } {
-  return { ...todo, sourceCheckpoint: checkpointKey(session) };
+  return {
+    title: todo.title,
+    description: todo.description,
+    confidence: todo.confidence,
+    timeBucket: todo.timeBucket,
+    typeBucket: todo.typeBucket,
+    sourceSessionId: todo.sourceSessionId,
+    evidence: todo.evidence,
+    dedupeKey: todo.dedupeKey,
+    sourceCheckpoint: checkpointKey(session),
+  };
 }
 
 async function markChangedGeneratedActions(
@@ -1380,9 +1584,14 @@ async function extractForSession(
   options: ExtractForSessionOptions = {},
 ): Promise<{ todos: ExtractedTodo[]; engine: "langextract" | "rules"; fallbackReason?: string }> {
   const { ruleObservations, llmObservations } = prefilterTodoObservations(session, observations);
-  const llmSourceObservations = options.forceLlmContext && !llmObservations.length
-    ? observations.slice(0, MAX_LLM_OBSERVATIONS_PER_SESSION)
-    : llmObservations;
+  const taskChains = options.taskChains ?? buildTaskChains(session, observations);
+  const chainObservationIds = new Set(taskChains.flatMap((chain) => chain.observationIds));
+  const chainObservations = observations.filter((obs) => chainObservationIds.has(obs.id));
+  const llmSourceObservations = taskChains.length
+    ? chainObservations.slice(0, MAX_LLM_OBSERVATIONS_PER_SESSION)
+    : options.forceLlmContext && !llmObservations.length
+      ? observations.slice(0, MAX_LLM_OBSERVATIONS_PER_SESSION)
+      : llmObservations;
   const blocks = llmSourceObservations.map(blockFor).filter((block) => block.text);
   const bucket = timeBucketFor(session);
   let fallbackReason = "";
@@ -1396,10 +1605,11 @@ async function extractForSession(
         startedAt: session.startedAt,
         endedAt: session.endedAt,
         blocks,
+        taskChains: taskChains.map(taskChainForPrompt),
       };
       if (options.refreshAction) input.refreshAction = options.refreshAction;
       const todos = await run(input);
-      return { todos: todos.map((todo) => safeTodo(todo, session)), engine: "langextract" };
+      return { todos: attachTaskChains(todos.map((todo) => safeTodo(todo, session)), taskChains), engine: "langextract" };
     } catch (err) {
       fallbackReason = err instanceof Error ? err.message : String(err || "langextract failed");
       // Fall back to rules even in langextract mode; the sidecar is optional.
@@ -1736,10 +1946,14 @@ export async function generateTodosFromSessions(
     const observations = takeRecentInteractions(sortedObservations, maxInteractionsPerSession)
       .slice(-maxObservationsPerSession);
     const { ruleObservations, llmObservations } = prefilterTodoObservations(session, observations);
+    const taskChains = buildTaskChains(session, observations);
     scannedObservations += ruleObservations.length;
     const evidenceObservations = mode === "rules" ? ruleObservations : llmObservations.length ? llmObservations : ruleObservations;
-    const blockMap = new Map(evidenceObservations.map((obs) => [obs.id, blockFor(obs)]));
-    const { todos, engine, fallbackReason } = await extractForSession(session, ruleObservations, mode);
+    const blockMap = new Map([...observations, ...evidenceObservations].map((obs) => [obs.id, blockFor(obs)]));
+    const { todos, engine, fallbackReason } = await extractForSession(session, observations, mode, {
+      runLangExtractSidecar: data.runLangExtractSidecar,
+      taskChains,
+    });
     engines.add(engine);
     if (fallbackReason) fallbackReasons.add(fallbackReason.slice(0, 240));
     for (const rawTodo of todos) {

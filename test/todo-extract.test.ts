@@ -237,6 +237,110 @@ describe("todo extraction", () => {
     expect(await kv.list<ReviewQueueItem>(KV.reviewQueue)).toHaveLength(0);
   });
 
+  it("uses session task chains so continue/retry updates the prior user task instead of creating a new card", async () => {
+    process.env.AGENTMEMORY_TODO_EXTRACTOR = "langextract";
+    await kv.set(KV.sessions, "ses_1", session({ status: "active", observationCount: 4 }));
+    await kv.set(KV.observations("ses_1"), "u1", obs({
+      id: "u1",
+      title: "prompt_submit",
+      narrative: "帮我把全量更新和单卡更新按钮的问题修掉。",
+      timestamp: "2026-06-17T08:00:00.000Z",
+    }));
+    await kv.set(KV.observations("ses_1"), "a1", obs({
+      id: "a1",
+      title: "stop",
+      narrative: "全量更新会秒变已更新，单卡更新会长时间后提示没有更好卡片，后续需要调试按钮状态链路。",
+      timestamp: "2026-06-17T08:01:00.000Z",
+    }));
+    await kv.set(KV.observations("ses_1"), "u2", obs({
+      id: "u2",
+      title: "prompt_submit",
+      narrative: "继续",
+      timestamp: "2026-06-17T08:02:00.000Z",
+    }));
+    await kv.set(KV.observations("ses_1"), "a2", obs({
+      id: "a2",
+      title: "stop",
+      narrative: "已定位到全量更新直接返回、单卡刷新没有走 LLM；下一步需要修 sidecar 空负例。",
+      timestamp: "2026-06-17T08:03:00.000Z",
+    }));
+
+    const seen: any[] = [];
+    const result = await generateTodosFromSessions(kv as never, {
+      force: true,
+      scanSources: false,
+      cleanup: "none",
+      runLangExtractSidecar: async (input: any) => {
+        seen.push(input);
+        return [{
+          title: "修复全量更新和单卡更新按钮问题",
+          description: "下一步需要修 sidecar 空负例。",
+          confidence: 0.9,
+          timeBucket: "current",
+          typeBucket: "follow_up",
+          sourceSessionId: "ses_1",
+          evidence: { sourceObservationId: "a2", quote: "下一步需要修 sidecar 空负例" },
+          dedupeKey: "fix-update-buttons",
+        }];
+      },
+    } as never);
+    delete process.env.AGENTMEMORY_TODO_EXTRACTOR;
+
+    expect(result.directCreated).toBe(1);
+    expect(seen[0].taskChains).toHaveLength(1);
+    expect(seen[0].taskChains[0]).toMatchObject({
+      userObservationId: "u1",
+      latestStatusObservationId: "a2",
+      continuedByObservationIds: ["u2"],
+    });
+    const action = (await kv.list<Action>(KV.actions))[0];
+    expect(action.title).toBe("修复全量更新和单卡更新按钮问题");
+    expect(action.metadata?.todoChain).toMatchObject({
+      sourceSessionId: "ses_1",
+      userObservationId: "u1",
+      latestStatusObservationId: "a2",
+      completionState: "in_progress",
+    });
+  });
+
+  it("skips completed task chains with no next step", async () => {
+    process.env.AGENTMEMORY_TODO_EXTRACTOR = "langextract";
+    await kv.set(KV.sessions, "ses_1", session({ status: "active", observationCount: 2 }));
+    await kv.set(KV.observations("ses_1"), "u1", obs({
+      id: "u1",
+      title: "prompt_submit",
+      narrative: "把修改提交 PR。",
+      timestamp: "2026-06-17T08:00:00.000Z",
+    }));
+    await kv.set(KV.observations("ses_1"), "a1", obs({
+      id: "a1",
+      title: "stop",
+      narrative: "PR 已创建，CI 已通过，无需后续处理。",
+      timestamp: "2026-06-17T08:01:00.000Z",
+    }));
+
+    const result = await generateTodosFromSessions(kv as never, {
+      force: true,
+      scanSources: false,
+      cleanup: "none",
+      runLangExtractSidecar: async () => [{
+        title: "提交 PR",
+        description: "PR 已创建，CI 已通过。",
+        confidence: 0.95,
+        timeBucket: "current",
+        typeBucket: "done",
+        sourceSessionId: "ses_1",
+        evidence: { sourceObservationId: "a1", quote: "PR 已创建，CI 已通过" },
+        dedupeKey: "submit-pr",
+      }],
+    } as never);
+    delete process.env.AGENTMEMORY_TODO_EXTRACTOR;
+
+    expect(result.directCreated).toBe(0);
+    expect(result.discarded).toBe(1);
+    expect(await kv.list<Action>(KV.actions)).toHaveLength(0);
+  });
+
   it("keeps history todos hidden instead of writing them to actions", async () => {
     await kv.set(KV.sessions, "ses_1", session({
       startedAt: "2026-05-01T08:00:00.000Z",

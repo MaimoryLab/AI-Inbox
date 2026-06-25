@@ -13,6 +13,8 @@
       var frontier = (results[1] && (results[1].frontier || results[1].actions)) || [];
 
       state.actions.items = explicitActions;
+      state.actions.todoExtract = results[0] && results[0].todoExtract;
+      syncTodoExtractStatus();
       state.actions.reviewItems = [];
       state.actions.frontier = frontier;
       state.actions.loaded = true;
@@ -52,12 +54,55 @@
       return !!result && (result.engine === 'langextract' || result.engine === 'mixed') && !result.llmFallback;
     }
 
+    function clearTodoExtractStatusPoll() {
+      if (!state.actions.extractStatusPollTimer) return;
+      clearTimeout(state.actions.extractStatusPollTimer);
+      state.actions.extractStatusPollTimer = null;
+    }
+
+    function scheduleTodoExtractStatusPoll() {
+      if (state.actions.extractStatusPollTimer) return;
+      state.actions.extractStatusPollTimer = setTimeout(function() {
+        state.actions.extractStatusPollTimer = null;
+        if (!state.actions.extractInFlight) return;
+        refreshActionListsAfterExtract().then(function() {
+          if (state.activeTab === 'actions' && !actionsScrolledAway()) renderActions();
+          else if (state.activeTab === 'actions') state.actions.stale = true;
+        }).catch(function() {
+          if (state.actions.extractInFlight) scheduleTodoExtractStatusPoll();
+        });
+      }, 3000);
+    }
+
+    function syncTodoExtractStatus() {
+      var st = state.actions.todoExtract || {};
+      if (st.status === 'running') {
+        state.actions.extractInFlight = true;
+        state.actions.extractStatus = 'running';
+        state.actions.extractMessage = t('act.extract.background');
+        scheduleTodoExtractStatusPoll();
+        return;
+      }
+      clearTodoExtractStatusPoll();
+      if (state.actions.extractInFlight && st.status !== 'running') state.actions.extractInFlight = false;
+      if (st.status === 'done' && st.summary) {
+        state.actions.extractStatus = 'done';
+        state.actions.extractFallback = !todoExtractionUsedLlm(st.summary);
+        state.actions.extractMessage = todoExtractionSummary(st.summary);
+      } else if (st.status === 'error') {
+        state.actions.extractStatus = 'error';
+        state.actions.extractMessage = st.error || t('act.extract.failedExisting');
+      }
+    }
+
     function refreshActionListsAfterExtract() {
       return Promise.all([
         apiGet('actions'),
         apiGet('frontier')
       ]).then(function(results) {
         state.actions.items = (results[0] && results[0].actions) || state.actions.items || [];
+        state.actions.todoExtract = results[0] && results[0].todoExtract;
+        syncTodoExtractStatus();
         state.actions.frontier = (results[1] && (results[1].frontier || results[1].actions)) || state.actions.frontier || [];
         state.actions.reviewItems = [];
         return null;
@@ -826,7 +871,9 @@
 
       if (search) {
         items = items.filter(function(a) {
-          return (a.title + ' ' + (a.description || '') + ' ' + (a.tags || []).join(' ') + ' ' + (a.project || '')).toLowerCase().indexOf(search) >= 0;
+          var chain = (a && a.metadata && a.metadata.todoChain) || {};
+          return (a.title + ' ' + (a.description || '') + ' ' + (a.tags || []).join(' ') + ' ' + (a.project || '') + ' ' +
+            (chain.completionSummary || '') + ' ' + (chain.latestStatus || '') + ' ' + (chain.nextStep || '')).toLowerCase().indexOf(search) >= 0;
         });
       }
       var metricItems = items.slice();
@@ -864,6 +911,16 @@
           if (map[i][0].test(s)) return s.replace(map[i][0], map[i][1]);
         }
         return s;
+      }
+      function actionChainStatusText(a) {
+        var chain = (a && a.metadata && a.metadata.todoChain) || null;
+        if (!chain || typeof chain !== 'object') return '';
+        var summary = String(chain.completionSummary || chain.latestStatus || chain.nextStep || '').trim();
+        if (!summary) return '';
+        summary = todoDisplayText(summary);
+        var state = String(chain.completionState || '').trim();
+        var prefix = state === 'completed' ? '✓ ' : (state === 'interrupted' ? '⏸ ' : '→ ');
+        return prefix + summary;
       }
       function todoDisplayText(text) {
         return String(text || '')
@@ -995,10 +1052,28 @@
       function isOpenAction(a) {
         return a && (a.status === 'active' || a.status === 'blocked' || a.status === 'pending');
       }
+      function isNoisyChainOpenAction(a) {
+        var chain = (a && a.metadata && a.metadata.todoChain) || null;
+        if (!isOpenAction(a) || !chain) return false;
+        var statusText = String(chain.completionSummary || '') + ' ' + String(chain.latestStatus || '');
+        var text = statusText + ' ' + String(a.description || '');
+        var statusHasNextStep = /(下一步|仍需|还需|需要继续|需要|待处理|待确认|待跟进|blocked|阻塞|失败|卡住|error|failed)/i.test(statusText);
+        if (chain.completionState === 'completed') return true;
+        if (/<collaboration_mode>|#\s*Plan Mode\b|#\s*Agent Mode\b/i.test(text)) return true;
+        if (/已(?:完成|提交并推送|创建|通过|合并|上传|重启|新建)|服务已重启|正常|无需后续|no action needed|completed/i.test(statusText) && !statusHasNextStep) return true;
+        return false;
+      }
+      function isLegacyGeneratedOpenAction(a) {
+        return isOpenAction(a) && a.createdBy === 'todo-extract' && !(a.metadata && a.metadata.todoChain);
+      }
       function splitDefaultOpenItems(list) {
-        var split = { focus: [], earlier: [], older: [] };
+        var split = { focus: [], earlier: [], older: [], legacy: [] };
         (list || []).forEach(function(a) {
           if (!isOpenAction(a)) return;
+          if (isLegacyGeneratedOpenAction(a) || isNoisyChainOpenAction(a)) {
+            split.legacy.push(a);
+            return;
+          }
           var age = actionAgeDays(a);
           if (age <= FOCUS_DAYS || (actionNeedsRecheck(a) && age <= STALE_DAYS)) split.focus.push(a);
           else if (age > STALE_DAYS) split.older.push(a);
@@ -1030,7 +1105,7 @@
         html += '<div class="action-priority-rail ' + priorityClass(a.priority) + '"></div>';
         html += '<div class="action-candidate-main">';
         html += '<div class="action-item-title">' + esc(compactActionTitle(a.title)) + '</div>';
-        var actionDesc = actionDescriptionText(a.description);
+        var actionDesc = actionChainStatusText(a) || actionDescriptionText(a.description);
         if (actionDesc) html += '<div class="action-item-desc">' + esc(truncate(actionDesc, 120)) + '</div>';
         if (actionNeedsRecheck(a)) html += '<div class="action-recheck-note">' + esc(t('act.recheck')) + '</div>';
         // STEP-16 calm card: source + relative time are hidden at rest and fade in
@@ -1120,12 +1195,13 @@
         // (statusFilter==='done')时则照常全列,不走折叠区。
         // STEP-12:cancelled(归档/被更新丢弃/被合并)也不进默认活动视图——否则
         // 合并/丢弃后卡片仍以「已取消」分组留在原处,看着像「没生效」。
-        if (defaultView) {
+        if (defaultView || (todoFilterActive && !search)) {
           var defaultSplit = splitDefaultOpenItems(items);
           html += renderTodoGroup(defaultSplit.focus);
           html += renderFoldedOpenSection(defaultSplit.earlier, t('act.section.earlier'), t('act.section.earlierLead'), 'earlierOpenExpanded', 'toggle-earlier-open');
           html += renderFoldedOpenSection(defaultSplit.older, t('act.section.older'), t('act.section.olderLead'), 'olderBacklogExpanded', 'toggle-older-backlog');
-          html += renderDoneTodaySection(items.filter(function(a) { return a.status === 'done'; }), frontierIds, renderActionCard);
+          html += renderFoldedOpenSection(defaultSplit.legacy, t('act.section.legacy'), t('act.section.legacyLead'), 'legacyBacklogExpanded', 'toggle-legacy-backlog');
+          if (defaultView) html += renderDoneTodaySection(items.filter(function(a) { return a.status === 'done'; }), frontierIds, renderActionCard);
         } else {
           if (statusFilter !== 'done') {
             html += renderTodoGroup(items.filter(function(a) { return a.status === 'pending' || a.status === 'blocked' || a.status === 'active'; }));

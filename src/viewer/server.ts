@@ -615,8 +615,47 @@ type ViewerKv = {
   delete(scope: string, key: string): Promise<void>;
 };
 
+const TODO_EXTRACT_STATUS_ID = "todo-extract:status";
+
+type TodoExtractStatus = {
+  status: "idle" | "running" | "done" | "error";
+  startedAt?: string;
+  finishedAt?: string;
+  summary?: Record<string, unknown>;
+  error?: string;
+};
+
 function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+async function readTodoExtractStatus(kv: ViewerKv): Promise<TodoExtractStatus> {
+  const item = await kv.get<{ cursor?: string }>(KV.scanCheckpoints, TODO_EXTRACT_STATUS_ID).catch(() => null);
+  try {
+    const parsed = item?.cursor ? JSON.parse(item.cursor) as TodoExtractStatus : null;
+    if (!parsed || typeof parsed !== "object" || !parsed.status) return { status: "idle" };
+    if (parsed.status !== "running") return parsed;
+    const startedAt = parsed.startedAt ? Date.parse(parsed.startedAt) : NaN;
+    const maxAgeMs = proxyTimeoutMsForPath("/agentmemory/todo-extract/generate") + 30_000;
+    if (!Number.isFinite(startedAt) || Date.now() - startedAt <= maxAgeMs) return parsed;
+    return {
+      status: "error",
+      startedAt: parsed.startedAt,
+      finishedAt: new Date().toISOString(),
+      error: "Previous todo organization did not finish; run it again.",
+    };
+  } catch {
+    return { status: "idle" };
+  }
+}
+
+async function writeTodoExtractStatus(kv: ViewerKv, status: TodoExtractStatus): Promise<void> {
+  await kv.set(KV.scanCheckpoints, TODO_EXTRACT_STATUS_ID, {
+    sourceId: TODO_EXTRACT_STATUS_ID,
+    cursor: JSON.stringify(status),
+    ...(status.status === "done" ? { lastSuccessAt: status.finishedAt } : {}),
+    ...(status.status === "error" ? { lastError: status.error || "todo extraction failed" } : {}),
+  });
 }
 
 function stableHash(input: string): string {
@@ -1345,11 +1384,12 @@ export function startViewerServer(
       const params = parseViewerQuery(qs);
       const limit = Math.max(1, Math.min(200, parseInt(params.limit || "50", 10) || 50));
       let actions = await (kv as ViewerKv).list<Action>(KV.actions);
+      const todoExtract = await readTodoExtractStatus(kv as ViewerKv);
       if (params.status) actions = actions.filter((action) => action.status === params.status);
       if (params.project) actions = actions.filter((action) => action.project === params.project);
       if (params.parentId) actions = actions.filter((action) => action.parentId === params.parentId);
       actions.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
-      json(res, 200, { success: true, actions: actions.slice(0, limit) }, req);
+      json(res, 200, { success: true, actions: actions.slice(0, limit), todoExtract }, req);
       return;
     }
 
@@ -1382,8 +1422,26 @@ export function startViewerServer(
     if (method === "POST" && pathname === "/agentmemory/todo-extract/generate") {
       const raw = await readBody(req);
       const body = raw ? JSON.parse(raw) as Record<string, unknown> : {};
-      const result = await generateTodosFromSessions(kv as ViewerKv, body);
-      json(res, 200, result, req);
+      const startedAt = new Date().toISOString();
+      await writeTodoExtractStatus(kv as ViewerKv, { status: "running", startedAt });
+      try {
+        const result = await generateTodosFromSessions(kv as ViewerKv, body);
+        await writeTodoExtractStatus(kv as ViewerKv, {
+          status: "done",
+          startedAt,
+          finishedAt: new Date().toISOString(),
+          summary: result as unknown as Record<string, unknown>,
+        });
+        json(res, 200, result, req);
+      } catch (err) {
+        await writeTodoExtractStatus(kv as ViewerKv, {
+          status: "error",
+          startedAt,
+          finishedAt: new Date().toISOString(),
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
       return;
     }
 
