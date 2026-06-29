@@ -115,6 +115,44 @@ test("HTTP API reports invalid JSON", async () => {
   }
 });
 
+test("HTTP source scan uses default paths with environment overrides", async () => {
+  const fixture = createFixture();
+  const previousCodex = process.env.AI_TODO_CODEX_HOME;
+  process.env.AI_TODO_CODEX_HOME = fixture.codex;
+  const db = openDatabase(getAppPaths(join(fixture.root, "home")));
+  const server = await startServer(db);
+
+  try {
+    const response = await postJson(server.url("/sources/scan"), { source: "codex" });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).scanned, 1);
+  } finally {
+    process.env.AI_TODO_CODEX_HOME = previousCodex;
+    await server.close();
+    db.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("HTTP browser ingest validates input", async () => {
+  const fixture = createFixture();
+  const db = openDatabase(getAppPaths(join(fixture.root, "home")));
+  const server = await startServer(db);
+
+  try {
+    assert.equal((await postJson(server.url("/browser/sessions"), {})).status, 400);
+    assert.equal((await postJson(server.url("/browser/sessions"), { messages: [] })).status, 400);
+    assert.equal((await postJson(server.url("/browser/sessions"), { messages: [{ text: "" }] })).status, 400);
+    assert.equal((await postJson(server.url("/browser/sessions"), { messages: [{ text: 1 }] })).status, 400);
+    assert.equal((await postJson(server.url("/browser/sessions"), { messages: [{ text: "x", createdAt: "nope" }] })).status, 400);
+    assert.equal((await postJson(server.url("/browser/sessions"), { messages: [{ role: "user", text: "Valid browser todo" }] })).status, 200);
+  } finally {
+    await server.close();
+    db.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 function createFixture() {
   const root = mkdtempSync(join(tmpdir(), "ai-todo-http-"));
   const codex = join(root, "codex");

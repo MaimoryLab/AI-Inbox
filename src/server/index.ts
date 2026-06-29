@@ -1,10 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { existsSync } from "node:fs";
-import type { SourceKind } from "../contracts.js";
 import type { Database } from "../db/index.js";
-import { ingestBrowserSession } from "../sources/browser.js";
-import { scanClaudeCodeSessions } from "../sources/claude-code.js";
-import { scanCodexSessions } from "../sources/codex.js";
+import { ingestBrowserSession, validateBrowserSessionInput } from "../sources/browser.js";
+import { scanSource as scanSourceSessions } from "../sources/scan.js";
 import { listSessionObservations, listSessions, listSources } from "../sources/service.js";
 import { getOrganizeRun, listTodos, organizeTodos, updateTodoStatus } from "../todos/service.js";
 
@@ -59,7 +56,12 @@ export function createAppServer(options: { db?: Database } = {}) {
       if (!db) return;
       const body = await readJson(req, res);
       if (!body) return;
-      writeJson(res, 200, ingestBrowserSession(db, body));
+      const validated = validateBrowserSessionInput(body);
+      if (!validated.ok) {
+        writeJson(res, 400, { error: validated.error });
+        return;
+      }
+      writeJson(res, 200, ingestBrowserSession(db, validated.input));
       return;
     }
 
@@ -136,22 +138,7 @@ async function readJson(req: IncomingMessage, res: ServerResponse<IncomingMessag
 }
 
 function scanSource(db: Database, body: any) {
-  if (!isSessionSource(body?.source)) {
-    return { status: 400, body: { error: "unsupported_source" } };
-  }
-  if (typeof body.path !== "string" || !body.path) {
-    return { status: 400, body: { error: "missing_path" } };
-  }
-  if (!existsSync(body.path)) {
-    return { status: 400, body: { error: "path_not_found" } };
-  }
-
-  const result = body.source === "codex"
-    ? scanCodexSessions(db, body.path)
-    : scanClaudeCodeSessions(db, body.path);
-  return { status: 200, body: result };
-}
-
-function isSessionSource(source: unknown): source is Extract<SourceKind, "codex" | "claude-code"> {
-  return source === "codex" || source === "claude-code";
+  const scan = scanSourceSessions(db, body?.source, body?.path);
+  if (!scan.ok) return { status: scan.status, body: { error: scan.error } };
+  return { status: 200, body: scan.result };
 }

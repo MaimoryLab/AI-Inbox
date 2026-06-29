@@ -64,9 +64,9 @@ test("CLI reports empty lists and invalid todo updates", async () => {
     assert.equal(unknownId.code, 1);
     assert.match(unknownId.stderr, /todo not found/);
 
-    const missingScanArgs = await capture(() => main(["scan"]));
-    assert.equal(missingScanArgs.code, 1);
-    assert.match(missingScanArgs.stderr, /usage: ai-todo scan/);
+    const missingScanSource = await capture(() => main(["scan"]));
+    assert.equal(missingScanSource.code, 1);
+    assert.match(missingScanSource.stderr, /usage: ai-todo scan/);
 
     const badSource = await capture(() => main(["scan", "browser", dir]));
     assert.equal(badSource.code, 1);
@@ -77,6 +77,49 @@ test("CLI reports empty lists and invalid todo updates", async () => {
     assert.match(missingPath.stderr, /path not found/);
   } finally {
     process.env.AI_TODO_HOME = previousHome;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI scan uses default source paths with environment overrides", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-cli-defaults-"));
+  const previousHome = process.env.AI_TODO_HOME;
+  const previousCodex = process.env.AI_TODO_CODEX_HOME;
+  const previousClaude = process.env.AI_TODO_CLAUDE_HOME;
+  process.env.AI_TODO_HOME = join(dir, "home");
+  process.env.AI_TODO_CODEX_HOME = join(dir, "codex-default");
+  process.env.AI_TODO_CLAUDE_HOME = join(dir, "claude-default");
+
+  try {
+    mkdirSync(process.env.AI_TODO_CODEX_HOME);
+    mkdirSync(process.env.AI_TODO_CLAUDE_HOME);
+    writeFileSync(join(process.env.AI_TODO_CODEX_HOME, "session.jsonl"), [
+      JSON.stringify({ role: "user", text: "Please scan default Codex path" })
+    ].join("\n"));
+    writeFileSync(join(process.env.AI_TODO_CLAUDE_HOME, "session.jsonl"), [
+      JSON.stringify({ role: "user", content: "Please scan default Claude path" })
+    ].join("\n"));
+    const explicit = join(dir, "explicit-codex");
+    mkdirSync(explicit);
+    writeFileSync(join(explicit, "session.jsonl"), [
+      JSON.stringify({ role: "user", text: "Please scan explicit Codex path" })
+    ].join("\n"));
+
+    const codex = await capture(() => main(["scan", "codex"]));
+    assert.equal(codex.code, 0);
+    assert.match(codex.stdout, /scanned: 1/);
+
+    const claude = await capture(() => main(["scan", "claude-code"]));
+    assert.equal(claude.code, 0);
+    assert.match(claude.stdout, /scanned: 1/);
+
+    const explicitScan = await capture(() => main(["scan", "codex", explicit]));
+    assert.equal(explicitScan.code, 0);
+    assert.match(explicitScan.stdout, /scanned: 1/);
+  } finally {
+    process.env.AI_TODO_HOME = previousHome;
+    process.env.AI_TODO_CODEX_HOME = previousCodex;
+    process.env.AI_TODO_CLAUDE_HOME = previousClaude;
     rmSync(dir, { recursive: true, force: true });
   }
 });

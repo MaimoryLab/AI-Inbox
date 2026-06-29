@@ -51,6 +51,29 @@ test("codex and claude scanners write one observation model and skip unchanged f
   }
 });
 
+test("checkpoint rescans when jsonl file mtime and size change", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-checkpoint-"));
+  try {
+    mkdirSync(join(dir, "codex"));
+    const file = join(dir, "codex", "session.jsonl");
+    writeFileSync(file, JSON.stringify({ role: "user", text: "Please scan once" }));
+
+    const db = openDatabase(getAppPaths(join(dir, "home")));
+    assert.equal(scanCodexSessions(db, join(dir, "codex")).observations, 1);
+    writeFileSync(file, [
+      JSON.stringify({ role: "user", text: "Please scan once" }),
+      JSON.stringify({ role: "user", text: "Please scan twice now" })
+    ].join("\n"));
+    assert.equal(scanCodexSessions(db, join(dir, "codex")).observations, 2);
+    const row = db.prepare("SELECT COUNT(*) as count FROM observations").get();
+    db.close();
+    assert.ok(row);
+    assert.equal(row.count, 2);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("browser sessions endpoint ingests observations", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-todo-browser-"));
   const db = openDatabase(getAppPaths(dir));

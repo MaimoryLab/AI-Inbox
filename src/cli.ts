@@ -1,11 +1,9 @@
 #!/usr/bin/env node
-import { existsSync, mkdirSync } from "node:fs";
-import type { SourceKind } from "./contracts.js";
+import { mkdirSync } from "node:fs";
 import type { Database } from "./db/index.js";
 import { openDatabase } from "./db/index.js";
 import { getAppPaths } from "./paths.js";
-import { scanClaudeCodeSessions } from "./sources/claude-code.js";
-import { scanCodexSessions } from "./sources/codex.js";
+import { scanSource } from "./sources/scan.js";
 import { listTodos, organizeTodos, updateTodoStatus } from "./todos/service.js";
 
 export async function main(argv = process.argv.slice(2)): Promise<number> {
@@ -76,24 +74,22 @@ function withDatabase(fn: (db: Database) => number): number {
 }
 
 function scan(db: Database, source: string | undefined, path: string | undefined): number {
-  if (!source || !path) {
-    console.error("usage: ai-todo scan <codex|claude-code> <path>");
+  if (!source) {
+    console.error("usage: ai-todo scan <codex|claude-code> [path]");
     return 1;
   }
 
-  if (!isSessionSource(source)) {
+  const scan = scanSource(db, source, path);
+  if (!scan.ok && scan.error === "unsupported_source") {
     console.error(`unsupported source: ${source}`);
     return 1;
   }
-
-  if (!existsSync(path)) {
-    console.error(`path not found: ${path}`);
+  if (!scan.ok) {
+    console.error(`path not found for ${source}`);
     return 1;
   }
 
-  const result = source === "codex"
-    ? scanCodexSessions(db, path)
-    : scanClaudeCodeSessions(db, path);
+  const result = scan.result;
   console.log(`source: ${result.source}`);
   console.log(`scanned: ${result.scanned}`);
   console.log(`observations: ${result.observations}`);
@@ -112,10 +108,6 @@ function updateStatus(db: Database, id: string | undefined, status: "done" | "ig
   }
   console.log(`${status}: ${id}`);
   return 0;
-}
-
-function isSessionSource(source: string): source is Extract<SourceKind, "codex" | "claude-code"> {
-  return source === "codex" || source === "claude-code";
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
