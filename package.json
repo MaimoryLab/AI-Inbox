@@ -1,0 +1,24 @@
+{
+  "name": "@maimorylab/ai-todo",
+  "version": "0.1.0",
+  "description": "Local-first todo extraction for AI agent sessions.",
+  "type": "module",
+  "bin": {
+    "ai-todo": "dist/cli.js"
+  },
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "start": "node dist/cli.js"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.1",
+    "typescript": "^5.9.3"
+  },
+  "license": "Apache-2.0"
+}
