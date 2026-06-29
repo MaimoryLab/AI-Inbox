@@ -4,7 +4,7 @@ import { extractRuleCandidate, stableId } from "../extract/rules.js";
 
 export function organizeTodos(db: Database): OrganizeResult {
   const started = Date.now();
-  const runId = stableId("organize", new Date(started).toISOString());
+  const runId = stableId("organize", new Date(started).toISOString(), Math.random().toString(36));
   const observations = db.prepare(
     "SELECT id, source, role, text FROM observations ORDER BY created_at, id"
   ).all() as Array<{ id: string; source: SourceKind; role: string; text: string }>;
@@ -82,4 +82,11 @@ export function listTodos(db: Database): TodoCard[] {
       evidenceIds: JSON.parse(String(record.evidenceIds))
     };
   });
+}
+
+export function updateTodoStatus(db: Database, id: string, status: "done" | "ignored"): boolean {
+  const result = db.prepare(
+    "UPDATE todos SET status = ?, updated_at = ? WHERE id = ?"
+  ).run(status, new Date().toISOString(), id);
+  return result.changes > 0;
 }
