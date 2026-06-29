@@ -1,16 +1,23 @@
 #!/usr/bin/env node
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
+import { createInterface } from "node:readline/promises";
+import { stdin as input, stdout as output } from "node:process";
 import type { Database } from "./db/index.js";
 import { openDatabase } from "./db/index.js";
 import { getAppPaths } from "./paths.js";
 import { runMcpStdio } from "./mcp/stdio.js";
 import { createAppServer } from "./server/index.js";
 import { scanSource } from "./sources/scan.js";
+import { defaultEnvConfig, ensureDefaultEnv, type EnvConfig } from "./config.js";
 import { getLlmDoctorStatus, organizeConfiguredTodos } from "./todos/configured.js";
 import { listTodos, updateTodoStatus } from "./todos/service.js";
 
 export async function main(argv = process.argv.slice(2)): Promise<number> {
   const command = argv[0] ?? "doctor";
+
+  if (command === "init") {
+    return init(argv.slice(1));
+  }
 
   if (command === "doctor") {
     const paths = getAppPaths();
@@ -19,6 +26,8 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     openDatabase(paths).close();
     const llm = getLlmDoctorStatus(paths);
     console.log(`config: ${paths.configDir}`);
+    console.log(`env: ${paths.envPath}`);
+    if (!existsSync(paths.envPath)) console.log("env status: missing; run ai-todo init");
     console.log(`data: ${paths.dataDir}`);
     console.log(`llm enabled: ${llm.enabled}`);
     console.log(`llm key: ${llm.keyConfigured ? "configured" : "missing"}`);
@@ -79,6 +88,76 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
 
   console.error(`unknown command: ${command}`);
   return 1;
+}
+
+async function init(argv: string[]): Promise<number> {
+  const paths = getAppPaths();
+  const args = parseOptions(argv);
+  let env: EnvConfig = {
+    AI_TODO_LLM_ENABLED: args["llm-enabled"],
+    AI_TODO_LLM_PROVIDER: args.provider,
+    AI_TODO_LLM_API_KEY: args["api-key"],
+    AI_TODO_LLM_MODEL: args.model,
+    AI_TODO_LLM_ENDPOINT: args.endpoint,
+    AI_TODO_CODEX_HOME: args["codex-home"],
+    AI_TODO_CLAUDE_HOME: args["claude-home"],
+    AI_TODO_ORGANIZE_SINCE_DAYS: args["since-days"],
+    AI_TODO_ORGANIZE_MAX_INTERACTIONS_PER_SESSION: args["max-interactions"]
+  };
+
+  if (process.stdin.isTTY && Object.keys(args).length === 0) {
+    env = await promptInit(env);
+  }
+
+  ensureDefaultEnv(paths, env);
+  mkdirSync(paths.dataDir, { recursive: true });
+  openDatabase(paths).close();
+  console.log(`env: ${paths.envPath}`);
+  console.log("initialized");
+  return 0;
+}
+
+async function promptInit(defaults: EnvConfig): Promise<EnvConfig> {
+  const rl = createInterface({ input, output });
+  const env = { ...defaultEnvConfig(), ...defaults };
+  try {
+    return {
+      AI_TODO_CODEX_HOME: await ask(rl, "Codex source path", env.AI_TODO_CODEX_HOME),
+      AI_TODO_CLAUDE_HOME: await ask(rl, "Claude Code source path", env.AI_TODO_CLAUDE_HOME),
+      AI_TODO_LLM_ENABLED: await ask(rl, "LLM enabled", env.AI_TODO_LLM_ENABLED),
+      AI_TODO_LLM_PROVIDER: await ask(rl, "LLM provider", env.AI_TODO_LLM_PROVIDER),
+      AI_TODO_LLM_MODEL: await ask(rl, "LLM model", env.AI_TODO_LLM_MODEL),
+      AI_TODO_LLM_ENDPOINT: await ask(rl, "LLM endpoint", env.AI_TODO_LLM_ENDPOINT),
+      AI_TODO_LLM_API_KEY: await ask(rl, "LLM API key", env.AI_TODO_LLM_API_KEY),
+      AI_TODO_ORGANIZE_SINCE_DAYS: await ask(rl, "Look-back days", env.AI_TODO_ORGANIZE_SINCE_DAYS),
+      AI_TODO_ORGANIZE_MAX_INTERACTIONS_PER_SESSION: await ask(rl, "Max interactions per session", env.AI_TODO_ORGANIZE_MAX_INTERACTIONS_PER_SESSION)
+    };
+  } finally {
+    rl.close();
+  }
+}
+
+async function ask(rl: ReturnType<typeof createInterface>, label: string, value: string | undefined): Promise<string | undefined> {
+  const suffix = value ? ` [${value}]` : "";
+  const answer = (await rl.question(`${label}${suffix}: `)).trim();
+  return answer || value;
+}
+
+function parseOptions(argv: string[]): Record<string, string> {
+  const args: Record<string, string> = {};
+  for (let index = 0; index < argv.length; index++) {
+    const token = argv[index];
+    if (!token.startsWith("--")) continue;
+    const key = token.slice(2);
+    const value = argv[index + 1];
+    if (!value || value.startsWith("--")) {
+      args[key] = "true";
+      continue;
+    }
+    args[key] = value;
+    index++;
+  }
+  return args;
 }
 
 async function withDatabase(fn: (db: Database) => number | Promise<number>): Promise<number> {

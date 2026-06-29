@@ -104,6 +104,7 @@ function renderTodos() {
 function renderSettingsPanel() {
   const settings = state.settings;
   const llm = settings?.llm ?? {};
+  const organize = settings?.organize ?? {};
   const apiKeyLabel = llm.apiKeyConfigured ? `Configured ${llm.apiKeyMasked}` : "Missing";
   $("#settings-panel").classList.toggle("open", state.settingsOpen);
   $("#settings-panel").setAttribute("aria-hidden", String(!state.settingsOpen));
@@ -174,6 +175,19 @@ function renderSettingsPanel() {
             Clear saved API key
           </label>
           <div class="settings-note">API key: ${escapeHtml(apiKeyLabel)}</div>
+        </div>
+      </section>
+      <section class="settings-section">
+        <div class="settings-section-title">Organize Scope</div>
+        <div class="settings-grid">
+          <label>
+            Look-back days
+            <input id="organize-since-days" type="number" min="1" max="3650" step="1" value="${escapeAttr(organize.sinceDays ?? 7)}">
+          </label>
+          <label>
+            Max interactions per session
+            <input id="organize-max-interactions" type="number" min="1" max="500" step="1" value="${escapeAttr(organize.maxInteractionsPerSession ?? 10)}">
+          </label>
         </div>
       </section>
       <button type="submit" class="primary">Save Settings</button>
@@ -295,7 +309,11 @@ async function saveSettings(event) {
         codex: pathValue("#codex-path"),
         "claude-code": pathValue("#claude-path")
       },
-      llm
+      llm,
+      organize: {
+        sinceDays: Number($("#organize-since-days").value),
+        maxInteractionsPerSession: Number($("#organize-max-interactions").value)
+      }
     }
   });
   await refresh();

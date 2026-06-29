@@ -1,10 +1,21 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { getAppPaths } from "../src/paths.js";
-import { loadConfig, loadSecrets, maskSecret, saveConfig, saveSecrets } from "../src/config.js";
+import {
+  ensureDefaultEnv,
+  formatEnvFile,
+  loadConfig,
+  loadEnvConfig,
+  loadSecrets,
+  maskSecret,
+  parseEnvFile,
+  saveConfig,
+  saveEnvConfig,
+  saveSecrets
+} from "../src/config.js";
 import { resolveSourcePath } from "../src/sources/scan.js";
 
 test("config reads defaults and persists source paths", () => {
@@ -24,6 +35,10 @@ test("config reads defaults and persists source paths", () => {
         thinkingDepth: "medium",
         pythonPath: "python3",
         timeoutMs: 120000
+      },
+      organize: {
+        sinceDays: 7,
+        maxInteractionsPerSession: 10
       }
     });
 
@@ -40,6 +55,10 @@ test("config reads defaults and persists source paths", () => {
         thinkingDepth: "high" as const,
         pythonPath: "/usr/bin/python3",
         timeoutMs: 30000
+      },
+      organize: {
+        sinceDays: 14,
+        maxInteractionsPerSession: 20
       }
     };
     saveConfig(paths, config);
@@ -73,6 +92,10 @@ test("config rejects invalid files and preserves source path precedence", () => 
         thinkingDepth: "medium",
         pythonPath: "python3",
         timeoutMs: 120000
+      },
+      organize: {
+        sinceDays: 7,
+        maxInteractionsPerSession: 10
       }
     });
     assert.equal(resolveSourcePath("codex", explicit, paths), explicit);
@@ -103,7 +126,8 @@ test("config rejects invalid llm settings", () => {
         endpoint: "https://example.test/v1",
         thinkingDepth: "medium",
         timeoutMs: 120000
-      }
+      },
+      organize: { sinceDays: 7, maxInteractionsPerSession: 10 }
     }), /config_invalid/);
     assert.throws(() => saveConfig(paths, {
       sources: { codex: {}, "claude-code": {} },
@@ -114,7 +138,8 @@ test("config rejects invalid llm settings", () => {
         endpoint: "https://example.test/v1",
         thinkingDepth: "medium",
         timeoutMs: 120000
-      }
+      },
+      organize: { sinceDays: 7, maxInteractionsPerSession: 10 }
     }), /config_invalid/);
     assert.throws(() => saveConfig(paths, {
       sources: { codex: {}, "claude-code": {} },
@@ -125,7 +150,8 @@ test("config rejects invalid llm settings", () => {
         endpoint: "",
         thinkingDepth: "medium",
         timeoutMs: 120000
-      }
+      },
+      organize: { sinceDays: 7, maxInteractionsPerSession: 10 }
     }), /config_invalid/);
     assert.throws(() => saveConfig(paths, {
       sources: { codex: {}, "claude-code": {} },
@@ -136,7 +162,8 @@ test("config rejects invalid llm settings", () => {
         endpoint: "https://example.test/v1",
         thinkingDepth: "medium",
         timeoutMs: 0
-      }
+      },
+      organize: { sinceDays: 7, maxInteractionsPerSession: 10 }
     }), /config_invalid/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -153,6 +180,44 @@ test("secrets persist separately and mask api keys", () => {
     assert.equal(maskSecret("dummy-llm-key-value"), "dum****alue");
     assert.ok(existsSync(paths.secretsPath));
     assert.match(readFileSync(paths.secretsPath, "utf8"), /dummy-llm-key-value/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("env config parses comments, quotes, defaults, and masks api keys", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-env-"));
+  try {
+    const paths = getAppPaths(dir);
+    saveEnvConfig(paths, parseEnvFile([
+      "# local config",
+      "AI_TODO_CODEX_HOME='/tmp/codex sessions'",
+      "AI_TODO_LLM_MODEL=custom/model # comment",
+      "AI_TODO_LLM_API_KEY=\"dummy-llm-key-value\"",
+      "AI_TODO_ORGANIZE_SINCE_DAYS=30"
+    ].join("\n")));
+    const env = loadEnvConfig(paths);
+    assert.equal(env.AI_TODO_CODEX_HOME, "/tmp/codex sessions");
+    assert.equal(env.AI_TODO_LLM_MODEL, "custom/model");
+    assert.equal(loadSecrets(paths).llmApiKey, "dummy-llm-key-value");
+    assert.match(formatEnvFile(env), /AI_TODO_LLM_API_KEY=dummy-llm-key-value/);
+    assert.throws(() => parseEnvFile("UNSUPPORTED=value"), /env_invalid/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("default env generation writes necessary values without empty api key", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-env-default-"));
+  try {
+    const paths = getAppPaths(dir);
+    ensureDefaultEnv(paths);
+    const text = readFileSync(paths.envPath, "utf8");
+    assert.match(text, /AI_TODO_LLM_MODEL=deepseek\/deepseek-v4-flash/);
+    assert.match(text, /AI_TODO_ORGANIZE_SINCE_DAYS=7/);
+    assert.doesNotMatch(text, /AI_TODO_LLM_API_KEY/);
+    assert.equal((readFileSync(paths.envPath).byteLength > 0), true);
+    assert.equal(statSync(paths.envPath).mode & 0o777, 0o600);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

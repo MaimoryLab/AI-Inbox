@@ -158,6 +158,7 @@ test("HTTP settings persist source paths and scan uses config path", async () =>
     assert.equal(initialBody.llm.model, "deepseek/deepseek-v4-flash");
     assert.equal(initialBody.llm.apiKeyConfigured, false);
     assert.equal(initialBody.llm.apiKeyMasked, "");
+    assert.equal(initialBody.organize.sinceDays, 7);
 
     const saved = await putJson(server.url("/settings"), {
       sources: { codex: { path: fixture.codex }, "claude-code": {} },
@@ -170,6 +171,10 @@ test("HTTP settings persist source paths and scan uses config path", async () =>
         pythonPath: "python3",
         timeoutMs: 30000,
         apiKey: "dummy-llm-key-value"
+      },
+      organize: {
+        sinceDays: 30,
+        maxInteractionsPerSession: 15
       }
     });
     assert.equal(saved.status, 200);
@@ -179,7 +184,8 @@ test("HTTP settings persist source paths and scan uses config path", async () =>
     assert.equal(savedBody.llm.apiKeyConfigured, true);
     assert.equal(savedBody.llm.apiKeyMasked, "dum****alue");
     assert.equal(savedBody.llm.apiKey, undefined);
-    assert.match(readFileSync(paths.secretsPath, "utf8"), /dummy-llm-key-value/);
+    assert.equal(savedBody.organize.sinceDays, 30);
+    assert.match(readFileSync(paths.envPath, "utf8"), /AI_TODO_LLM_API_KEY=dummy-llm-key-value/);
 
     const scan = await postJson(server.url("/sources/scan"), { source: "codex" });
     assert.equal(scan.status, 200);
@@ -239,10 +245,14 @@ test("HTTP settings clears llm api key when requested", async () => {
         pythonPath: "python3",
         timeoutMs: 120000,
         apiKey: "dummy-llm-key-value"
+      },
+      organize: {
+        sinceDays: 7,
+        maxInteractionsPerSession: 10
       }
     });
     assert.equal(withKey.status, 200);
-    assert.ok(existsSync(paths.secretsPath));
+    assert.ok(existsSync(paths.envPath));
 
     const cleared = await putJson(server.url("/settings"), {
       sources: { codex: {}, "claude-code": {} },
@@ -255,11 +265,15 @@ test("HTTP settings clears llm api key when requested", async () => {
         pythonPath: "python3",
         timeoutMs: 120000,
         apiKey: ""
+      },
+      organize: {
+        sinceDays: 7,
+        maxInteractionsPerSession: 10
       }
     });
     assert.equal(cleared.status, 200);
     assert.equal((await cleared.json()).llm.apiKeyConfigured, false);
-    assert.doesNotMatch(readFileSync(paths.secretsPath, "utf8"), /dummy-llm-key-value/);
+    assert.doesNotMatch(readFileSync(paths.envPath, "utf8"), /dummy-llm-key-value/);
   } finally {
     await server.close();
     db.close();
@@ -315,7 +329,7 @@ function createFixture() {
   const codex = join(root, "codex");
   mkdirSync(codex);
   writeFileSync(join(codex, "session.jsonl"), [
-    JSON.stringify({ role: "user", text: "Please add HTTP API routes", timestamp: "2026-01-01T00:00:00.000Z" })
+    JSON.stringify({ role: "user", text: "Please add HTTP API routes", timestamp: new Date().toISOString() })
   ].join("\n"));
   return { root, codex };
 }

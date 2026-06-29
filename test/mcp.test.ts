@@ -24,7 +24,7 @@ test("MCP tools scan, organize, list, update, and open", async () => {
     const sessions = join(dir, "codex");
     mkdirSync(sessions);
     writeFileSync(join(sessions, "session.jsonl"), [
-      JSON.stringify({ role: "user", text: "Please add MCP tool support" })
+      JSON.stringify({ role: "user", text: "Please add MCP tool support", timestamp: new Date().toISOString() })
     ].join("\n"));
 
     const paths = getAppPaths(join(dir, "home"));
@@ -59,7 +59,7 @@ test("MCP organize can use configured llm extraction", async () => {
     const db = openDatabase(paths);
     const sessions = join(dir, "codex");
     mkdirSync(sessions);
-    writeFileSync(join(sessions, "session.jsonl"), JSON.stringify({ role: "user", text: "Please add MCP LLM cards" }));
+    writeFileSync(join(sessions, "session.jsonl"), JSON.stringify({ role: "user", text: "Please add MCP LLM cards", timestamp: new Date().toISOString() }));
     await callMcpTool(db, "todo_scan", { source: "codex", path: sessions }, paths);
     const observationId = String((db.prepare("SELECT id FROM observations LIMIT 1").get() as any).id);
 

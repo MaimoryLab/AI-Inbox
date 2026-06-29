@@ -7,7 +7,7 @@ import { openDatabase } from "../src/db/index.js";
 import { getAppPaths } from "../src/paths.js";
 import { createAppServer } from "../src/server/index.js";
 import { ingestBrowserSession } from "../src/sources/browser.js";
-import { listTodos, organizeTodos } from "../src/todos/service.js";
+import { listTodos, organizeTodos, scopeObservations } from "../src/todos/service.js";
 
 test("rules-only organize creates evidence-backed todo cards without duplicates", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-todo-organize-"));
@@ -329,3 +329,23 @@ test("llm organize rejects ungrounded model output and falls back", async () => 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("organize scope filters old observations and keeps recent interactions per session", () => {
+  const now = Date.now();
+  const observations = [
+    observation("old", "s1", "user", "old", new Date(now - 10 * 86400000).toISOString()),
+    observation("u1", "s1", "user", "one", new Date(now - 3000).toISOString()),
+    observation("a1", "s1", "assistant", "reply one", new Date(now - 2500).toISOString()),
+    observation("u2", "s1", "user", "two", new Date(now - 2000).toISOString()),
+    observation("a2", "s1", "assistant", "reply two", new Date(now - 1500).toISOString()),
+    observation("u3", "s1", "user", "three", new Date(now - 1000).toISOString())
+  ];
+  assert.deepEqual(
+    scopeObservations(observations, { sinceDays: 7, maxInteractionsPerSession: 2 }).map((item) => item.id),
+    ["u2", "a2", "u3"]
+  );
+});
+
+function observation(id: string, sessionId: string, role: string, text: string, createdAt: string) {
+  return { id, sessionId, source: "browser" as const, role, text, createdAt };
+}

@@ -36,6 +36,10 @@ export type LlmExtractResult =
 export interface OrganizeOptions {
   enhancer?: TodoEnhancer["enhance"];
   llmExtractor?: (observations: ObservationForOrganize[]) => Promise<LlmExtractResult>;
+  scope?: {
+    sinceDays: number;
+    maxInteractionsPerSession: number;
+  };
 }
 
 export interface ObservationForOrganize {
@@ -52,9 +56,10 @@ type WriteResult = { created: number; updated: number; engine: "rules" | "rules+
 export async function organizeTodos(db: Database, options: OrganizeOptions = {}): Promise<OrganizeResult> {
   const started = Date.now();
   const runId = stableId("organize", new Date(started).toISOString(), Math.random().toString(36));
-  const observations = db.prepare(
+  const allObservations = db.prepare(
     "SELECT id, session_id as sessionId, source, role, text, created_at as createdAt FROM observations ORDER BY created_at, id"
   ).all() as unknown as ObservationForOrganize[];
+  const observations = scopeObservations(allObservations, options.scope);
   const sourceCounts = new Map<SourceKind, number>();
   for (const observation of observations) {
     sourceCounts.set(observation.source, (sourceCounts.get(observation.source) ?? 0) + 1);
@@ -82,6 +87,36 @@ export async function organizeTodos(db: Database, options: OrganizeOptions = {})
     "INSERT INTO organize_runs (id, result_json, created_at) VALUES (?, ?, ?)"
   ).run(runId, JSON.stringify(result), new Date().toISOString());
   return result;
+}
+
+export function scopeObservations(
+  observations: ObservationForOrganize[],
+  scope: OrganizeOptions["scope"]
+): ObservationForOrganize[] {
+  if (!scope) return observations;
+  const cutoffMs = Date.now() - scope.sinceDays * 24 * 60 * 60 * 1000;
+  const recent = observations.filter((observation) => Date.parse(observation.createdAt) >= cutoffMs);
+  const grouped = new Map<string, ObservationForOrganize[]>();
+  for (const observation of recent) {
+    const group = grouped.get(observation.sessionId) ?? [];
+    group.push(observation);
+    grouped.set(observation.sessionId, group);
+  }
+  const scoped: ObservationForOrganize[] = [];
+  for (const group of grouped.values()) {
+    scoped.push(...takeRecentInteractions(group, scope.maxInteractionsPerSession));
+  }
+  return scoped.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+}
+
+function takeRecentInteractions(observations: ObservationForOrganize[], maxInteractions: number): ObservationForOrganize[] {
+  const boundaries = observations
+    .map((observation, index) => ({ observation, index }))
+    .filter(({ observation }) => observation.role === "user")
+    .map(({ index }) => index);
+  if (boundaries.length <= maxInteractions) return observations;
+  const cutoff = boundaries[boundaries.length - maxInteractions];
+  return observations.slice(cutoff);
 }
 
 async function writeRuleTodos(

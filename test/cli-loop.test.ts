@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -14,7 +14,7 @@ test("CLI runs scan, organize, list, done, and ignore", async () => {
     const sessions = join(dir, "codex");
     mkdirSync(sessions);
     writeFileSync(join(sessions, "session.jsonl"), [
-      JSON.stringify({ role: "user", text: "Please add CLI list output", timestamp: "2026-01-01T00:00:00.000Z" })
+      JSON.stringify({ role: "user", text: "Please add CLI list output", timestamp: new Date().toISOString() })
     ].join("\n"));
 
     const scanned = await capture(() => main(["scan", "codex", sessions]));
@@ -42,6 +42,36 @@ test("CLI runs scan, organize, list, done, and ignore", async () => {
 
     assert.equal((await capture(() => main(["ignore", id]))).code, 0);
     assert.match((await capture(() => main(["list"]))).stdout, /\bignored\b/);
+  } finally {
+    process.env.AI_TODO_HOME = previousHome;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI init writes local env config and doctor reports it", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-cli-init-"));
+  const previousHome = process.env.AI_TODO_HOME;
+  process.env.AI_TODO_HOME = join(dir, "home");
+
+  try {
+    const init = await capture(() => main([
+      "init",
+      "--api-key", "dummy-llm-key-value",
+      "--model", "custom/model",
+      "--endpoint", "https://llm.example.test/v1",
+      "--codex-home", join(dir, "codex"),
+      "--claude-home", join(dir, "claude"),
+      "--since-days", "30",
+      "--max-interactions", "15"
+    ]));
+    assert.equal(init.code, 0);
+    const envText = readFileSync(join(process.env.AI_TODO_HOME, ".env"), "utf8");
+    assert.match(envText, /AI_TODO_LLM_MODEL=custom\/model/);
+    assert.match(envText, /AI_TODO_LLM_API_KEY=dummy-llm-key-value/);
+    const doctor = await capture(() => main(["doctor"]));
+    assert.equal(doctor.code, 0);
+    assert.match(doctor.stdout, /llm key: configured/);
+    assert.doesNotMatch(doctor.stdout, /dummy-llm-key-value/);
   } finally {
     process.env.AI_TODO_HOME = previousHome;
     rmSync(dir, { recursive: true, force: true });

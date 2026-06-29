@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 export interface AppPaths {
   configDir: string;
+  envPath: string;
   configPath: string;
   secretsPath: string;
   dataDir: string;
@@ -13,6 +14,7 @@ export function getAppPaths(baseDir = process.env.AI_TODO_HOME ?? join(homedir()
   const dataDir = join(baseDir, "data");
   return {
     configDir: baseDir,
+    envPath: join(baseDir, ".env"),
     configPath: join(baseDir, "config.json"),
     secretsPath: join(baseDir, "secrets.json"),
     dataDir,

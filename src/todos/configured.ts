@@ -15,6 +15,7 @@ export async function organizeConfiguredTodos(
   const secrets = loadSecrets(paths);
   return organizeTodos(db, {
     ...options,
+    scope: options.scope ?? config.organize,
     llmExtractor: options.llmExtractor ?? createLangExtractRunner(config.llm, secrets)
   });
 }

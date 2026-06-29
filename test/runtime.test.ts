@@ -17,6 +17,7 @@ test("doctor creates config, data, and database paths", async () => {
     const doctor = await capture(() => main(["doctor"]));
     assert.equal(doctor.code, 0);
     assert.match(doctor.stdout, /llm enabled: true/);
+    assert.match(doctor.stdout, /env status: missing; run ai-todo init/);
     assert.match(doctor.stdout, /llm key: missing/);
     assert.match(doctor.stdout, /llm model: deepseek\/deepseek-v4-flash/);
     assert.match(doctor.stdout, /llm endpoint: https:\/\/api\.novita\.ai\/openai\/v1/);
