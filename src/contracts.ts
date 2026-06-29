@@ -24,6 +24,7 @@ export const HTTP_ROUTES = [
   "GET /todos/:id/evidence",
   "POST /todos/:id/refresh",
   "GET /organize-runs/:id",
+  "GET /startup/scan",
   "GET /settings",
   "PUT /settings"
 ] as const;

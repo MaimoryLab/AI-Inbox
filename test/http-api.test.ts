@@ -5,7 +5,8 @@ import { join } from "node:path";
 import test from "node:test";
 import { openDatabase, type Database } from "../src/db/index.js";
 import { getAppPaths } from "../src/paths.js";
-import { createAppServer } from "../src/server/index.js";
+import { createAppServer, createStartupScanner } from "../src/server/index.js";
+import { scanSource } from "../src/sources/scan.js";
 
 test("HTTP API scans sources, lists sessions, observations, runs, and updates todos", async () => {
   const fixture = createFixture();
@@ -117,6 +118,41 @@ test("HTTP API reports invalid JSON", async () => {
     assert.equal((await badJson.json()).error, "invalid_json");
   } finally {
     await server.close();
+    db.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("HTTP startup scan status exposes automatic scan results", async () => {
+  const fixture = createFixture();
+  const previousCodex = process.env.AI_TODO_CODEX_HOME;
+  const previousClaude = process.env.AI_TODO_CLAUDE_HOME;
+  process.env.AI_TODO_CODEX_HOME = fixture.codex;
+  process.env.AI_TODO_CLAUDE_HOME = join(fixture.root, "missing-claude");
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const scanner = createStartupScanner(db, paths);
+  const server = createAppServer({ db, paths, startupScan: scanner.status });
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const url = (path: string) => `http://127.0.0.1:${address.port}${path}`;
+
+  try {
+    scanner.start();
+    await waitFor(async () => ((await (await getJson(url("/startup/scan"))).json()) as any).status !== "indexing");
+    const response = await getJson(url("/startup/scan"));
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.status, "failed");
+    assert.equal(body.sources.find((source: any) => source.source === "codex").result.scanned, 1);
+    assert.ok(body.warnings.includes("claude-code_path_not_found"));
+  } finally {
+    if (previousCodex === undefined) delete process.env.AI_TODO_CODEX_HOME;
+    else process.env.AI_TODO_CODEX_HOME = previousCodex;
+    if (previousClaude === undefined) delete process.env.AI_TODO_CLAUDE_HOME;
+    else process.env.AI_TODO_CLAUDE_HOME = previousClaude;
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     db.close();
     rmSync(fixture.root, { recursive: true, force: true });
   }
@@ -300,6 +336,38 @@ test("HTTP browser ingest validates input", async () => {
   }
 });
 
+test("HTTP organize returns structured failure", async () => {
+  const fixture = createFixture();
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const scan = scanSource(db, "codex", fixture.codex, paths);
+  assert.equal(scan.ok, true);
+  const server = createAppServer({
+    db,
+    paths,
+    organizeOptions: {
+      llmExtractor: async () => {
+        throw new Error("boom");
+      }
+    }
+  });
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${address.port}/todos/organize`, { method: "POST" });
+    const body = await response.json();
+    assert.equal(response.status, 500);
+    assert.equal(body.error, "organize_failed");
+    assert.deepEqual(body.warnings, ["organize_failed_fallback"]);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    db.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test("HTTP server serves the minimal UI assets", async () => {
   const fixture = createFixture();
   const db = openDatabase(getAppPaths(join(fixture.root, "home")));
@@ -368,4 +436,13 @@ function putJson(url: string, body: unknown) {
     method: "PUT",
     body: JSON.stringify(body)
   });
+}
+
+
+async function waitFor(predicate: () => Promise<boolean>) {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    if (await predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("timed out");
 }

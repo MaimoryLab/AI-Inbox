@@ -6,7 +6,7 @@ import type { Database } from "./db/index.js";
 import { openDatabase } from "./db/index.js";
 import { getAppPaths } from "./paths.js";
 import { runMcpStdio } from "./mcp/stdio.js";
-import { createAppServer } from "./server/index.js";
+import { createAppServer, createStartupScanner } from "./server/index.js";
 import { scanSource } from "./sources/scan.js";
 import { defaultEnvConfig, ensureDefaultEnv, type EnvConfig } from "./config.js";
 import { getLlmDoctorStatus, organizeConfiguredTodos } from "./todos/configured.js";
@@ -172,8 +172,10 @@ async function withDatabase(fn: (db: Database) => number | Promise<number>): Pro
 async function openUi(): Promise<number> {
   const paths = getAppPaths();
   const db = openDatabase(paths);
-  const server = createAppServer({ db, paths });
+  const startupScanner = createStartupScanner(db, paths);
+  const server = createAppServer({ db, paths, startupScan: startupScanner.status });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  startupScanner.start();
   const address = server.address();
   if (!address || typeof address === "string") return 1;
   console.log(`AI-Todo UI: http://127.0.0.1:${address.port}/`);

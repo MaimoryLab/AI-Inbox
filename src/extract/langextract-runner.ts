@@ -6,6 +6,8 @@ import type { LlmExtractResult, LlmTodoCandidate, ObservationForOrganize } from 
 
 const ADJACENT_SIDECAR = fileURLToPath(new URL("./todo-extract-langextract.py", import.meta.url));
 const SOURCE_TREE_SIDECAR = fileURLToPath(new URL("../../../src/extract/todo-extract-langextract.py", import.meta.url));
+const MAX_STDOUT_CHARS = 1_000_000;
+const MAX_STDERR_CHARS = 200_000;
 
 export function getDefaultLangExtractSidecarPath(): string {
   return existsSync(ADJACENT_SIDECAR) ? ADJACENT_SIDECAR : SOURCE_TREE_SIDECAR;
@@ -55,19 +57,33 @@ function runSidecar(config: AppConfig["llm"], apiKey: string, sidecarPath: strin
     });
     let stdout = "";
     let stderr = "";
-    const timer = setTimeout(() => {
+    let settled = false;
+    const fail = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       child.kill("SIGTERM");
-      reject(new Error("timeout"));
+      reject(error);
+    };
+    const timer = setTimeout(() => {
+      fail(new Error("timeout"));
     }, config.timeoutMs);
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => { stdout += chunk; });
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+      if (stdout.length > MAX_STDOUT_CHARS) fail(new Error("output"));
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+      if (stderr.length > MAX_STDERR_CHARS) fail(new Error("provider"));
+    });
     child.on("error", () => {
-      clearTimeout(timer);
-      reject(new Error("runtime"));
+      fail(new Error("runtime"));
     });
     child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
       if (code === 0) resolve(stdout);
       else reject(new Error(stderr || "provider"));

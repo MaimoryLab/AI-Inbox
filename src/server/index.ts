@@ -6,14 +6,55 @@ import { loadConfig, loadSecrets, parseSettingsUpdate, publicConfig, saveEnvConf
 import type { Database } from "../db/index.js";
 import { getAppPaths, type AppPaths } from "../paths.js";
 import { ingestBrowserSession, validateBrowserSessionInput } from "../sources/browser.js";
-import { scanSource as scanSourceSessions } from "../sources/scan.js";
+import { scanConfiguredSources, scanSource as scanSourceSessions, type ConfiguredScanSummary } from "../sources/scan.js";
 import { listSessionObservations, listSessions, listSources } from "../sources/service.js";
 import { organizeConfiguredTodos } from "../todos/configured.js";
 import { getOrganizeRun, listTodoEvidence, listTodos, type OrganizeOptions, updateTodoStatus } from "../todos/service.js";
 
 const PUBLIC_DIR = fileURLToPath(new URL("../../../public/", import.meta.url));
 
-export function createAppServer(options: { db?: Database; paths?: AppPaths; organizeOptions?: OrganizeOptions } = {}) {
+export type StartupScanStatus = {
+  status: "idle" | "indexing" | "ready" | "failed";
+  startedAt?: string;
+  finishedAt?: string;
+  sources: ConfiguredScanSummary["sources"];
+  warnings: string[];
+};
+
+export function createStartupScanner(db: Database, paths: AppPaths): { status: StartupScanStatus; start: () => void } {
+  const status: StartupScanStatus = { status: "idle", sources: [], warnings: [] };
+  let running = false;
+  return {
+    status,
+    start: () => {
+      if (running || status.status === "ready") return;
+      running = true;
+      status.status = "indexing";
+      status.startedAt = new Date().toISOString();
+      setImmediate(() => {
+        try {
+          const result = scanConfiguredSources(db, paths);
+          status.sources = result.sources;
+          status.warnings = result.warnings;
+          status.status = result.warnings.length > 0 ? "failed" : "ready";
+        } catch (error) {
+          status.warnings = [(error as Error).message || "startup_scan_failed"];
+          status.status = "failed";
+        } finally {
+          status.finishedAt = new Date().toISOString();
+          running = false;
+        }
+      });
+    }
+  };
+}
+
+export function createAppServer(options: {
+  db?: Database;
+  paths?: AppPaths;
+  organizeOptions?: OrganizeOptions;
+  startupScan?: StartupScanStatus;
+} = {}) {
   const paths = options.paths ?? getAppPaths();
   return createServer(async (req, res) => {
     const path = new URL(req.url ?? "/", "http://localhost").pathname;
@@ -24,6 +65,11 @@ export function createAppServer(options: { db?: Database; paths?: AppPaths; orga
 
     if (req.method === "GET" && path === "/healthz") {
       writeJson(res, 200, { ok: true });
+      return;
+    }
+
+    if (req.method === "GET" && path === "/startup/scan") {
+      writeJson(res, 200, options.startupScan ?? { status: "idle", sources: [], warnings: [] });
       return;
     }
 
@@ -104,7 +150,15 @@ export function createAppServer(options: { db?: Database; paths?: AppPaths; orga
     if (req.method === "POST" && path === "/todos/organize") {
       const db = requireDb(res, options.db);
       if (!db) return;
-      writeJson(res, 200, await organizeConfiguredTodos(db, paths, options.organizeOptions));
+      try {
+        writeJson(res, 200, await organizeConfiguredTodos(db, paths, options.organizeOptions));
+      } catch (error) {
+        writeJson(res, 500, {
+          error: "organize_failed",
+          warnings: ["organize_failed_fallback"],
+          message: (error as Error).message
+        });
+      }
       return;
     }
 

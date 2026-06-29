@@ -273,6 +273,88 @@ test("llm organize creates grounded cards and dedupes by model key", async () =>
   }
 });
 
+test("llm organize batches input and falls back per failed batch", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-organize-llm-batch-"));
+  try {
+    const db = openDatabase(getAppPaths(dir));
+    ingestBrowserSession(db, {
+      id: "browser-1",
+      messages: [
+        { role: "user", text: "Please add batched card one" },
+        { role: "user", text: "Please add batched card two" },
+        { role: "user", text: "Please add batched card three" }
+      ]
+    });
+    const ids = (db.prepare("SELECT id, text FROM observations ORDER BY created_at, id").all() as any[]);
+    let calls = 0;
+    const result = await organizeTodos(db, {
+      limits: { llmBatchSize: 2 },
+      llmExtractor: async (observations) => {
+        calls++;
+        if (calls === 2) return { ok: false, warning: "llm_timeout" };
+        const observation = observations.find((item) => item.role === "user")!;
+        return {
+          ok: true,
+        todos: [{
+            title: "LLM batched card one",
+            description: "Create the first batched card through LLM.",
+            confidence: 0.9,
+            sourceObservationId: observation.id,
+            quote: observation.text,
+            dedupeKey: "batched-card-one"
+          }]
+        };
+      }
+    });
+    const todos = listTodos(db);
+    db.close();
+
+    assert.equal(calls, 2);
+    assert.equal(result.engine, "rules+llm");
+    assert.deepEqual(result.warnings.sort(), ["llm_batch_failed", "llm_timeout"].sort());
+    assert.ok(todos.some((todo) => todo.title === "LLM batched card one"));
+    assert.ok(todos.some((todo) => todo.title !== "LLM batched card one"));
+    assert.equal(ids.length, 3);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("organize limits scoped observations before LLM extraction", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-organize-limits-"));
+  try {
+    const db = openDatabase(getAppPaths(dir));
+    ingestBrowserSession(db, {
+      id: "browser-1",
+      messages: [
+        { role: "user", text: `Please add ${"x".repeat(30)} one` },
+        { role: "user", text: "Please add limited block two" },
+        { role: "user", text: "Please add limited block three" }
+      ]
+    });
+    const result = await organizeTodos(db, {
+      limits: {
+        maxUserBlocks: 2,
+        maxTotalTextChars: 80,
+        maxBlockTextChars: 20,
+        llmBatchSize: 20
+      },
+      llmExtractor: async (observations) => {
+        assert.equal(observations.filter((item) => item.role === "user").length, 2);
+        assert.ok(observations.every((item) => item.text.length <= 20));
+        return { ok: true, todos: [] };
+      }
+    });
+    db.close();
+
+    assert.equal(result.engine, "rules");
+    assert.ok(result.warnings.includes("llm_input_truncated"));
+    assert.ok(result.warnings.includes("organize_scope_truncated"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("llm organize falls back to rules when extractor is unavailable", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-todo-organize-llm-fallback-"));
   try {

@@ -2,6 +2,7 @@ const state = {
   sources: [],
   sessions: [],
   todos: [],
+  startupScan: { status: "idle", sources: [], warnings: [] },
   settings: null,
   settingsOpen: false
 };
@@ -12,8 +13,6 @@ document.querySelectorAll(".tabs button").forEach((button) => {
   button.addEventListener("click", () => showView(button.dataset.view));
 });
 
-$("#scan-codex").addEventListener("click", () => scan("codex"));
-$("#scan-claude").addEventListener("click", () => scan("claude-code"));
 $("#organize").addEventListener("click", organize);
 $("#settings-gear").addEventListener("click", toggleSettings);
 $("#settings-panel").addEventListener("click", (event) => {
@@ -27,71 +26,114 @@ await refresh();
 
 async function refresh() {
   try {
-    const [sources, sessions, todos, settings] = await Promise.all([
+    const [sources, sessions, todos, settings, startupScan] = await Promise.all([
       api("/sources"),
       api("/sessions"),
       api("/todos"),
-      api("/settings")
+      api("/settings"),
+      api("/startup/scan")
     ]);
-    Object.assign(state, { sources, sessions, todos, settings });
+    Object.assign(state, { sources, sessions, todos, settings, startupScan });
     render();
-    setStatus("Ready");
+    setStatus(startupStatusText(startupScan));
   } catch (error) {
     setStatus(error.message);
   }
 }
 
 function render() {
+  renderStartupScan();
   renderSources();
   renderSessions();
   renderTodos();
   renderSettingsPanel();
 }
 
+function renderStartupScan() {
+  const scan = state.startupScan ?? { status: "idle", sources: [], warnings: [] };
+  const details = (scan.sources ?? []).map((source) => {
+    const result = source.result;
+    if (!result) return `${source.source}: ${source.warning ?? "not indexed"}`;
+    return `${source.source}: ${result.scanned} scanned, ${result.skipped} skipped`;
+  }).join(" / ");
+  $("#startup-scan").innerHTML = `
+    <article class="session-hero indexing-${escapeAttr(scan.status)}">
+      <div>
+        <div class="label">Local Index</div>
+        <div class="title">${escapeHtml(startupStatusText(scan))}</div>
+        <div class="meta">${escapeHtml(details || "Waiting for local startup scan.")}</div>
+      </div>
+      <span class="badge ${scan.status === "failed" ? "ignored" : "done"}">${escapeHtml(scan.status)}</span>
+    </article>
+  `;
+}
+
 function renderSources() {
   $("#source-grid").innerHTML = state.sources.map((source) => `
-    <article class="stat">
+    <article class="stat stat-card">
       <div class="label">${escapeHtml(source.source)}</div>
       <div class="value">${source.sessions}</div>
-      <div class="meta">${source.checkpoints} checkpoints</div>
+      <div class="sub">${source.checkpoints} checkpoints</div>
     </article>
   `).join("");
 }
 
 function renderSessions() {
-  $("#sessions").innerHTML = state.sessions.length ? state.sessions.map((session) => `
-    <article class="row">
-      <div class="row-head">
-        <div class="title">${escapeHtml(session.source)}</div>
-        <div class="meta">${formatDate(session.updatedAt)}</div>
+  $("#sessions").innerHTML = `
+    <section class="session-inbox">
+      <div class="session-inbox-head">
+        <div>
+          <div class="label">Sources</div>
+          <div class="title">Recent Sessions</div>
+        </div>
+        <span class="badge">${state.sessions.length} sessions</span>
       </div>
-      <div class="meta">${escapeHtml(session.path)}</div>
-    </article>
-  `).join("") : `<div class="empty">No sessions scanned yet.</div>`;
+      <div class="session-inbox-main">
+        ${state.sessions.length ? state.sessions.map((session) => `
+          <article class="session-row">
+            <div class="source-rail ${escapeAttr(session.source)}"></div>
+            <div>
+              <div class="row-head">
+                <div class="title">${escapeHtml(session.source)}</div>
+                <div class="meta">${formatDate(session.updatedAt)}</div>
+              </div>
+              <div class="meta">${escapeHtml(session.path)}</div>
+            </div>
+          </article>
+        `).join("") : `<div class="empty">No sessions indexed yet.</div>`}
+      </div>
+    </section>
+  `;
 }
 
 function renderTodos() {
-  $("#todo-list").innerHTML = state.todos.length ? state.todos.map((todo) => `
-    <article class="row todo-card">
-      <div class="priority-rail ${escapeHtml(todo.status)}"></div>
-      <div class="todo-main">
-        <div class="todo-title">${escapeHtml(todo.title)}</div>
-        <div class="todo-desc">${escapeHtml(todo.description)}</div>
-        <div class="todo-meta">
-          <span class="badge ${todo.status}">${todo.status}</span>
-          <span class="badge">${todo.evidenceIds.length} evidence</span>
-          <span class="meta">${formatDate(todo.updatedAt)}</span>
-        </div>
+  $("#todo-list").innerHTML = state.todos.length ? `
+    <section class="action-group">
+      <div class="action-card-list">
+        ${state.todos.map((todo) => `
+          <article class="row todo-card action-item-card action-candidate-card">
+            <div class="priority-rail action-priority-rail ${escapeHtml(todo.status)}"></div>
+            <div class="todo-main">
+              <div class="todo-title">${escapeHtml(todo.title)}</div>
+              <div class="todo-desc">${escapeHtml(todo.description)}</div>
+              <div class="todo-meta">
+                <span class="badge ${todo.status}">${todo.status}</span>
+                <span class="badge">${todo.evidenceIds.length} evidence</span>
+                <span class="meta">${formatDate(todo.updatedAt)}</span>
+              </div>
+            </div>
+            <div class="todo-actions">
+              <button class="evidence-link" type="button" data-evidence="${escapeHtml(todo.id)}">Evidence</button>
+              <span class="action-secondary">
+                <button class="btn-primary-sm" type="button" data-status="done" data-id="${escapeHtml(todo.id)}">Done</button>
+                <button class="btn-ghost-sm" type="button" data-status="ignored" data-id="${escapeHtml(todo.id)}">Ignore</button>
+              </span>
+            </div>
+          </article>
+        `).join("")}
       </div>
-      <div class="todo-actions">
-        <button class="evidence-link" type="button" data-evidence="${escapeHtml(todo.id)}">Evidence</button>
-        <span class="action-secondary">
-          <button class="btn-primary-sm" type="button" data-status="done" data-id="${escapeHtml(todo.id)}">Done</button>
-          <button class="btn-ghost-sm" type="button" data-status="ignored" data-id="${escapeHtml(todo.id)}">Ignore</button>
-        </span>
-      </div>
-    </article>
-  `).join("") : `<div class="empty">No todos. Scan sources, then organize.</div>`;
+    </section>
+  ` : `<div class="empty">No todos yet. Local sessions are indexed automatically, then Organize creates cards.</div>`;
 
   document.querySelectorAll("[data-status]").forEach((button) => {
     button.addEventListener("click", () => updateTodo(button.dataset.id, button.dataset.status));
@@ -99,6 +141,30 @@ function renderTodos() {
   document.querySelectorAll("[data-evidence]").forEach((button) => {
     button.addEventListener("click", () => jumpToTodoEvidence(button.dataset.evidence));
   });
+}
+
+function renderEvidenceList(evidence, targetObservationId) {
+  $("#evidence-list").innerHTML = `
+    <section class="session-inbox">
+      <div class="session-inbox-head">
+        <div>
+          <div class="label">Evidence</div>
+          <div class="title">Grounded Observations</div>
+        </div>
+      </div>
+      <div class="session-inbox-main">
+        ${evidence.map((item) => `
+          <article id="obs-anchor-${escapeAttr(item.observationId)}" class="session-row observation-card ${item.observationId === targetObservationId ? "obs-jump-highlight" : ""}">
+            <div class="source-rail browser"></div>
+            <div>
+              <div class="meta">${escapeHtml(item.observationId)}</div>
+              <div class="desc">${escapeHtml(item.text)}</div>
+            </div>
+          </article>
+        `).join("")}
+      </div>
+    </section>
+  `;
 }
 
 function renderSettingsPanel() {
@@ -195,17 +261,19 @@ function renderSettingsPanel() {
   `;
 }
 
-async function scan(source) {
-  setStatus(`Scanning ${source}...`);
-  await api("/sources/scan", { method: "POST", body: { source } });
-  await refresh();
-}
-
 async function organize() {
+  const button = $("#organize");
+  button.disabled = true;
   setStatus("Organizing todos...");
-  const result = await api("/todos/organize", { method: "POST", body: {} });
-  showOrganizeResult(result);
-  await refresh();
+  try {
+    const result = await api("/todos/organize", { method: "POST", body: {} });
+    showOrganizeResult(result);
+    await refresh();
+  } catch (error) {
+    setStatus(error.message);
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function updateTodo(id, status) {
@@ -245,34 +313,39 @@ async function resolveObservationSession(observationId) {
   return null;
 }
 
-function renderEvidenceList(evidence, targetObservationId) {
-  $("#evidence-list").innerHTML = evidence.map((item) => `
-    <article id="obs-anchor-${escapeAttr(item.observationId)}" class="row observation-card ${item.observationId === targetObservationId ? "obs-jump-highlight" : ""}">
-      <div class="meta">${escapeHtml(item.observationId)}</div>
-      <div class="desc">${escapeHtml(item.text)}</div>
-    </article>
-  `).join("");
-}
-
 function renderEvidenceSession(session, observations, targetObservationId) {
   $("#evidence-list").innerHTML = `
-    <article class="row">
-      <div class="row-head">
+    <article class="session-hero">
+      <div>
+        <div class="label">Evidence Source</div>
         <div class="title">${escapeHtml(session.source)}</div>
-        <div class="meta">${formatDate(session.updatedAt)}</div>
+        <div class="meta">${escapeHtml(session.path)}</div>
       </div>
-      <div class="meta">${escapeHtml(session.path)}</div>
+      <span class="badge">${formatDate(session.updatedAt)}</span>
     </article>
-    ${observations.map((observation) => `
-      <article id="obs-anchor-${escapeAttr(observation.id)}" class="row observation-card ${observation.id === targetObservationId ? "obs-jump-highlight" : ""}">
-        <div class="row-head">
-          <div class="title">${escapeHtml(observation.role)}</div>
-          <div class="meta">${formatDate(observation.createdAt)}</div>
+    <section class="session-inbox">
+      <div class="session-inbox-head">
+        <div>
+          <div class="label">Observation Trail</div>
+          <div class="title">${observations.length} observations</div>
         </div>
-        <div class="meta">${escapeHtml(observation.id)}</div>
-        <div class="desc">${escapeHtml(observation.text)}</div>
-      </article>
-    `).join("")}
+      </div>
+      <div class="session-inbox-main">
+        ${observations.map((observation) => `
+          <article id="obs-anchor-${escapeAttr(observation.id)}" class="session-row observation-card ${observation.id === targetObservationId ? "obs-jump-highlight" : ""}">
+            <div class="source-rail ${escapeAttr(observation.role)}"></div>
+            <div>
+              <div class="row-head">
+                <div class="title">${escapeHtml(observation.role)}</div>
+                <div class="meta">${formatDate(observation.createdAt)}</div>
+              </div>
+              <div class="meta">${escapeHtml(observation.id)}</div>
+              <div class="desc">${escapeHtml(observation.text)}</div>
+            </div>
+          </article>
+        `).join("")}
+      </div>
+    </section>
   `;
 }
 
@@ -347,7 +420,7 @@ function showOrganizeResult(result) {
     ["Warnings", result.warnings.join(", ") || "none"],
     ["Duration", `${result.durationMs}ms`]
   ].map(([label, value]) => `
-    <div class="stat">
+    <div class="stat stat-card">
       <div class="label">${label}</div>
       <div class="value">${escapeHtml(String(value))}</div>
     </div>
@@ -380,6 +453,13 @@ async function api(path, options = {}) {
 
 function setStatus(message) {
   $("#status").textContent = message;
+}
+
+function startupStatusText(scan) {
+  if (!scan || scan.status === "idle") return "Ready";
+  if (scan.status === "indexing") return "Indexing local sessions...";
+  if (scan.status === "failed") return "Indexing finished with warnings";
+  return "Ready";
 }
 
 function formatDate(value) {

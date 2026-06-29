@@ -7,19 +7,21 @@
     <link rel="stylesheet" href="/app.css">
   </head>
   <body>
-    <nav class="tabs" aria-label="AI-Todo views">
-      <button class="active" data-view="dashboard" aria-current="page">
-        <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h7v7H4zM13 4h7v5h-7zM13 12h7v8h-7zM4 14h7v6H4z"/></svg></span>
-        <span>Overview</span>
-      </button>
-      <button data-view="todos">
-        <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
-        <span>To-Do</span>
-      </button>
-      <button data-view="evidence">
-        <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h10M7 13h6"/></svg></span>
-        <span>Evidence</span>
-      </button>
+    <nav class="tabs tab-bar" aria-label="AI-Todo views">
+      <div class="tab-main">
+        <button class="active" data-view="dashboard" aria-current="page">
+          <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h7v7H4zM13 4h7v5h-7zM13 12h7v8h-7zM4 14h7v6H4z"/></svg></span>
+          <span>Overview</span>
+        </button>
+        <button data-view="todos">
+          <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
+          <span>To-Do</span>
+        </button>
+        <button data-view="evidence">
+          <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h10M7 13h6"/></svg></span>
+          <span>Evidence</span>
+        </button>
+      </div>
     </nav>
 
     <main class="shell">
@@ -29,14 +31,13 @@
           <p id="status">Loading local workspace...</p>
         </div>
         <div class="actions">
-          <button id="scan-codex" type="button">Scan Codex</button>
-          <button id="scan-claude" type="button">Scan Claude</button>
           <button id="organize" type="button" class="primary">Organize</button>
         </div>
       </header>
 
       <section id="dashboard" class="view active" aria-labelledby="dashboard-title">
         <h2 id="dashboard-title">Source Dashboard</h2>
+        <div id="startup-scan" class="startup-scan"></div>
         <div id="source-grid" class="stats-grid"></div>
         <h3>Sessions</h3>
         <div id="sessions" class="list"></div>
