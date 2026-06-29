@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { Database } from "../db/index.js";
 import { ingestBrowserSession } from "../sources/browser.js";
+import { listTodos, organizeTodos } from "../todos/service.js";
 
 export function createAppServer(options: { db?: Database } = {}) {
   return createServer(async (req, res) => {
@@ -16,6 +17,24 @@ export function createAppServer(options: { db?: Database } = {}) {
       }
       const body = await readJson(req);
       writeJson(res, 200, ingestBrowserSession(options.db, body));
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/todos/organize") {
+      if (!options.db) {
+        writeJson(res, 503, { error: "database_unavailable" });
+        return;
+      }
+      writeJson(res, 200, organizeTodos(options.db));
+      return;
+    }
+
+    if (req.method === "GET" && req.url === "/todos") {
+      if (!options.db) {
+        writeJson(res, 503, { error: "database_unavailable" });
+        return;
+      }
+      writeJson(res, 200, listTodos(options.db));
       return;
     }
 

@@ -39,5 +39,26 @@ export function migrate(db: Database): void {
       size INTEGER NOT NULL,
       PRIMARY KEY (source, path)
     );
+
+    CREATE TABLE IF NOT EXISTS todos (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL UNIQUE,
+      description TEXT NOT NULL,
+      status TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS evidence (
+      id TEXT PRIMARY KEY,
+      todo_id TEXT NOT NULL,
+      observation_id TEXT NOT NULL,
+      text TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS organize_runs (
+      id TEXT PRIMARY KEY,
+      result_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
   `);
 }
