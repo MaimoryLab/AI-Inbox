@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import type { Database } from "./db/index.js";
 import { openDatabase } from "./db/index.js";
 import { getAppPaths } from "./paths.js";
+import { runMcpStdio } from "./mcp/stdio.js";
 import { scanSource } from "./sources/scan.js";
 import { listTodos, organizeTodos, updateTodoStatus } from "./todos/service.js";
 
@@ -57,6 +58,11 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
 
   if (command === "open") {
     console.log("ai-todo viewer is not implemented yet");
+    return 0;
+  }
+
+  if (command === "mcp") {
+    await runMcpStdio();
     return 0;
   }
 
