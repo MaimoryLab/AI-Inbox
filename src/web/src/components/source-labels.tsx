@@ -18,13 +18,6 @@ export function SourceIcon({ source }: { source?: SourceKind }) {
   return <Code2 className={className} aria-hidden="true" />;
 }
 
-export function sourceRailClass(source?: SourceKind): string {
-  if (source === "codex") return "ledger-rail ledger-rail-codex";
-  if (source === "claude-code") return "ledger-rail ledger-rail-claude";
-  if (source === "browser") return "ledger-rail ledger-rail-browser";
-  return "ledger-rail ledger-rail-missing";
-}
-
 export function originLabel(todo: TodoCard, locale: Locale): string {
   const text = textFor(locale);
   if (!todo.origin) return text.sourceUnavailable;
@@ -52,13 +45,25 @@ export function sourceCount(sources: SourceSummary[], filter: SourceFilter): num
 }
 
 export function sessionProjectLabel(session: SessionRecord, locale: Locale): string {
-  if (session.source === "browser") return session.path === "browser" ? textFor(locale).browserSessions : readablePathSegment(session.path, locale);
+  if (session.source === "browser") {
+    return session.path === "browser" ? textFor(locale).browserSessions : (readablePathSegment(session.path) ?? textFor(locale).browserSessions);
+  }
   const parts = session.path.split("/").filter(Boolean);
-  if (session.source === "claude-code") return readablePathSegment(parts.at(-2) ?? parts.at(-1), locale);
-  return readablePathSegment(parts.at(-3) ?? parts.at(-2) ?? parts.at(-1), locale);
+  if (session.source === "claude-code") return readablePathSegment(parts.at(-2) ?? parts.at(-1)) ?? sourceLabel(session.source, locale);
+  return readablePathSegment(parts.at(-3) ?? parts.at(-2) ?? parts.at(-1)) ?? sourceLabel(session.source, locale);
 }
 
-function readablePathSegment(value: string | undefined, locale: Locale): string {
-  if (!value) return textFor(locale).temporarySession;
-  return value.replace(/\.jsonl$/u, "").replace(/^-+|-+$/gu, "").replace(/[-_]+/gu, " ") || textFor(locale).temporarySession;
+function readablePathSegment(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const segment = value.replace(/\.jsonl$/u, "").replace(/^-+|-+$/gu, "");
+  const marker = "AI-TodoProject";
+  const markerIndex = segment.indexOf(marker);
+  if (markerIndex >= 0) {
+    const suffix = segment.slice(markerIndex + marker.length).replace(/^-+/u, "");
+    return suffix || marker;
+  }
+  if (!segment || /^\d+$/u.test(segment) || /^(Users|tmp|var|private|Volumes)(?:[-_]|$)/u.test(segment)) {
+    return undefined;
+  }
+  return segment.replace(/[-_]+/gu, " ") || undefined;
 }

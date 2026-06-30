@@ -558,6 +558,126 @@ test("GET /todos falls back to evidence when todo metadata has no source observa
   }
 });
 
+test("GET /todos shortens encoded local project paths in origin titles", async () => {
+  const fixture = createFixture();
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const server = await startServer(db, paths);
+  const encodedPath = join(fixture.root, "-Users-ppio-Documents-AI-TodoProject-ExampleApp", "session.jsonl");
+  db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES (?, ?, ?, ?)").run(
+    "encoded-session",
+    "codex",
+    encodedPath,
+    "2026-06-30T00:00:00.000Z"
+  );
+  db.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
+    "encoded-observation",
+    "encoded-session",
+    "codex",
+    "user",
+    "Please keep cards readable",
+    "2026-06-30T00:00:00.000Z"
+  );
+  db.prepare(
+    "INSERT INTO todos (id, title, description, status, metadata_json, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
+  ).run(
+    "encoded-todo",
+    "Keep cards readable",
+    "Cards should show a project name instead of a local path.",
+    "todo",
+    JSON.stringify({ sourceObservationId: "encoded-observation" }),
+    "2026-06-30T00:00:00.000Z"
+  );
+
+  try {
+    const response = await getJson(server.url("/todos"));
+    assert.equal(response.status, 200);
+    const todo = (await response.json())[0];
+    assert.equal(todo.origin.projectTitle, "ExampleApp");
+    assert.equal(todo.origin.projectPath, encodedPath);
+  } finally {
+    await server.close();
+    db.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("GET /todos omits meaningless date and local path fragments from origin project titles", async () => {
+  const fixture = createFixture();
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const server = await startServer(db, paths);
+  const codexDatePath = "/Users/ppio/.codex/sessions/2026/06/15/rollout-2026-06-15T00-00-00.jsonl";
+  const claudeLocalPath = "/Users/ppio/.claude/projects/-Users-ppio-Documents-------/6671.jsonl";
+  db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES (?, ?, ?, ?)").run(
+    "codex-date-session",
+    "codex",
+    codexDatePath,
+    "2026-06-30T00:00:00.000Z"
+  );
+  db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES (?, ?, ?, ?)").run(
+    "claude-local-session",
+    "claude-code",
+    claudeLocalPath,
+    "2026-06-30T00:00:00.000Z"
+  );
+  db.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
+    "codex-date-observation",
+    "codex-date-session",
+    "codex",
+    "user",
+    "Please hide date folders",
+    "2026-06-30T00:00:00.000Z"
+  );
+  db.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
+    "claude-local-observation",
+    "claude-local-session",
+    "claude-code",
+    "user",
+    "Please hide local path fragments",
+    "2026-06-30T00:00:00.000Z"
+  );
+  db.prepare(
+    "INSERT INTO todos (id, title, description, status, metadata_json, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
+  ).run(
+    "codex-date-todo",
+    "Hide date folders",
+    "Cards should not show Codex date folders as project names.",
+    "todo",
+    JSON.stringify({ sourceObservationId: "codex-date-observation" }),
+    "2026-06-30T00:00:00.000Z"
+  );
+  db.prepare(
+    "INSERT INTO todos (id, title, description, status, metadata_json, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
+  ).run(
+    "claude-local-todo",
+    "Hide local path fragments",
+    "Cards should not show encoded home paths as project names.",
+    "todo",
+    JSON.stringify({ sourceObservationId: "claude-local-observation" }),
+    "2026-06-30T00:00:01.000Z"
+  );
+
+  try {
+    const response = await getJson(server.url("/todos"));
+    assert.equal(response.status, 200);
+    const body = await response.json() as Array<{ id: string; origin: { projectTitle?: string; projectPath: string } }>;
+    const todos = new Map(body.map((todo) => [todo.id, todo]));
+    const codexTodo = todos.get("codex-date-todo");
+    const claudeTodo = todos.get("claude-local-todo");
+    assert.ok(codexTodo);
+    assert.ok(claudeTodo);
+    assert.equal(codexTodo.origin.projectTitle, undefined);
+    assert.equal(codexTodo.origin.projectPath, codexDatePath);
+    assert.equal(claudeTodo.origin.projectTitle, undefined);
+    assert.equal(claudeTodo.origin.projectPath, claudeLocalPath);
+  } finally {
+    await server.close();
+    db.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test("HTTP server serves the React UI assets", async () => {
   const fixture = createFixture();
   const db = openDatabase(getAppPaths(join(fixture.root, "home")));

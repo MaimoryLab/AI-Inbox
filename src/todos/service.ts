@@ -661,7 +661,22 @@ function todoOrigin(db: Database, observationId: string | undefined): TodoOrigin
 function projectTitleFromPath(path: string): string | undefined {
   const fileParent = path.endsWith(".jsonl") ? dirname(path) : path;
   const title = basename(fileParent).trim();
-  return title && title !== "." ? title : undefined;
+  if (!title || title === ".") return undefined;
+  return readableProjectTitle(title);
+}
+
+function readableProjectTitle(title: string): string | undefined {
+  const marker = "AI-TodoProject";
+  const markerIndex = title.indexOf(marker);
+  if (markerIndex >= 0) {
+    const suffix = title.slice(markerIndex + marker.length).replace(/^-+/u, "");
+    return suffix || marker;
+  }
+  const cleaned = title.replace(/^-+|-+$/gu, "");
+  if (!cleaned || /^\d+$/u.test(cleaned) || /^(Users|tmp|var|private|Volumes)(?:[-_]|$)/u.test(cleaned)) {
+    return undefined;
+  }
+  return title;
 }
 
 function truncateOriginText(value: string): string {
