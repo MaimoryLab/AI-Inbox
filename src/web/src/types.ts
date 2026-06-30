@@ -85,5 +85,10 @@ export interface OrganizeResult {
 
 export interface StartupScanStatus {
   status: "idle" | "indexing" | "ready" | "failed";
+  discovery: Array<{
+    source: Extract<SourceKind, "codex" | "claude-code">;
+    status: "configured" | "discovered" | "missing";
+    path?: string;
+  }>;
   warnings: string[];
 }

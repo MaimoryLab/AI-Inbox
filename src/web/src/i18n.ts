@@ -1,0 +1,261 @@
+import type { SourceKind } from "./types.js";
+
+export type Locale = "zh-CN" | "en-US";
+
+const storageKey = "ai-todo.locale";
+const defaultLocale: Locale = "zh-CN";
+
+export function readLocale(): Locale {
+  if (typeof window === "undefined") return defaultLocale;
+  return window.localStorage.getItem(storageKey) === "en-US" ? "en-US" : defaultLocale;
+}
+
+export function writeLocale(locale: Locale): void {
+  if (typeof document !== "undefined") document.documentElement.lang = locale;
+  if (typeof window !== "undefined") window.localStorage.setItem(storageKey, locale);
+}
+
+export const appText = {
+  "zh-CN": {
+    appName: "AI Todo",
+    ready: "就绪",
+    actionInbox: "行动收件箱",
+    appSubtitle: "审查最近 AI 会话中的任务意图、Agent 进展和来源链路。",
+    refresh: "刷新",
+    organize: "整理",
+    organizeAll: "整理最近全部会话",
+    primaryNav: "主导航",
+    openView: (name: string) => `打开${name}`,
+    todos: "待办",
+    sources: "来源",
+    settings: "设置",
+    status: "状态",
+    review: "概览",
+    open: "打开",
+    done: "完成",
+    noCards: "还没有卡片",
+    noCardsDescription: "把最近会话整理为聚焦的行动收件箱。",
+    organizeEmpty: "整理空收件箱",
+    openLoopsTitle: "先看未闭环事项",
+    openLoopsDescription: "按 Agent 进展分组，让下一轮审查从风险最高的工作开始。",
+    openCount: (count: number) => `${count} 个打开`,
+    blocked: "受阻",
+    blockedDescription: "需要决策、凭据或缺失的来源。",
+    inProgress: "进行中",
+    inProgressDescription: "Agent 已开始处理；审查已经发生的变更。",
+    needsReview: "待审查",
+    needsReviewDescription: "已准备好人工分流或跟进。",
+    showMore: (count: number) => `再显示 ${count} 个`,
+    completedIgnored: "已完成 / 已忽略",
+    agent: "Agent",
+    ignored: "已忽略",
+    complete: "完成",
+    sourceUnavailable: "来源不可用",
+    temporarySession: "临时会话",
+    browserSessions: "浏览器会话",
+    openSourceSession: (title: string) => `打开 ${title} 的来源会话`,
+    completeTodo: (title: string) => `完成 ${title}`,
+    openTodoSources: (title: string) => `打开 ${title} 的来源`,
+    ignoreTodo: (title: string) => `忽略 ${title}`,
+    searchSources: "搜索来源",
+    sourceFilter: "来源筛选",
+    all: "全部",
+    connectSource: "连接或扫描一个来源以审查会话。",
+    noSessionsMatch: "没有会话匹配当前搜索。",
+    sessionCount: (count: number) => `${count} 个会话`,
+    messageCount: (count: number) => `${count} 条消息`,
+    moreSessions: (count: number) => `再显示 ${count} 个会话`,
+    loadMore: "加载更多",
+    selectSource: "选择一个来源以加载对话。",
+    message: "消息",
+    showAllMessages: "显示全部消息",
+    noSourceSessions: "还没有来源会话。",
+    language: "界面语言",
+    languageDescription: "语言偏好只保存在当前浏览器，不写入产品运行配置。",
+    chinese: "中文",
+    english: "English",
+    sourceSettings: "来源",
+    sourceSettingsDescription: "选择 AI-Todo 扫描本地 Agent 会话的位置。",
+    codexSource: "Codex 来源",
+    claudeSource: "Claude 来源",
+    discovery: "路径发现",
+    discoveryConfigured: "用户已配置",
+    discoveryDiscovered: "已自动发现",
+    discoveryMissing: "未找到",
+    extraction: "抽取",
+    extractionDescription: "控制整理成卡片的最近会话范围。",
+    lookbackDays: "回看天数",
+    maxSessions: "最大会话数",
+    apiKey: "API key",
+    configured: "已配置",
+    pasteApiKey: "粘贴 API key",
+    clearSavedApiKey: "清除已保存 API key",
+    saveSettings: "保存设置",
+    settingsSaved: "设置已保存。",
+    advancedDiagnostics: "高级诊断",
+    model: "模型",
+    endpoint: "Endpoint",
+    startupScan: "启动扫描",
+    needsSetup: "需要配置",
+    organizing: "正在整理最近会话...",
+    noLinkedSource: "这张卡片还没有关联来源。",
+    linkedSourceMissing: "关联的来源会话已不可用。",
+    sourceScanFailed: "来源扫描失败：",
+    sourceScanFinished: "来源扫描完成。",
+    organized: (created: number, updated: number) => `已整理 ${created} 张新卡片，更新 ${updated} 张卡片。`,
+    reviewSessions: "部分会话需要审查："
+  },
+  "en-US": {
+    appName: "AI Todo",
+    ready: "Ready",
+    actionInbox: "Action inbox",
+    appSubtitle: "Review task intent, agent progress, and source trails from recent AI sessions.",
+    refresh: "Refresh",
+    organize: "Organize",
+    organizeAll: "Organize all recent sessions",
+    primaryNav: "Primary",
+    openView: (name: string) => `Open ${name}`,
+    todos: "To-Do",
+    sources: "Sources",
+    settings: "Settings",
+    status: "Status",
+    review: "Review",
+    open: "Open",
+    done: "Done",
+    noCards: "No cards yet",
+    noCardsDescription: "Organize recent sessions into a focused action inbox.",
+    organizeEmpty: "Organize empty inbox",
+    openLoopsTitle: "Open loops first",
+    openLoopsDescription: "Grouped by agent progress so the next review pass starts with the riskiest work.",
+    openCount: (count: number) => `${count} open`,
+    blocked: "Blocked",
+    blockedDescription: "Needs a decision, credential, or missing source.",
+    inProgress: "In progress",
+    inProgressDescription: "Agent has started work; review what changed.",
+    needsReview: "Needs review",
+    needsReviewDescription: "Ready for human triage or follow-up.",
+    showMore: (count: number) => `Show ${count} more`,
+    completedIgnored: "Completed / ignored",
+    agent: "Agent",
+    ignored: "Ignored",
+    complete: "Complete",
+    sourceUnavailable: "Source unavailable",
+    temporarySession: "Temporary session",
+    browserSessions: "Browser sessions",
+    openSourceSession: (title: string) => `Open source session for ${title}`,
+    completeTodo: (title: string) => `Complete ${title}`,
+    openTodoSources: (title: string) => `Open sources for ${title}`,
+    ignoreTodo: (title: string) => `Ignore ${title}`,
+    searchSources: "Search sources",
+    sourceFilter: "Source filter",
+    all: "All",
+    connectSource: "Connect or scan a source to review sessions.",
+    noSessionsMatch: "No sessions match this search.",
+    sessionCount: (count: number) => `${count} sessions`,
+    messageCount: (count: number) => `${count} messages`,
+    moreSessions: (count: number) => `Show ${count} more sessions`,
+    loadMore: "Load more",
+    selectSource: "Select a source to load its conversation.",
+    message: "Message",
+    showAllMessages: "Show all messages",
+    noSourceSessions: "No source sessions yet.",
+    language: "Interface language",
+    languageDescription: "Language preference is saved only in this browser, not in runtime settings.",
+    chinese: "中文",
+    english: "English",
+    sourceSettings: "Sources",
+    sourceSettingsDescription: "Choose where AI-Todo scans local agent sessions.",
+    codexSource: "Codex source",
+    claudeSource: "Claude source",
+    discovery: "Path discovery",
+    discoveryConfigured: "User configured",
+    discoveryDiscovered: "Auto-discovered",
+    discoveryMissing: "Not found",
+    extraction: "Extraction",
+    extractionDescription: "Control how many recent sessions are organized into cards.",
+    lookbackDays: "Look-back days",
+    maxSessions: "Max sessions",
+    apiKey: "API key",
+    configured: "Configured",
+    pasteApiKey: "Paste API key",
+    clearSavedApiKey: "Clear saved API key",
+    saveSettings: "Save Settings",
+    settingsSaved: "Settings saved.",
+    advancedDiagnostics: "Advanced diagnostics",
+    model: "Model",
+    endpoint: "Endpoint",
+    startupScan: "Startup scan",
+    needsSetup: "Needs setup",
+    organizing: "Organizing recent sessions...",
+    noLinkedSource: "No source is linked to this card yet.",
+    linkedSourceMissing: "The linked source session is no longer available.",
+    sourceScanFailed: "Source scan failed: ",
+    sourceScanFinished: "Source scan finished.",
+    organized: (created: number, updated: number) => `Organized ${created} new and ${updated} updated cards.`,
+    reviewSessions: "Some sessions need review: "
+  }
+} as const;
+
+const sourceNames: Record<Locale, Record<SourceKind, string>> = {
+  "zh-CN": {
+    codex: "Codex",
+    "claude-code": "Claude",
+    browser: "浏览器"
+  },
+  "en-US": {
+    codex: "Codex",
+    "claude-code": "Claude",
+    browser: "Browser"
+  }
+};
+
+const errorMessages: Record<Locale, Record<string, string>> = {
+  "zh-CN": {
+    llm_config_missing: "抽取需要先完成配置。",
+    llm_no_valid_candidates: "部分会话没有找到可执行卡片。",
+    llm_output_invalid: "抽取器返回了不可用的响应。",
+    llm_batch_failed: "部分会话未能处理。",
+    llm_timeout: "抽取超时。",
+    llm_provider_failed: "抽取服务未能完成。",
+    llm_input_truncated: "部分会话文本已为抽取而截短。",
+    organize_scope_truncated: "部分较早会话受当前限制未纳入整理。",
+    path_not_found: "来源路径需要配置。",
+    codex_path_not_found: "未找到 Codex 来源路径。",
+    "claude-code_path_not_found": "未找到 Claude 来源路径。",
+    codex_no_sessions: "来源路径中没有找到 Codex 会话。",
+    "claude-code_no_sessions": "来源路径中没有找到 Claude 会话。",
+    config_invalid: "设置需要检查。",
+    database_unavailable: "本地数据库不可用。",
+    organize_failed: "整理失败，请打开诊断查看详情。"
+  },
+  "en-US": {
+    llm_config_missing: "Extraction needs setup.",
+    llm_no_valid_candidates: "No actionable cards found in some sessions.",
+    llm_output_invalid: "Extractor returned an unusable response.",
+    llm_batch_failed: "Some sessions could not be processed.",
+    llm_timeout: "Extraction timed out.",
+    llm_provider_failed: "Extraction service could not finish.",
+    llm_input_truncated: "Some session text was shortened for extraction.",
+    organize_scope_truncated: "Some older sessions were left out by current limits.",
+    path_not_found: "Source path needs setup.",
+    codex_path_not_found: "Codex source path was not found.",
+    "claude-code_path_not_found": "Claude source path was not found.",
+    codex_no_sessions: "No Codex sessions were found in the source path.",
+    "claude-code_no_sessions": "No Claude sessions were found in the source path.",
+    config_invalid: "Settings need review.",
+    database_unavailable: "Local database is unavailable.",
+    organize_failed: "Organize failed. Open diagnostics for details."
+  }
+};
+
+export function textFor(locale: Locale) {
+  return appText[locale];
+}
+
+export function sourceLabel(source: SourceKind, locale: Locale): string {
+  return sourceNames[locale][source];
+}
+
+export function userErrorText(error: string, locale: Locale = readLocale()): string {
+  return errorMessages[locale][error] ?? error.replace(/_/g, " ");
+}

@@ -20,8 +20,9 @@ import {
   TerminalSquare
 } from "lucide-react";
 import { useEffect, useState, type ChangeEvent } from "react";
-import { api, userFacingError } from "./api/client.js";
+import { api, localizedUserFacingError } from "./api/client.js";
 import { Badge, Button, Card, IconButton, Input, SectionTitle } from "./components/ui.js";
+import { readLocale, sourceLabel, textFor, writeLocale, type Locale } from "./i18n.js";
 import { cn } from "./lib/utils.js";
 import type { ObservationRecord, OrganizeResult, PublicAppConfig, SessionRecord, SourceKind, SourceSummary, StartupScanStatus, TodoCard } from "./types.js";
 
@@ -35,16 +36,11 @@ const OPEN_GROUP_PREVIEW_LIMIT = 6;
 const SESSION_GROUP_PREVIEW_LIMIT = 6;
 const OBSERVATION_PREVIEW_LIMIT = 12;
 
-const sourceLabels: Record<SourceKind, string> = {
-  codex: "Codex",
-  "claude-code": "Claude",
-  browser: "Browser"
-};
-
 export function App() {
   const [view, setView] = useState<View>("todos");
   const [todos, setTodos] = useState<TodoCard[]>([]);
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
+  const [locale, setLocale] = useState<Locale>(() => readLocale());
   const [sourceSummaries, setSourceSummaries] = useState<SourceSummary[]>([]);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [sessionOffset, setSessionOffset] = useState(0);
@@ -53,13 +49,18 @@ export function App() {
   const [startup, setStartup] = useState<StartupScanStatus | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
   const [highlightedObservationId, setHighlightedObservationId] = useState<string>("");
-  const [status, setStatus] = useState("Ready");
+  const [status, setStatus] = useState<string>(() => textFor(readLocale()).ready);
   const [busy, setBusy] = useState(false);
   const [startupNoticeShown, setStartupNoticeShown] = useState(false);
+  const text = textFor(locale);
 
   useEffect(() => {
     void refresh();
   }, []);
+
+  useEffect(() => {
+    writeLocale(locale);
+  }, [locale]);
 
   useEffect(() => {
     void loadSessions(sourceFilter, 0);
@@ -80,12 +81,12 @@ export function App() {
       const timer = window.setTimeout(() => void refresh(), 500);
       return () => window.clearTimeout(timer);
     }
-    const message = startupStatusMessage(startup);
+    const message = startupStatusMessage(startup, locale);
     if (message && !startupNoticeShown) {
       setStatus(message);
       setStartupNoticeShown(true);
     }
-  }, [startup, startupNoticeShown]);
+  }, [locale, startup, startupNoticeShown]);
 
   async function refresh() {
     const [nextTodos, nextSources, nextSettings, nextStartup] = await Promise.all([
@@ -118,11 +119,11 @@ export function App() {
 
   async function organize() {
     setBusy(true);
-    setStatus("Organizing recent sessions...");
+    setStatus(text.organizing);
     try {
       const result = await api<OrganizeResult>("/todos/organize", { method: "POST", body: {} });
       await refresh();
-      setStatus(organizeStatus(result));
+      setStatus(organizeStatus(result, locale));
     } catch (error) {
       setStatus((error as Error).message);
     } finally {
@@ -138,13 +139,13 @@ export function App() {
   async function openTodoSources(todo: TodoCard) {
     if (!todo.origin) {
       setView("sources");
-      setStatus("No source is linked to this card yet.");
+      setStatus(text.noLinkedSource);
       return;
     }
     const session = await ensureSessionLoaded(todo.origin.sessionId);
     if (!session) {
       setView("sources");
-      setStatus("The linked source session is no longer available.");
+      setStatus(text.linkedSourceMissing);
       return;
     }
     setSelectedSessionId(todo.origin.sessionId);
@@ -178,26 +179,26 @@ export function App() {
           <div>
             <div className="flex items-center gap-2 text-sm font-medium text-neutral-500">
               <Sparkles className="h-4 w-4" aria-hidden="true" />
-              AI Todo
+              {text.appName}
             </div>
-            <h1 className="text-2xl font-semibold tracking-normal">Action inbox</h1>
-            <p className="mt-1 max-w-2xl text-sm text-neutral-600">Review task intent, agent progress, and source trails from recent AI sessions.</p>
+            <h1 className="text-2xl font-semibold tracking-normal">{text.actionInbox}</h1>
+            <p className="mt-1 max-w-2xl text-sm text-neutral-600">{text.appSubtitle}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <IconButton label="Refresh" onClick={() => void refresh()}>
+            <IconButton label={text.refresh} onClick={() => void refresh()}>
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
             </IconButton>
-            <Button aria-label="Organize all recent sessions" title="Organize all recent sessions" onClick={() => void organize()} disabled={busy}>
+            <Button aria-label={text.organizeAll} title={text.organizeAll} onClick={() => void organize()} disabled={busy}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Sparkles className="h-4 w-4" aria-hidden="true" />}
-              Organize
+              {text.organize}
             </Button>
           </div>
         </header>
 
-        <nav className="sticky top-0 z-10 -mx-4 flex gap-1 overflow-x-auto border-b border-neutral-300/80 bg-[var(--app-bg)]/95 px-4 py-3 backdrop-blur sm:mx-0 sm:px-0" aria-label="Primary">
-          <NavButton active={view === "todos"} onClick={() => setView("todos")} icon={<CircleDot className="h-4 w-4" />}>To-Do</NavButton>
-          <NavButton active={view === "sources"} onClick={() => setView("sources")} icon={<FolderKanban className="h-4 w-4" />}>Sources</NavButton>
-          <NavButton active={view === "settings"} onClick={() => setView("settings")} icon={<Settings className="h-4 w-4" />}>Settings</NavButton>
+        <nav className="sticky top-0 z-10 -mx-4 flex gap-1 overflow-x-auto border-b border-neutral-300/80 bg-[var(--app-bg)]/95 px-4 py-3 backdrop-blur sm:mx-0 sm:px-0" aria-label={text.primaryNav}>
+          <NavButton label={text.openView(text.todos)} active={view === "todos"} onClick={() => setView("todos")} icon={<CircleDot className="h-4 w-4" />}>{text.todos}</NavButton>
+          <NavButton label={text.openView(text.sources)} active={view === "sources"} onClick={() => setView("sources")} icon={<FolderKanban className="h-4 w-4" />}>{text.sources}</NavButton>
+          <NavButton label={text.openView(text.settings)} active={view === "settings"} onClick={() => setView("settings")} icon={<Settings className="h-4 w-4" />}>{text.settings}</NavButton>
         </nav>
 
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -211,6 +212,7 @@ export function App() {
                 onSources={(todo) => void openTodoSources(todo)}
                 onOrganize={() => void organize()}
                 busy={busy}
+                locale={locale}
               />
             )}
             {view === "sources" && (
@@ -222,6 +224,7 @@ export function App() {
                 observationsBySession={observationsBySession}
                 selectedSessionId={selectedSessionId}
                 highlightedObservationId={highlightedObservationId}
+                locale={locale}
                 onFilter={(filter) => setSourceFilter(filter)}
                 onLoadMore={() => void loadSessions(sourceFilter, sessionOffset)}
                 onSelect={(sessionId) => {
@@ -234,24 +237,29 @@ export function App() {
               <SettingsWorkspace
                 settings={settings}
                 startup={startup}
+                locale={locale}
+                onLocale={(nextLocale) => {
+                  setLocale(nextLocale);
+                  setStatus(textFor(nextLocale).ready);
+                }}
                 onSaved={async (message) => {
                   await refresh();
-                  setStatus(message ?? "Settings saved.");
+                  setStatus(message ?? textFor(locale).settingsSaved);
                 }}
               />
             )}
           </section>
           <aside className="min-w-0 space-y-4 lg:sticky lg:top-20 lg:self-start">
             <Card className="p-4">
-              <SectionTitle>Status</SectionTitle>
+              <SectionTitle>{text.status}</SectionTitle>
               <p className="mt-2 text-sm text-neutral-700">{status}</p>
             </Card>
             <Card className="p-4">
-              <SectionTitle>Review</SectionTitle>
+              <SectionTitle>{text.review}</SectionTitle>
               <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
-                <Metric label="Open" value={openTodos.length} />
-                <Metric label="Done" value={todos.filter((todo) => todo.status === "done").length} />
-                <Metric label="Sources" value={sessions.length} />
+                <Metric label={text.open} value={openTodos.length} />
+                <Metric label={text.done} value={todos.filter((todo) => todo.status === "done").length} />
+                <Metric label={text.sources} value={sessions.length} />
               </dl>
             </Card>
           </aside>
@@ -261,8 +269,7 @@ export function App() {
   );
 }
 
-function NavButton({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
-  const label = typeof children === "string" ? `Open ${children}` : undefined;
+function NavButton({ active, onClick, icon, children, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode; label: string }) {
   return (
     <button
       aria-label={label}
@@ -288,18 +295,20 @@ function TodoWorkspace(props: {
   onSources: (todo: TodoCard) => void;
   onOrganize: () => void;
   busy: boolean;
+  locale: Locale;
 }) {
+  const text = textFor(props.locale);
   const [showClosed, setShowClosed] = useState(false);
   const [expandedOpenGroups, setExpandedOpenGroups] = useState<Record<string, boolean>>({});
   if (props.openTodos.length === 0 && props.closedTodos.length === 0) {
     return (
       <Card className="flex min-h-80 flex-col items-center justify-center p-6 text-center">
         <Sparkles className="h-10 w-10 text-neutral-400" aria-hidden="true" />
-        <h2 className="mt-3 text-lg font-semibold">No cards yet</h2>
-        <p className="mt-1 max-w-md text-sm text-neutral-600">Organize recent sessions into a focused action inbox.</p>
-        <Button aria-label="Organize empty inbox" title="Organize empty inbox" className="mt-4" onClick={props.onOrganize} disabled={props.busy}>
+        <h2 className="mt-3 text-lg font-semibold">{text.noCards}</h2>
+        <p className="mt-1 max-w-md text-sm text-neutral-600">{text.noCardsDescription}</p>
+        <Button aria-label={text.organizeEmpty} title={text.organizeEmpty} className="mt-4" onClick={props.onOrganize} disabled={props.busy}>
           <Sparkles className="h-4 w-4" aria-hidden="true" />
-          Organize
+          {text.organize}
         </Button>
       </Card>
     );
@@ -309,13 +318,13 @@ function TodoWorkspace(props: {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <SectionTitle>To-Do</SectionTitle>
-          <h2 className="text-xl font-semibold tracking-normal">Open loops first</h2>
-          <p className="mt-1 text-sm text-neutral-600">Grouped by agent progress so the next review pass starts with the riskiest work.</p>
+          <SectionTitle>{text.todos}</SectionTitle>
+          <h2 className="text-xl font-semibold tracking-normal">{text.openLoopsTitle}</h2>
+          <p className="mt-1 text-sm text-neutral-600">{text.openLoopsDescription}</p>
         </div>
-        <Badge className="self-start border-blue-200 bg-blue-50 text-blue-700">{props.openTodos.length} open</Badge>
+        <Badge className="self-start border-blue-200 bg-blue-50 text-blue-700">{text.openCount(props.openTodos.length)}</Badge>
       </div>
-      {todoGroups(props.openTodos).map((group) => {
+      {todoGroups(props.openTodos, props.locale).map((group) => {
         const expanded = expandedOpenGroups[group.key] ?? false;
         const visibleTodos = expanded ? group.todos : group.todos.slice(0, OPEN_GROUP_PREVIEW_LIMIT);
         const hiddenCount = group.todos.length - visibleTodos.length;
@@ -338,12 +347,12 @@ function TodoWorkspace(props: {
           </button>
           <div className="divide-y divide-neutral-100">
             {visibleTodos.map((todo) => (
-              <TodoItem key={todo.id} todo={todo} onComplete={props.onComplete} onIgnore={props.onIgnore} onSources={props.onSources} compactStatus />
+              <TodoItem key={todo.id} todo={todo} locale={props.locale} onComplete={props.onComplete} onIgnore={props.onIgnore} onSources={props.onSources} compactStatus />
             ))}
             {hiddenCount > 0 && (
               <div className="p-3">
               <Button variant="secondary" className="w-full" onClick={() => setExpandedOpenGroups((current) => ({ ...current, [group.key]: true }))}>
-                Show {hiddenCount} more
+                {text.showMore(hiddenCount)}
               </Button>
               </div>
             )}
@@ -354,7 +363,7 @@ function TodoWorkspace(props: {
       {props.closedTodos.length > 0 && (
         <section className="rounded-lg border border-neutral-200 bg-white p-3">
           <button className="flex w-full items-center justify-between gap-3 text-left text-sm font-semibold text-neutral-700" type="button" aria-expanded={showClosed} onClick={() => setShowClosed(!showClosed)}>
-            Completed / ignored
+            {text.completedIgnored}
             <span className="inline-flex items-center gap-2 text-xs font-medium text-neutral-500">
               {props.closedTodos.length}
               <ChevronDown className={cn("h-4 w-4 transition", showClosed && "rotate-180")} aria-hidden="true" />
@@ -363,7 +372,7 @@ function TodoWorkspace(props: {
           {showClosed && (
             <div className="mt-3 space-y-3">
               {props.closedTodos.map((todo) => (
-                <TodoItem key={todo.id} todo={todo} onComplete={props.onComplete} onIgnore={props.onIgnore} onSources={props.onSources} muted />
+                <TodoItem key={todo.id} todo={todo} locale={props.locale} onComplete={props.onComplete} onIgnore={props.onIgnore} onSources={props.onSources} muted />
               ))}
             </div>
           )}
@@ -373,11 +382,12 @@ function TodoWorkspace(props: {
   );
 }
 
-function todoGroups(todos: TodoCard[]): Array<{ key: string; label: string; description: string; badgeClass: string; todos: TodoCard[] }> {
+function todoGroups(todos: TodoCard[], locale: Locale): Array<{ key: string; label: string; description: string; badgeClass: string; todos: TodoCard[] }> {
+  const text = textFor(locale);
   const groups = [
-    { key: "blocked", label: "Blocked", description: "Needs a decision, credential, or missing source.", badgeClass: "border-red-200 bg-red-50 text-red-700", todos: [] as TodoCard[] },
-    { key: "in_progress", label: "In progress", description: "Agent has started work; review what changed.", badgeClass: "border-blue-200 bg-blue-50 text-blue-700", todos: [] as TodoCard[] },
-    { key: "needs_review", label: "Needs review", description: "Ready for human triage or follow-up.", badgeClass: "border-amber-200 bg-amber-50 text-amber-700", todos: [] as TodoCard[] }
+    { key: "blocked", label: text.blocked, description: text.blockedDescription, badgeClass: "border-red-200 bg-red-50 text-red-700", todos: [] as TodoCard[] },
+    { key: "in_progress", label: text.inProgress, description: text.inProgressDescription, badgeClass: "border-blue-200 bg-blue-50 text-blue-700", todos: [] as TodoCard[] },
+    { key: "needs_review", label: text.needsReview, description: text.needsReviewDescription, badgeClass: "border-amber-200 bg-amber-50 text-amber-700", todos: [] as TodoCard[] }
   ];
   for (const todo of todos) {
     const state = todo.metadata.completionState?.toLowerCase().replace(/\s+/g, "_");
@@ -387,14 +397,16 @@ function todoGroups(todos: TodoCard[]): Array<{ key: string; label: string; desc
   return groups.filter((group) => group.todos.length > 0);
 }
 
-function TodoItem({ todo, muted, compactStatus, onComplete, onIgnore, onSources }: {
+function TodoItem({ todo, muted, compactStatus, locale, onComplete, onIgnore, onSources }: {
   todo: TodoCard;
   muted?: boolean;
   compactStatus?: boolean;
+  locale: Locale;
   onComplete: (id: string) => void;
   onIgnore: (id: string) => void;
   onSources: (todo: TodoCard) => void;
 }) {
+  const text = textFor(locale);
   return (
     <Card className={cn("relative overflow-hidden rounded-none border-0 border-b border-neutral-100 p-4 shadow-none last:border-b-0", muted && "opacity-70")}>
       <div className={cn("absolute inset-y-0 left-0 w-1", sourceRailClass(todo.origin?.source))} aria-hidden="true" />
@@ -402,7 +414,7 @@ function TodoItem({ todo, muted, compactStatus, onComplete, onIgnore, onSources 
         <div className="min-w-0 space-y-2">
           {!compactStatus && (
             <div className="flex flex-wrap items-center gap-2">
-              <Badge className={todo.status === "todo" ? "border-blue-200 bg-blue-50 text-blue-700" : "border-green-200 bg-green-50 text-green-700"}>{todo.status === "todo" ? "Open" : todo.status === "done" ? "Done" : "Ignored"}</Badge>
+              <Badge className={todo.status === "todo" ? "border-blue-200 bg-blue-50 text-blue-700" : "border-green-200 bg-green-50 text-green-700"}>{todo.status === "todo" ? text.open : todo.status === "done" ? text.done : text.ignored}</Badge>
               {todo.metadata.completionState && <Badge>{todo.metadata.completionState}</Badge>}
             </div>
           )}
@@ -410,27 +422,27 @@ function TodoItem({ todo, muted, compactStatus, onComplete, onIgnore, onSources 
           <p className="break-words text-sm leading-6 text-neutral-700">{todo.description}</p>
           {todo.metadata.completionSummary && (
             <p className="break-words text-sm text-neutral-500">
-              <span className="font-medium text-neutral-600">Agent:</span> {todo.metadata.completionSummary}
+              <span className="font-medium text-neutral-600">{text.agent}:</span> {todo.metadata.completionSummary}
             </p>
           )}
-          <button aria-label={`Open source session for ${todo.title}`} className="flex max-w-full items-start gap-2 rounded-md text-left text-sm text-neutral-500 hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-70" type="button" title={originLabel(todo)} disabled={!todo.origin} onClick={() => onSources(todo)}>
+          <button aria-label={text.openSourceSession(todo.title)} className="flex max-w-full items-start gap-2 rounded-md text-left text-sm text-neutral-500 hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-70" type="button" title={originLabel(todo, locale)} disabled={!todo.origin} onClick={() => onSources(todo)}>
             <SourceIcon source={todo.origin?.source} />
             <span className="min-w-0">
-              <span className="block truncate font-medium text-neutral-600">{originProjectLabel(todo)}</span>
-              <span className="block truncate text-xs text-neutral-500">{originSessionLabel(todo)}</span>
+              <span className="block truncate font-medium text-neutral-600">{originProjectLabel(todo, locale)}</span>
+              <span className="block truncate text-xs text-neutral-500">{originSessionLabel(todo, locale)}</span>
             </span>
           </button>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
-          <Button aria-label={`Complete ${todo.title}`} variant="secondary" onClick={() => onComplete(todo.id)}>
+          <Button aria-label={text.completeTodo(todo.title)} variant="secondary" onClick={() => onComplete(todo.id)}>
             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-            Complete
+            {text.complete}
           </Button>
-          <Button aria-label={`Open sources for ${todo.title}`} variant="secondary" onClick={() => onSources(todo)}>
+          <Button aria-label={text.openTodoSources(todo.title)} variant="secondary" onClick={() => onSources(todo)}>
             <Eye className="h-4 w-4" aria-hidden="true" />
-            Sources
+            {text.sources}
           </Button>
-          <IconButton label={`Ignore ${todo.title}`} onClick={() => onIgnore(todo.id)}>
+          <IconButton label={text.ignoreTodo(todo.title)} onClick={() => onIgnore(todo.id)}>
             <Archive className="h-4 w-4" aria-hidden="true" />
           </IconButton>
         </div>
@@ -439,7 +451,7 @@ function TodoItem({ todo, muted, compactStatus, onComplete, onIgnore, onSources 
   );
 }
 
-function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sessionOffset, observationsBySession, selectedSessionId, highlightedObservationId, onFilter, onLoadMore, onSelect }: {
+function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sessionOffset, observationsBySession, selectedSessionId, highlightedObservationId, locale, onFilter, onLoadMore, onSelect }: {
   sessions: SessionRecord[];
   sourceSummaries: SourceSummary[];
   sourceFilter: SourceFilter;
@@ -447,10 +459,12 @@ function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sessionOffs
   observationsBySession: Record<string, ObservationRecord[]>;
   selectedSessionId: string;
   highlightedObservationId: string;
+  locale: Locale;
   onFilter: (filter: SourceFilter) => void;
   onLoadMore: () => void;
   onSelect: (sessionId: string) => void;
 }) {
+  const text = textFor(locale);
   const [query, setQuery] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [showAllMessages, setShowAllMessages] = useState(false);
@@ -461,8 +475,8 @@ function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sessionOffs
     ? sourceSummaries.reduce((sum, source) => sum + source.sessions, 0)
     : sourceSummaries.find((source) => source.source === sourceFilter)?.sessions ?? 0;
   const filters: SourceFilter[] = ["all", "codex", "claude-code", "browser"];
-  const filteredSessions = sessions.filter((session) => matchesSessionQuery(session, query));
-  const groups = sessionGroups(filteredSessions);
+  const filteredSessions = sessions.filter((session) => matchesSessionQuery(session, query, locale));
+  const groups = sessionGroups(filteredSessions, locale);
 
   useEffect(() => {
     setShowAllMessages(false);
@@ -474,13 +488,13 @@ function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sessionOffs
         <div className="mb-3 space-y-3 px-1">
           <div className="flex items-center gap-2">
             <Search className="h-4 w-4 text-neutral-400" aria-hidden="true" />
-            <SectionTitle>Sources</SectionTitle>
+            <SectionTitle>{text.sources}</SectionTitle>
           </div>
           <label className="relative block">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" aria-hidden="true" />
-            <Input aria-label="Search sources" placeholder="Search sources" value={query} onChange={(event) => setQuery(event.target.value)} className="pl-9" />
+            <Input aria-label={text.searchSources} placeholder={text.searchSources} value={query} onChange={(event) => setQuery(event.target.value)} className="pl-9" />
           </label>
-          <div className="flex gap-1 overflow-x-auto" aria-label="Source filter">
+          <div className="flex gap-1 overflow-x-auto" aria-label={text.sourceFilter}>
             {filters.map((filter) => (
               <button
                 key={filter}
@@ -491,15 +505,15 @@ function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sessionOffs
                 )}
                 onClick={() => onFilter(filter)}
               >
-                {filter === "all" ? "All" : sourceLabels[filter]}
+                {filter === "all" ? text.all : sourceLabel(filter, locale)}
                 <span>{sourceCount(sourceSummaries, filter)}</span>
               </button>
             ))}
           </div>
         </div>
         <div className="max-h-[calc(100vh-220px)] space-y-2 overflow-y-auto pr-1">
-          {sessions.length === 0 && <div className="rounded-md bg-neutral-50 p-4 text-sm text-neutral-600">Connect or scan a source to review sessions.</div>}
-          {sessions.length > 0 && groups.length === 0 && <div className="rounded-md bg-neutral-50 p-4 text-sm text-neutral-600">No sessions match this search.</div>}
+          {sessions.length === 0 && <div className="rounded-md bg-neutral-50 p-4 text-sm text-neutral-600">{text.connectSource}</div>}
+          {sessions.length > 0 && groups.length === 0 && <div className="rounded-md bg-neutral-50 p-4 text-sm text-neutral-600">{text.noSessionsMatch}</div>}
           {groups.map((group) => {
             const expanded = expandedGroups[group.key] ?? false;
             const visibleSessions = expanded ? group.sessions : group.sessions.slice(0, SESSION_GROUP_PREVIEW_LIMIT);
@@ -516,7 +530,7 @@ function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sessionOffs
                     <FolderOpen className="h-4 w-4 shrink-0 text-neutral-500" aria-hidden="true" />
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-semibold text-neutral-800">{group.label}</span>
-                      <span className="block text-xs text-neutral-500">{group.sessions.length} sessions</span>
+                      <span className="block text-xs text-neutral-500">{text.sessionCount(group.sessions.length)}</span>
                     </span>
                   </span>
                   <ChevronDown className={cn("h-4 w-4 text-neutral-500 transition", expanded && "rotate-180")} aria-hidden="true" />
@@ -537,10 +551,10 @@ function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sessionOffs
                     >
                       <div className="flex items-center gap-2 text-sm font-medium">
                         <SourceIcon source={session.source} />
-                        <span className="truncate">{sourceLabels[session.source]}</span>
+                        <span className="truncate">{sourceLabel(session.source, locale)}</span>
                       </div>
-                      <div className="mt-1 truncate text-sm text-neutral-600">{session.preview || "Temporary session"}</div>
-                      <div className="mt-2 text-xs text-neutral-400">{session.observationCount} messages</div>
+                      <div className="mt-1 truncate text-sm text-neutral-600">{session.preview || text.temporarySession}</div>
+                      <div className="mt-2 text-xs text-neutral-400">{text.messageCount(session.observationCount)}</div>
                     </button>
                   ))}
                   {hiddenCount > 0 && (
@@ -549,7 +563,7 @@ function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sessionOffs
                       className="w-full px-3 py-2 text-left text-sm font-medium text-blue-700 hover:bg-blue-50"
                       onClick={() => setExpandedGroups((current) => ({ ...current, [group.key]: true }))}
                     >
-                      Show {hiddenCount} more sessions
+                      {text.moreSessions(hiddenCount)}
                     </button>
                   )}
                 </div>
@@ -558,7 +572,7 @@ function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sessionOffs
           })}
           {sessionOffset < totalSessions && (
             <Button variant="secondary" className="w-full" onClick={onLoadMore}>
-              Load more
+              {text.loadMore}
             </Button>
           )}
         </div>
@@ -568,13 +582,13 @@ function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sessionOffs
           <>
             <div className="mb-4 flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <SectionTitle>{sourceLabels[selected.source]}</SectionTitle>
-                <h2 className="truncate text-xl font-semibold tracking-normal">{selected.preview || "Temporary session"}</h2>
+                <SectionTitle>{sourceLabel(selected.source, locale)}</SectionTitle>
+                <h2 className="truncate text-xl font-semibold tracking-normal">{selected.preview || text.temporarySession}</h2>
               </div>
-              <Badge>{selected.observationCount} messages</Badge>
+              <Badge>{text.messageCount(selected.observationCount)}</Badge>
             </div>
             <div className="max-h-[calc(100vh-220px)] space-y-3 overflow-y-auto pr-1">
-              {observations.length === 0 && <div className="rounded-md bg-neutral-50 p-4 text-sm text-neutral-600">Select a source to load its conversation.</div>}
+              {observations.length === 0 && <div className="rounded-md bg-neutral-50 p-4 text-sm text-neutral-600">{text.selectSource}</div>}
               {visibleObservations.map((observation) => (
                 <article
                   id={`obs-${observation.id}`}
@@ -585,7 +599,7 @@ function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sessionOffs
                   )}
                 >
                   <div className="mb-2 flex items-center justify-between gap-2 text-xs text-neutral-500">
-                    <span className="capitalize">{observation.role === "unknown" ? "Message" : observation.role}</span>
+                    <span className="capitalize">{observation.role === "unknown" ? text.message : observation.role}</span>
                     <time>{new Date(observation.createdAt).toLocaleString()}</time>
                   </div>
                   <p className="whitespace-pre-wrap break-words text-sm leading-6 text-neutral-800">{observation.text}</p>
@@ -594,20 +608,27 @@ function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sessionOffs
               {!showAllMessages && observations.length > visibleObservations.length && (
                 <Button variant="secondary" className="w-full" onClick={() => setShowAllMessages(true)}>
                   <MessageSquareText className="h-4 w-4" aria-hidden="true" />
-                  Show all messages
+                  {text.showAllMessages}
                 </Button>
               )}
             </div>
           </>
         ) : (
-          <div className="rounded-md bg-neutral-50 p-4 text-sm text-neutral-600">No source sessions yet.</div>
+          <div className="rounded-md bg-neutral-50 p-4 text-sm text-neutral-600">{text.noSourceSessions}</div>
         )}
       </Card>
     </div>
   );
 }
 
-function SettingsWorkspace({ settings, startup, onSaved }: { settings: PublicAppConfig; startup: StartupScanStatus | null; onSaved: (message?: string) => Promise<void> }) {
+function SettingsWorkspace({ settings, startup, locale, onLocale, onSaved }: {
+  settings: PublicAppConfig;
+  startup: StartupScanStatus | null;
+  locale: Locale;
+  onLocale: (locale: Locale) => void;
+  onSaved: (message?: string) => Promise<void>;
+}) {
+  const text = textFor(locale);
   const [form, setForm] = useState(settings);
   const [apiKey, setApiKey] = useState("");
   const [clearKey, setClearKey] = useState(false);
@@ -636,7 +657,7 @@ function SettingsWorkspace({ settings, startup, onSaved }: { settings: PublicApp
         }
       });
       setForm(saved);
-      await onSaved(await scanChangedSources(changedSources));
+      await onSaved(await scanChangedSources(changedSources, locale));
     } catch (error) {
       setSaveError((error as Error).message);
     } finally {
@@ -649,62 +670,98 @@ function SettingsWorkspace({ settings, startup, onSaved }: { settings: PublicApp
       <Card className="p-4">
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="h-4 w-4 text-neutral-500" aria-hidden="true" />
-          <SectionTitle>Settings</SectionTitle>
+          <SectionTitle>{text.settings}</SectionTitle>
         </div>
         <div className="mt-4 space-y-6">
           <section>
-            <h2 className="text-base font-semibold">Sources</h2>
-            <p className="mt-1 text-sm text-neutral-600">Choose where AI-Todo scans local agent sessions.</p>
-            <div className="mt-3 grid gap-4 md:grid-cols-2">
-              <Field label="Codex source">
-                <Input value={form.sources.codex.path ?? ""} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, sources: { ...form.sources, codex: { path: event.target.value } } })} />
-              </Field>
-              <Field label="Claude source">
-                <Input value={form.sources["claude-code"].path ?? ""} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, sources: { ...form.sources, "claude-code": { path: event.target.value } } })} />
-              </Field>
+            <h2 className="text-base font-semibold">{text.language}</h2>
+            <p className="mt-1 text-sm text-neutral-600">{text.languageDescription}</p>
+            <div className="mt-3 inline-flex rounded-md border border-neutral-200 bg-neutral-50 p-1">
+              {(["zh-CN", "en-US"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className={cn(
+                    "rounded px-3 py-1.5 text-sm font-medium",
+                    locale === option ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-600 hover:text-neutral-950"
+                  )}
+                  aria-pressed={locale === option}
+                  onClick={() => onLocale(option)}
+                >
+                  {option === "zh-CN" ? text.chinese : text.english}
+                </button>
+              ))}
             </div>
           </section>
           <section>
-            <h2 className="text-base font-semibold">Extraction</h2>
-            <p className="mt-1 text-sm text-neutral-600">Control how many recent sessions are organized into cards.</p>
+            <h2 className="text-base font-semibold">{text.sourceSettings}</h2>
+            <p className="mt-1 text-sm text-neutral-600">{text.sourceSettingsDescription}</p>
+            <div className="mt-3 grid gap-4 md:grid-cols-2">
+              <Field label={text.codexSource}>
+                <Input value={form.sources.codex.path ?? ""} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, sources: { ...form.sources, codex: { path: event.target.value } } })} />
+              </Field>
+              <Field label={text.claudeSource}>
+                <Input value={form.sources["claude-code"].path ?? ""} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, sources: { ...form.sources, "claude-code": { path: event.target.value } } })} />
+              </Field>
+            </div>
+            {startup?.discovery.length ? (
+              <div className="mt-3 rounded-md border border-neutral-200 bg-neutral-50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{text.discovery}</div>
+                <div className="mt-2 grid gap-2 text-sm text-neutral-700">
+                  {startup.discovery.map((item) => (
+                    <div key={item.source} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="font-medium">{sourceLabel(item.source, locale)}</span>
+                      <span className="text-neutral-600">
+                        {discoveryStatusLabel(item.status, locale)}
+                        {item.path ? ` · ${item.path}` : ""}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </section>
+          <section>
+            <h2 className="text-base font-semibold">{text.extraction}</h2>
+            <p className="mt-1 text-sm text-neutral-600">{text.extractionDescription}</p>
             <div className="mt-3 grid gap-4 md:grid-cols-3">
-              <Field label="Look-back days">
+              <Field label={text.lookbackDays}>
                 <Input type="number" min={1} value={form.organize.sinceDays} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, organize: { ...form.organize, sinceDays: Number(event.target.value) } })} />
               </Field>
-              <Field label="Max sessions">
+              <Field label={text.maxSessions}>
                 <Input type="number" min={1} max={200} value={form.organize.maxSessions} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, organize: { ...form.organize, maxSessions: Number(event.target.value) } })} />
               </Field>
-              <Field label="API key">
-                <Input type="password" placeholder={settings.llm.apiKeyConfigured ? `Configured ${settings.llm.apiKeyMasked}` : "Paste API key"} value={apiKey} onChange={(event: ChangeEvent<HTMLInputElement>) => setApiKey(event.target.value)} />
+              <Field label={text.apiKey}>
+                <Input type="password" placeholder={settings.llm.apiKeyConfigured ? `${text.configured} ${settings.llm.apiKeyMasked}` : text.pasteApiKey} value={apiKey} onChange={(event: ChangeEvent<HTMLInputElement>) => setApiKey(event.target.value)} />
               </Field>
             </div>
             <label className="mt-3 flex items-center gap-2 text-sm text-neutral-700">
               <input type="checkbox" checked={clearKey} onChange={(event) => setClearKey(event.target.checked)} />
-              Clear saved API key
+              {text.clearSavedApiKey}
             </label>
           </section>
         </div>
         <Button className="mt-4" onClick={() => void save()} disabled={saving}>
           <Save className="h-4 w-4" aria-hidden="true" />
-          Save Settings
+          {text.saveSettings}
         </Button>
         {saveError && <p className="mt-3 text-sm text-red-700">{saveError}</p>}
       </Card>
       <details className="rounded-lg border border-neutral-200 bg-white p-4">
         <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium">
-          Advanced diagnostics
+          {text.advancedDiagnostics}
           <ChevronDown className="h-4 w-4" aria-hidden="true" />
         </summary>
         <div className="mt-3 grid gap-4 text-sm text-neutral-600 md:grid-cols-2">
-          <Field label="Model">
+          <Field label={text.model}>
             <Input value={form.llm.model} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, llm: { ...form.llm, model: event.target.value } })} />
           </Field>
-          <Field label="Endpoint">
+          <Field label={text.endpoint}>
             <Input value={form.llm.endpoint} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, llm: { ...form.llm, endpoint: event.target.value } })} />
           </Field>
-          <p>Startup scan: {startup?.status ?? "idle"}</p>
-          <p>Extraction: {settings.llm.apiKeyConfigured ? "Configured" : "Needs setup"}</p>
-          {startup?.warnings.map((warning: string) => <p key={warning}>{userFacingError(warning)}</p>)}
+          <p>{text.startupScan}: {startup?.status ?? "idle"}</p>
+          <p>{text.extraction}: {settings.llm.apiKeyConfigured ? text.configured : text.needsSetup}</p>
+          {startup?.warnings.map((warning: string) => <p key={warning}>{localizedUserFacingError(warning, locale)}</p>)}
         </div>
       </details>
     </div>
@@ -720,10 +777,17 @@ function changedSourcePaths(
   );
 }
 
-function sessionGroups(sessions: SessionRecord[]): Array<{ key: string; label: string; sessions: SessionRecord[] }> {
+function discoveryStatusLabel(status: "configured" | "discovered" | "missing", locale: Locale): string {
+  const text = textFor(locale);
+  if (status === "configured") return text.discoveryConfigured;
+  if (status === "discovered") return text.discoveryDiscovered;
+  return text.discoveryMissing;
+}
+
+function sessionGroups(sessions: SessionRecord[], locale: Locale): Array<{ key: string; label: string; sessions: SessionRecord[] }> {
   const groups = new Map<string, { key: string; label: string; sessions: SessionRecord[] }>();
   for (const session of sessions) {
-    const label = sessionProjectLabel(session);
+    const label = sessionProjectLabel(session, locale);
     const key = `${session.source}:${label}`;
     const group = groups.get(key) ?? { key, label, sessions: [] };
     group.sessions.push(session);
@@ -732,38 +796,39 @@ function sessionGroups(sessions: SessionRecord[]): Array<{ key: string; label: s
   return [...groups.values()];
 }
 
-function matchesSessionQuery(session: SessionRecord, query: string): boolean {
+function matchesSessionQuery(session: SessionRecord, query: string, locale: Locale): boolean {
   const term = query.trim().toLowerCase();
   if (!term) return true;
-  return [sourceLabels[session.source], sessionProjectLabel(session), session.preview, session.path]
+  return [sourceLabel(session.source, locale), sessionProjectLabel(session, locale), session.preview, session.path]
     .some((value) => value.toLowerCase().includes(term));
 }
 
-function sessionProjectLabel(session: SessionRecord): string {
-  if (session.source === "browser") return session.path === "browser" ? "Browser sessions" : readablePathSegment(session.path);
+function sessionProjectLabel(session: SessionRecord, locale: Locale): string {
+  if (session.source === "browser") return session.path === "browser" ? textFor(locale).browserSessions : readablePathSegment(session.path, locale);
   const parts = session.path.split("/").filter(Boolean);
-  if (session.source === "claude-code") return readablePathSegment(parts.at(-2) ?? parts.at(-1));
-  return readablePathSegment(parts.at(-3) ?? parts.at(-2) ?? parts.at(-1));
+  if (session.source === "claude-code") return readablePathSegment(parts.at(-2) ?? parts.at(-1), locale);
+  return readablePathSegment(parts.at(-3) ?? parts.at(-2) ?? parts.at(-1), locale);
 }
 
-function readablePathSegment(value?: string): string {
-  if (!value) return "Temporary session";
-  return value.replace(/\.jsonl$/u, "").replace(/^-+|-+$/gu, "").replace(/[-_]+/gu, " ") || "Temporary session";
+function readablePathSegment(value: string | undefined, locale: Locale): string {
+  if (!value) return textFor(locale).temporarySession;
+  return value.replace(/\.jsonl$/u, "").replace(/^-+|-+$/gu, "").replace(/[-_]+/gu, " ") || textFor(locale).temporarySession;
 }
 
-async function scanChangedSources(sources: SessionSource[]): Promise<string | undefined> {
+async function scanChangedSources(sources: SessionSource[], locale: Locale): Promise<string | undefined> {
   if (sources.length === 0) return undefined;
+  const text = textFor(locale);
   const failures: string[] = [];
   for (const source of sources) {
     try {
       const result = await api<SourceScanResult>("/sources/scan", { method: "POST", body: { source } });
-      if (result.warning) failures.push(`${sourceLabels[source]}: ${userFacingError(result.warning)}`);
+      if (result.warning) failures.push(`${sourceLabel(source, locale)}: ${localizedUserFacingError(result.warning, locale)}`);
     } catch (error) {
-      failures.push(`${sourceLabels[source]}: ${(error as Error).message}`);
+      failures.push(`${sourceLabel(source, locale)}: ${(error as Error).message}`);
     }
   }
-  if (failures.length > 0) return `Source scan failed: ${failures.join(" ")}`;
-  return "Source scan finished.";
+  if (failures.length > 0) return `${text.sourceScanFailed}${failures.join(" ")}`;
+  return text.sourceScanFinished;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -799,34 +864,39 @@ function SourceIcon({ source }: { source?: SourceKind }) {
   return <Code2 className={className} aria-hidden="true" />;
 }
 
-function organizeStatus(result: OrganizeResult): string {
-  const summary = `Organized ${result.created} new and ${result.updated} updated cards.`;
+function organizeStatus(result: OrganizeResult, locale: Locale): string {
+  const text = textFor(locale);
+  const summary = text.organized(result.created, result.updated);
   if (result.warnings.length === 0) return summary;
-  const warnings = result.warnings.map(userFacingError).join(" ");
-  if (result.created + result.updated > 0) return `${summary} Some sessions need review: ${warnings}`;
+  const warnings = result.warnings.map((warning) => localizedUserFacingError(warning, locale)).join(" ");
+  if (result.created + result.updated > 0) return `${summary} ${text.reviewSessions}${warnings}`;
   return `${summary} ${warnings}`;
 }
 
-function startupStatusMessage(startup: StartupScanStatus | null): string {
+function startupStatusMessage(startup: StartupScanStatus | null, locale: Locale): string {
   if (!startup?.warnings.length) return "";
-  return `Source scan failed: ${startup.warnings.map(userFacingError).join(" ")}`;
+  return `${textFor(locale).sourceScanFailed}${startup.warnings.map((warning) => localizedUserFacingError(warning, locale)).join(" ")}`;
 }
 
-function originLabel(todo: TodoCard): string {
-  if (!todo.origin) return "Source unavailable";
-  const project = todo.origin.projectTitle || sourceLabels[todo.origin.source];
-  const session = todo.origin.sessionTitle || "Temporary session";
-  return `${sourceLabels[todo.origin.source]} · ${project} › ${session}`;
+function originLabel(todo: TodoCard, locale: Locale): string {
+  const text = textFor(locale);
+  if (!todo.origin) return text.sourceUnavailable;
+  const source = sourceLabel(todo.origin.source, locale);
+  const project = todo.origin.projectTitle || source;
+  const session = todo.origin.sessionTitle || text.temporarySession;
+  return `${source} · ${project} › ${session}`;
 }
 
-function originProjectLabel(todo: TodoCard): string {
-  if (!todo.origin) return "Source unavailable";
-  const project = todo.origin.projectTitle || sourceLabels[todo.origin.source];
-  return `${sourceLabels[todo.origin.source]} · ${project}`;
+function originProjectLabel(todo: TodoCard, locale: Locale): string {
+  const text = textFor(locale);
+  if (!todo.origin) return text.sourceUnavailable;
+  const source = sourceLabel(todo.origin.source, locale);
+  const project = todo.origin.projectTitle || source;
+  return `${source} · ${project}`;
 }
 
-function originSessionLabel(todo: TodoCard): string {
-  return todo.origin?.sessionTitle || "Temporary session";
+function originSessionLabel(todo: TodoCard, locale: Locale): string {
+  return todo.origin?.sessionTitle || textFor(locale).temporarySession;
 }
 
 function sourceCount(sources: SourceSummary[], filter: SourceFilter): number {
