@@ -4,7 +4,7 @@ import { textFor, type Locale } from "../i18n.js";
 import { cn } from "../lib/utils.js";
 import type { TodoCard } from "../types.js";
 import { Badge, Button, Card, IconButton, SectionTitle } from "./ui.js";
-import { originLabel, originProjectLabel, originSessionLabel, SourceIcon, sourceRailClass } from "./source-labels.js";
+import { originLabel, originProjectLabel, SourceIcon } from "./source-labels.js";
 
 const OPEN_GROUP_PREVIEW_LIMIT = 6;
 
@@ -47,7 +47,8 @@ export function TodoBoard(props: {
       </div>
       {todoGroups(props.openTodos, props.locale).map((group) => {
         const expanded = expandedOpenGroups[group.key] ?? false;
-        const visibleTodos = expanded ? group.todos : group.todos.slice(0, OPEN_GROUP_PREVIEW_LIMIT);
+        const sortedTodos = sortTodosByUpdatedAt(group.todos);
+        const visibleTodos = expanded ? sortedTodos : sortedTodos.slice(0, OPEN_GROUP_PREVIEW_LIMIT);
         const hiddenCount = group.todos.length - visibleTodos.length;
         return (
           <section key={group.key} className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
@@ -92,7 +93,7 @@ export function TodoBoard(props: {
           </button>
           {showClosed && (
             <div className="mt-3 space-y-3">
-              {props.closedTodos.map((todo) => (
+              {sortTodosByUpdatedAt(props.closedTodos).map((todo) => (
                 <TodoItem key={todo.id} todo={todo} locale={props.locale} onComplete={props.onComplete} onIgnore={props.onIgnore} onSources={props.onSources} muted />
               ))}
             </div>
@@ -128,10 +129,10 @@ function TodoItem({ todo, muted, compactStatus, locale, onComplete, onIgnore, on
   onSources: (todo: TodoCard) => void;
 }) {
   const text = textFor(locale);
+  const updatedTitle = new Date(todo.updatedAt).toLocaleString();
   return (
     <Card className={cn("relative overflow-hidden rounded-none border-0 border-b border-neutral-100 p-4 shadow-none last:border-b-0", muted && "opacity-70")}>
-      <div className={cn("absolute inset-y-0 left-0 w-1", sourceRailClass(todo.origin?.source))} aria-hidden="true" />
-      <div className="flex flex-col gap-4 pl-2 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-2">
           {!compactStatus && (
             <div className="flex flex-wrap items-center gap-2">
@@ -140,19 +141,20 @@ function TodoItem({ todo, muted, compactStatus, locale, onComplete, onIgnore, on
             </div>
           )}
           <h3 className="break-words text-lg font-semibold tracking-normal">{todo.title}</h3>
-          <p className="break-words text-sm leading-6 text-neutral-700">{todo.description}</p>
+          <p className="todo-description break-words text-sm leading-6 text-neutral-700">{todo.description}</p>
+          <div className="todo-meta-row">
+            <button aria-label={text.openSourceSession(todo.title)} className="inline-flex min-w-0 items-center gap-1.5 rounded-md text-left text-xs font-medium text-neutral-600 hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-70" type="button" title={originLabel(todo, locale)} disabled={!todo.origin} onClick={() => onSources(todo)}>
+              <SourceIcon source={todo.origin?.source} />
+              <span className="truncate">{originProjectLabel(todo, locale)}</span>
+            </button>
+            <time className="shrink-0 text-xs text-neutral-500" dateTime={todo.updatedAt} title={updatedTitle}>{formatRelativeTime(todo.updatedAt, locale)}</time>
+          </div>
           {todo.metadata.completionSummary && (
-            <p className="break-words text-sm text-neutral-500">
-              <span className="font-medium text-neutral-600">{text.agent}:</span> {todo.metadata.completionSummary}
-            </p>
+            <details className="text-sm text-neutral-500">
+              <summary className="cursor-pointer font-medium text-neutral-600">{text.agentProgress}</summary>
+              <p className="mt-1 break-words">{todo.metadata.completionSummary}</p>
+            </details>
           )}
-          <button aria-label={text.openSourceSession(todo.title)} className="flex max-w-full items-start gap-2 rounded-md text-left text-sm text-neutral-500 hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-70" type="button" title={originLabel(todo, locale)} disabled={!todo.origin} onClick={() => onSources(todo)}>
-            <SourceIcon source={todo.origin?.source} />
-            <span className="min-w-0">
-              <span className="block truncate font-medium text-neutral-600">{originProjectLabel(todo, locale)}</span>
-              <span className="block truncate text-xs text-neutral-500">{originSessionLabel(todo, locale)}</span>
-            </span>
-          </button>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
           <Button aria-label={text.completeTodo(todo.title)} variant="secondary" onClick={() => onComplete(todo.id)}>
@@ -170,4 +172,19 @@ function TodoItem({ todo, muted, compactStatus, locale, onComplete, onIgnore, on
       </div>
     </Card>
   );
+}
+
+function sortTodosByUpdatedAt(todos: TodoCard[]): TodoCard[] {
+  return [...todos].sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt));
+}
+
+function formatRelativeTime(value: string, locale: Locale): string {
+  const text = textFor(locale);
+  const elapsedMs = Date.now() - Date.parse(value);
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 60_000) return text.updatedNow;
+  const elapsedMinutes = Math.floor(elapsedMs / 60_000);
+  if (elapsedMinutes < 60) return text.updatedAgo(text.timeMinute(elapsedMinutes));
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 24) return text.updatedAgo(text.timeHour(elapsedHours));
+  return text.updatedAgo(text.timeDay(Math.floor(elapsedHours / 24)));
 }

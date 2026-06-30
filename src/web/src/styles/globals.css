@@ -63,24 +63,19 @@ textarea {
   background: #bfdbfe;
 }
 
-.ledger-rail {
-  background: var(--app-line);
+.todo-description {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
-.ledger-rail-codex {
-  background: var(--app-blue);
-}
-
-.ledger-rail-claude {
-  background: var(--app-green);
-}
-
-.ledger-rail-browser {
-  background: var(--app-amber);
-}
-
-.ledger-rail-missing {
-  background: #cbd5e1;
+.todo-meta-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  min-width: 0;
 }
 
 @media (max-width: 430px) {
