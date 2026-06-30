@@ -12,7 +12,23 @@ test("HTTP API scans sources, lists sessions, observations, runs, and updates to
   const fixture = createFixture();
   const paths = getAppPaths(join(fixture.root, "home"));
   const db = openDatabase(paths);
-  const server = await startServer(db, paths);
+  const server = await startServer(db, paths, {
+    llmExtractor: async (observations: Array<{ id: string; role: string; text: string }>) => {
+      const observation = observations.find((item) => item.role === "user");
+      assert.ok(observation);
+      return {
+        ok: true,
+        todos: [{
+          title: "Add HTTP API routes",
+          description: "Add HTTP API routes for the local todo service.",
+          confidence: 0.9,
+          sourceObservationId: observation.id,
+          quote: observation.text,
+          dedupeKey: "http-api-routes"
+        }]
+      };
+    }
+  });
 
   try {
     const scan = await postJson(server.url("/sources/scan"), {
@@ -106,8 +122,9 @@ test("HTTP API reports missing database", async () => {
 
 test("HTTP API reports invalid JSON", async () => {
   const fixture = createFixture();
-  const db = openDatabase(getAppPaths(join(fixture.root, "home")));
-  const server = await startServer(db);
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const server = await startServer(db, paths);
 
   try {
     const badJson = await fetch(server.url("/sources/scan"), {
@@ -162,8 +179,9 @@ test("HTTP source scan uses default paths with environment overrides", async () 
   const fixture = createFixture();
   const previousCodex = process.env.AI_TODO_CODEX_HOME;
   process.env.AI_TODO_CODEX_HOME = fixture.codex;
-  const db = openDatabase(getAppPaths(join(fixture.root, "home")));
-  const server = await startServer(db);
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const server = await startServer(db, paths);
 
   try {
     const response = await postJson(server.url("/sources/scan"), { source: "codex" });
@@ -204,7 +222,6 @@ test("HTTP settings persist source paths and scan uses config path", async () =>
         model: "custom/model",
         endpoint: "https://llm.example.test/v1",
         thinkingDepth: "high",
-        pythonPath: "python3",
         timeoutMs: 30000,
         apiKey: "dummy-llm-key-value"
       },
@@ -278,7 +295,6 @@ test("HTTP settings clears llm api key when requested", async () => {
         model: "deepseek/deepseek-v4-flash",
         endpoint: "https://api.novita.ai/openai/v1",
         thinkingDepth: "medium",
-        pythonPath: "python3",
         timeoutMs: 120000,
         apiKey: "dummy-llm-key-value"
       },
@@ -298,7 +314,6 @@ test("HTTP settings clears llm api key when requested", async () => {
         model: "deepseek/deepseek-v4-flash",
         endpoint: "https://api.novita.ai/openai/v1",
         thinkingDepth: "medium",
-        pythonPath: "python3",
         timeoutMs: 120000,
         apiKey: ""
       },
@@ -319,8 +334,9 @@ test("HTTP settings clears llm api key when requested", async () => {
 
 test("HTTP browser ingest validates input", async () => {
   const fixture = createFixture();
-  const db = openDatabase(getAppPaths(join(fixture.root, "home")));
-  const server = await startServer(db);
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const server = await startServer(db, paths);
 
   try {
     assert.equal((await postJson(server.url("/browser/sessions"), {})).status, 400);
@@ -360,7 +376,7 @@ test("HTTP organize returns structured failure", async () => {
     const body = await response.json();
     assert.equal(response.status, 500);
     assert.equal(body.error, "organize_failed");
-    assert.deepEqual(body.warnings, ["organize_failed_fallback"]);
+    assert.deepEqual(body.warnings, ["organize_failed"]);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     db.close();
@@ -402,8 +418,8 @@ function createFixture() {
   return { root, codex };
 }
 
-async function startServer(db: Database, paths = getAppPaths()) {
-  const server = createAppServer({ db, paths });
+async function startServer(db: Database, paths = getAppPaths(), organizeOptions = {}) {
+  const server = createAppServer({ db, paths, organizeOptions });
   await new Promise<void>((resolve) => server.listen(0, resolve));
   const address = server.address();
   assert.ok(address && typeof address !== "string");

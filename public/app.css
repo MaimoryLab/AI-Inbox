@@ -457,10 +457,10 @@ dialog {
 }
 
 .session-inbox {
-  background: rgb(255 255 255 / 0.58);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-xl);
-  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
 }
 
 .session-inbox-head {
@@ -472,14 +472,85 @@ dialog {
 }
 
 .session-inbox-main {
+  min-width: 0;
   display: grid;
+  background: rgb(255 255 255 / 0.84);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+
+.session-source-rail {
+  position: sticky;
+  top: 20px;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xl);
+  background: rgb(255 255 255 / 0.82);
+}
+
+.session-source-label {
+  padding: 4px 10px 6px;
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.session-source-chip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  text-align: left;
+}
+
+.session-source-chip.active,
+.session-source-chip:hover {
+  background: var(--bg-alt);
+  color: var(--ink);
+}
+
+.session-source-chip:disabled { cursor: default; }
+
+.session-source-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.session-source-count {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.folder-hover-preview {
+  grid-column: 1 / -1;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .session-row {
   display: grid;
-  grid-template-columns: 4px minmax(0, 1fr);
-  gap: 14px;
-  padding: 14px 18px;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--border-light);
 }
 
@@ -497,6 +568,81 @@ dialog {
 .source-rail.browser { background: var(--blue); }
 .source-rail.claude-code,
 .source-rail.assistant { background: var(--green); }
+
+.session-row-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-subtle);
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.session-row-avatar.user {
+  background: rgba(29, 78, 137, 0.11);
+  color: var(--blue);
+}
+
+.session-row-avatar.assistant {
+  background: rgba(45, 106, 79, 0.12);
+  color: var(--green);
+}
+
+.session-row-preview {
+  margin-top: 3px;
+  color: var(--ink-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.session-row-meta,
+.session-row-side {
+  display: flex;
+  gap: 8px;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  margin-top: 5px;
+}
+
+.session-row-side {
+  margin-top: 0;
+  white-space: nowrap;
+  align-items: center;
+}
+
+.session-overview-card {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 10px 12px;
+}
+
+.session-overview-label {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.session-overview-value {
+  margin-top: 4px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 300;
+}
+
+.conversation-text { white-space: pre-wrap; }
 
 .observation-card {
   scroll-margin: 80px;
@@ -647,9 +793,22 @@ input[type="checkbox"] {
 
 dialog {
   color: var(--ink-secondary);
-  max-width: 640px;
-  width: calc(100vw - 32px);
-  padding: 18px;
+}
+
+#organize-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  max-width: none;
+  width: min(760px, calc(100vw - 28px));
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  overflow: hidden;
+}
+
+#organize-dialog form {
+  max-height: calc(100dvh - 48px);
+  overflow: hidden;
 }
 
 dialog::backdrop {
@@ -660,13 +819,156 @@ dialog::backdrop {
   align-items: center;
   display: flex;
   justify-content: space-between;
-  margin-bottom: 12px;
+  gap: 16px;
+  padding: 20px 22px 14px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.dialog-head h2 {
+  margin-bottom: 4px;
+}
+
+.dialog-summary {
+  color: var(--ink-muted);
+  font-size: 12px;
 }
 
 .result-grid {
   display: grid;
+  gap: 16px;
+  max-height: calc(100dvh - 148px);
+  overflow: auto;
+  padding: 18px 22px 22px;
+}
+
+.organize-status-row,
+.organize-footer {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-content: space-between;
+}
+
+.organize-meta {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-pill);
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 9px;
+}
+
+.organize-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: rgb(255 255 255 / 0.78);
+}
+
+.organize-stat {
+  padding: 16px;
+  border-right: 1px solid var(--border-light);
+}
+
+.organize-stat:last-child {
+  border-right: 0;
+}
+
+.organize-stat .value {
+  font-size: 30px;
+}
+
+.organize-body-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.organize-section {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xl);
+  background: rgb(255 255 255 / 0.82);
+  overflow: hidden;
+}
+
+.organize-section.has-warnings {
+  border-color: rgba(184, 134, 11, 0.4);
+}
+
+.organize-section-head {
+  align-items: center;
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 16px;
+}
+
+.organize-source-list {
+  display: grid;
+}
+
+.organize-source-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.organize-source-row:last-child {
+  border-bottom: 0;
+}
+
+.organize-source-bar {
+  height: 5px;
+  margin-top: 8px;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.organize-source-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.organize-warning-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  padding: 14px 16px;
+}
+
+.organize-warning-list li,
+.organize-ok {
+  border-radius: var(--radius-md);
+  background: var(--bg-alt);
+  color: var(--ink-secondary);
+  font-size: 13px;
+  padding: 10px 12px;
+}
+
+.organize-warning-list li {
+  border-left: 3px solid var(--yellow);
+}
+
+.organize-ok {
+  margin: 14px 16px;
+}
+
+.organize-empty {
+  margin: 14px 16px;
+}
+
+.organize-footer {
+  justify-content: flex-end;
+  border-top: 1px solid var(--border-light);
+  padding-top: 14px;
 }
 
 @media (hover: none) {
@@ -699,7 +1001,38 @@ dialog::backdrop {
   .shell { padding: 16px; }
   .topbar { display: grid; }
   .actions { justify-content: flex-start; }
-  .result-grid { grid-template-columns: 1fr; }
+  .organize-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .organize-stat {
+    border-right: 1px solid var(--border-light);
+    border-bottom: 1px solid var(--border-light);
+  }
+  .organize-body-grid { grid-template-columns: 1fr; }
+  .organize-footer {
+    justify-content: stretch;
+  }
+  .organize-footer button {
+    flex: 1 1 100%;
+  }
+  .session-inbox {
+    grid-template-columns: 1fr;
+  }
+  .session-source-rail {
+    position: static;
+    display: flex;
+    overflow-x: auto;
+  }
+  .session-source-chip {
+    min-width: 148px;
+  }
+  .session-row {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+  .session-row-side {
+    grid-column: 2;
+    white-space: normal;
+  }
   .todo-card {
     grid-template-columns: 5px minmax(0, 1fr);
   }

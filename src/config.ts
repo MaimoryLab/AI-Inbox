@@ -9,9 +9,12 @@ export const DEFAULT_LLM_ENDPOINT = "https://api.novita.ai/openai/v1";
 export const DEFAULT_LLM_TIMEOUT_MS = 120000;
 export const DEFAULT_ORGANIZE_SINCE_DAYS = 7;
 export const DEFAULT_ORGANIZE_MAX_INTERACTIONS_PER_SESSION = 10;
+export const DEFAULT_ORGANIZE_MAX_SESSIONS = 8;
+export const DEFAULT_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION = 40;
 
-const DEFAULT_CODEX_HOME = join(homedir(), ".codex", "sessions");
+const DEFAULT_CODEX_HOME = join(homedir(), ".codex");
 const DEFAULT_CLAUDE_HOME = join(homedir(), ".claude", "projects");
+const IGNORED_ENV_KEYS = new Set(["AI_TODO_LLM_" + "PYTHON"]);
 
 export interface AppConfig {
   sources: {
@@ -24,12 +27,13 @@ export interface AppConfig {
     model: string;
     endpoint: string;
     thinkingDepth: "low" | "medium" | "high";
-    pythonPath?: string;
     timeoutMs: number;
   };
   organize: {
     sinceDays: number;
     maxInteractionsPerSession: number;
+    maxSessions: number;
+    maxObservationsPerSession: number;
   };
 }
 
@@ -52,11 +56,12 @@ export const WRITABLE_ENV_KEYS = [
   "AI_TODO_LLM_MODEL",
   "AI_TODO_LLM_ENDPOINT",
   "AI_TODO_LLM_THINKING_DEPTH",
-  "AI_TODO_LLM_PYTHON",
   "AI_TODO_LLM_TIMEOUT_MS",
   "AI_TODO_LLM_API_KEY",
   "AI_TODO_ORGANIZE_SINCE_DAYS",
-  "AI_TODO_ORGANIZE_MAX_INTERACTIONS_PER_SESSION"
+  "AI_TODO_ORGANIZE_MAX_INTERACTIONS_PER_SESSION",
+  "AI_TODO_ORGANIZE_MAX_SESSIONS",
+  "AI_TODO_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION"
 ] as const;
 
 export type WritableEnvKey = typeof WRITABLE_ENV_KEYS[number];
@@ -74,12 +79,13 @@ export function defaultConfig(): AppConfig {
       model: DEFAULT_LLM_MODEL,
       endpoint: DEFAULT_LLM_ENDPOINT,
       thinkingDepth: "medium",
-      pythonPath: "python3",
       timeoutMs: DEFAULT_LLM_TIMEOUT_MS
     },
     organize: {
       sinceDays: DEFAULT_ORGANIZE_SINCE_DAYS,
-      maxInteractionsPerSession: DEFAULT_ORGANIZE_MAX_INTERACTIONS_PER_SESSION
+      maxInteractionsPerSession: DEFAULT_ORGANIZE_MAX_INTERACTIONS_PER_SESSION,
+      maxSessions: DEFAULT_ORGANIZE_MAX_SESSIONS,
+      maxObservationsPerSession: DEFAULT_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION
     }
   };
 }
@@ -93,11 +99,12 @@ export function defaultEnvConfig(includeApiKey?: string): EnvConfig {
     AI_TODO_LLM_MODEL: DEFAULT_LLM_MODEL,
     AI_TODO_LLM_ENDPOINT: DEFAULT_LLM_ENDPOINT,
     AI_TODO_LLM_THINKING_DEPTH: "medium",
-    AI_TODO_LLM_PYTHON: "python3",
     AI_TODO_LLM_TIMEOUT_MS: String(DEFAULT_LLM_TIMEOUT_MS),
     AI_TODO_LLM_API_KEY: includeApiKey,
     AI_TODO_ORGANIZE_SINCE_DAYS: String(DEFAULT_ORGANIZE_SINCE_DAYS),
-    AI_TODO_ORGANIZE_MAX_INTERACTIONS_PER_SESSION: String(DEFAULT_ORGANIZE_MAX_INTERACTIONS_PER_SESSION)
+    AI_TODO_ORGANIZE_MAX_INTERACTIONS_PER_SESSION: String(DEFAULT_ORGANIZE_MAX_INTERACTIONS_PER_SESSION),
+    AI_TODO_ORGANIZE_MAX_SESSIONS: String(DEFAULT_ORGANIZE_MAX_SESSIONS),
+    AI_TODO_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION: String(DEFAULT_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION)
   });
 }
 
@@ -200,10 +207,11 @@ export function configToEnv(config: AppConfig): EnvConfig {
     AI_TODO_LLM_MODEL: parsed.llm.model,
     AI_TODO_LLM_ENDPOINT: parsed.llm.endpoint,
     AI_TODO_LLM_THINKING_DEPTH: parsed.llm.thinkingDepth,
-    AI_TODO_LLM_PYTHON: parsed.llm.pythonPath,
     AI_TODO_LLM_TIMEOUT_MS: String(parsed.llm.timeoutMs),
     AI_TODO_ORGANIZE_SINCE_DAYS: String(parsed.organize.sinceDays),
-    AI_TODO_ORGANIZE_MAX_INTERACTIONS_PER_SESSION: String(parsed.organize.maxInteractionsPerSession)
+    AI_TODO_ORGANIZE_MAX_INTERACTIONS_PER_SESSION: String(parsed.organize.maxInteractionsPerSession),
+    AI_TODO_ORGANIZE_MAX_SESSIONS: String(parsed.organize.maxSessions),
+    AI_TODO_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION: String(parsed.organize.maxObservationsPerSession)
   });
 }
 
@@ -242,7 +250,10 @@ export function parseEnvFile(text: string): EnvConfig {
     const separator = line.indexOf("=");
     if (separator <= 0) throw new Error("env_invalid");
     const key = line.slice(0, separator).trim();
-    if (!isWritableEnvKey(key)) throw new Error("env_invalid");
+    if (!isWritableEnvKey(key)) {
+      if (IGNORED_ENV_KEYS.has(key)) continue;
+      throw new Error("env_invalid");
+    }
     env[key] = parseEnvValue(line.slice(separator + 1));
   }
   return sanitizeEnvConfig(env);
@@ -282,8 +293,8 @@ function applyEnvConfig(config: AppConfig, env: EnvConfig): AppConfig {
     llm: { ...config.llm },
     organize: { ...config.organize }
   };
-  if (env.AI_TODO_CODEX_HOME) next.sources.codex = { path: env.AI_TODO_CODEX_HOME };
-  if (env.AI_TODO_CLAUDE_HOME) next.sources["claude-code"] = { path: env.AI_TODO_CLAUDE_HOME };
+  if (env.AI_TODO_CODEX_HOME) next.sources.codex = { path: cleanSourcePath(env.AI_TODO_CODEX_HOME) };
+  if (env.AI_TODO_CLAUDE_HOME) next.sources["claude-code"] = { path: cleanSourcePath(env.AI_TODO_CLAUDE_HOME) };
   if (env.AI_TODO_LLM_ENABLED !== undefined) next.llm.enabled = parseBoolean(env.AI_TODO_LLM_ENABLED);
   if (env.AI_TODO_LLM_PROVIDER !== undefined) {
     if (env.AI_TODO_LLM_PROVIDER !== "openai") throw new Error("config_invalid");
@@ -292,13 +303,18 @@ function applyEnvConfig(config: AppConfig, env: EnvConfig): AppConfig {
   if (env.AI_TODO_LLM_MODEL) next.llm.model = env.AI_TODO_LLM_MODEL;
   if (env.AI_TODO_LLM_ENDPOINT) next.llm.endpoint = env.AI_TODO_LLM_ENDPOINT;
   if (env.AI_TODO_LLM_THINKING_DEPTH !== undefined) next.llm.thinkingDepth = parseThinkingDepth(env.AI_TODO_LLM_THINKING_DEPTH);
-  if (env.AI_TODO_LLM_PYTHON) next.llm.pythonPath = env.AI_TODO_LLM_PYTHON;
   if (env.AI_TODO_LLM_TIMEOUT_MS !== undefined) next.llm.timeoutMs = parseIntRange(env.AI_TODO_LLM_TIMEOUT_MS, 1000, 600000);
   if (env.AI_TODO_ORGANIZE_SINCE_DAYS !== undefined) {
     next.organize.sinceDays = parseIntRange(env.AI_TODO_ORGANIZE_SINCE_DAYS, 1, 3650);
   }
   if (env.AI_TODO_ORGANIZE_MAX_INTERACTIONS_PER_SESSION !== undefined) {
     next.organize.maxInteractionsPerSession = parseIntRange(env.AI_TODO_ORGANIZE_MAX_INTERACTIONS_PER_SESSION, 1, 500);
+  }
+  if (env.AI_TODO_ORGANIZE_MAX_SESSIONS !== undefined) {
+    next.organize.maxSessions = parseIntRange(env.AI_TODO_ORGANIZE_MAX_SESSIONS, 1, 200);
+  }
+  if (env.AI_TODO_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION !== undefined) {
+    next.organize.maxObservationsPerSession = parseIntRange(env.AI_TODO_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION, 1, 1000);
   }
   return parseConfig(next);
 }
@@ -311,7 +327,19 @@ function sourceConfig(value: unknown): { path?: string } {
   const path = input.path;
   if (path === undefined) return {};
   if (typeof path !== "string" || !path.trim()) throw new Error("config_invalid");
-  return { path: path.trim() };
+  const cleaned = cleanSourcePath(path);
+  return cleaned ? { path: cleaned } : {};
+}
+
+function cleanSourcePath(path: string): string | undefined {
+  const trimmed = path.trim();
+  if (!trimmed) return undefined;
+  if (isStaleTempSourcePath(trimmed) && !existsSync(trimmed)) return undefined;
+  return trimmed;
+}
+
+function isStaleTempSourcePath(path: string): boolean {
+  return /\/ai-todo-http-[A-Za-z0-9_-]+(?:\/|$)/.test(path);
 }
 
 function llmConfig(value: unknown): AppConfig["llm"] {
@@ -319,7 +347,7 @@ function llmConfig(value: unknown): AppConfig["llm"] {
   const input = objectValue(value);
   if (!input) throw new Error("config_invalid");
   const keys = Object.keys(input);
-  if (keys.some((key) => !["enabled", "provider", "model", "endpoint", "thinkingDepth", "pythonPath", "timeoutMs"].includes(key))) {
+  if (keys.some((key) => !["enabled", "provider", "model", "endpoint", "thinkingDepth", "timeoutMs"].includes(key))) {
     throw new Error("config_invalid");
   }
   if (typeof input.enabled !== "boolean") throw new Error("config_invalid");
@@ -327,12 +355,11 @@ function llmConfig(value: unknown): AppConfig["llm"] {
   const model = nonEmptyString(input.model);
   const endpoint = nonEmptyString(input.endpoint);
   const thinkingDepth = parseThinkingDepth(input.thinkingDepth);
-  const pythonPath = input.pythonPath === undefined ? undefined : nonEmptyString(input.pythonPath);
   const timeoutMs = input.timeoutMs;
   if (typeof timeoutMs !== "number" || !Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 600000) {
     throw new Error("config_invalid");
   }
-  return { enabled: input.enabled, provider: "openai", model, endpoint, thinkingDepth, pythonPath, timeoutMs };
+  return { enabled: input.enabled, provider: "openai", model, endpoint, thinkingDepth, timeoutMs };
 }
 
 function organizeConfig(value: unknown): AppConfig["organize"] {
@@ -340,10 +367,20 @@ function organizeConfig(value: unknown): AppConfig["organize"] {
   const input = objectValue(value);
   if (!input) throw new Error("config_invalid");
   const keys = Object.keys(input);
-  if (keys.some((key) => key !== "sinceDays" && key !== "maxInteractionsPerSession")) throw new Error("config_invalid");
+  if (keys.some((key) =>
+    key !== "sinceDays" &&
+    key !== "maxInteractionsPerSession" &&
+    key !== "maxSessions" &&
+    key !== "maxObservationsPerSession"
+  )) throw new Error("config_invalid");
+  const defaults = defaultConfig().organize;
   return {
     sinceDays: numberRange(input.sinceDays, 1, 3650),
-    maxInteractionsPerSession: numberRange(input.maxInteractionsPerSession, 1, 500)
+    maxInteractionsPerSession: numberRange(input.maxInteractionsPerSession, 1, 500),
+    maxSessions: input.maxSessions === undefined ? defaults.maxSessions : numberRange(input.maxSessions, 1, 200),
+    maxObservationsPerSession: input.maxObservationsPerSession === undefined
+      ? defaults.maxObservationsPerSession
+      : numberRange(input.maxObservationsPerSession, 1, 1000)
   };
 }
 

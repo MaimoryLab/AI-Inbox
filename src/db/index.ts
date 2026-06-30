@@ -5,6 +5,8 @@ import type { AppPaths } from "../paths.js";
 
 export type Database = DatabaseSync;
 
+const CLEAN_TRANSCRIPT_VERSION = "2";
+
 export function openDatabase(paths: AppPaths): Database {
   mkdirSync(dirname(paths.dbPath), { recursive: true });
   const db = new DatabaseSync(paths.dbPath);
@@ -15,6 +17,11 @@ export function openDatabase(paths: AppPaths): Database {
 export function migrate(db: Database): void {
   db.exec(`
     PRAGMA journal_mode = WAL;
+
+    CREATE TABLE IF NOT EXISTS schema_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
 
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
@@ -61,4 +68,21 @@ export function migrate(db: Database): void {
       created_at TEXT NOT NULL
     );
   `);
+  migrateCleanTranscript(db);
+}
+
+function migrateCleanTranscript(db: Database): void {
+  const row = db.prepare("SELECT value FROM schema_meta WHERE key = 'clean_transcript_version'").get() as { value: string } | undefined;
+  if (row?.value === CLEAN_TRANSCRIPT_VERSION) return;
+  db.exec(`
+    DELETE FROM evidence;
+    DELETE FROM todos;
+    DELETE FROM organize_runs;
+    DELETE FROM observations;
+    DELETE FROM sessions;
+    DELETE FROM scan_checkpoints;
+  `);
+  db.prepare(
+    "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('clean_transcript_version', ?)"
+  ).run(CLEAN_TRANSCRIPT_VERSION);
 }

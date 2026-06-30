@@ -39,8 +39,6 @@
         <h2 id="dashboard-title">Source Dashboard</h2>
         <div id="startup-scan" class="startup-scan"></div>
         <div id="source-grid" class="stats-grid"></div>
-        <h3>Sessions</h3>
-        <div id="sessions" class="list"></div>
       </section>
 
       <section id="todos" class="view" aria-labelledby="todos-title">
@@ -50,7 +48,7 @@
 
       <section id="evidence" class="view" aria-labelledby="evidence-title">
         <h2 id="evidence-title">Evidence</h2>
-        <div id="evidence-list" class="list empty">Select a todo to inspect evidence.</div>
+        <div id="evidence-browser" class="list"></div>
       </section>
 
     </main>
@@ -63,11 +61,14 @@
     </button>
     <aside id="settings-panel" class="settings-panel" aria-hidden="true"></aside>
 
-    <dialog id="organize-dialog">
+    <dialog id="organize-dialog" aria-labelledby="organize-dialog-title" aria-describedby="organize-dialog-summary">
       <form method="dialog">
         <header class="dialog-head">
-          <h2>Organize Result</h2>
-          <button aria-label="Close dialog">Close</button>
+          <div>
+            <h2 id="organize-dialog-title">Organize Result</h2>
+            <p id="organize-dialog-summary" class="dialog-summary">Review the latest organize run.</p>
+          </div>
+          <button class="ghost" aria-label="Close dialog">Close</button>
         </header>
         <div id="organize-result" class="result-grid"></div>
       </form>

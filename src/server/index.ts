@@ -63,6 +63,12 @@ export function createAppServer(options: {
       if (serveStatic(res, path)) return;
     }
 
+    if (req.method === "GET" && path === "/favicon.ico") {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
     if (req.method === "GET" && path === "/healthz") {
       writeJson(res, 200, { ok: true });
       return;
@@ -155,7 +161,7 @@ export function createAppServer(options: {
       } catch (error) {
         writeJson(res, 500, {
           error: "organize_failed",
-          warnings: ["organize_failed_fallback"],
+          warnings: ["organize_failed"],
           message: (error as Error).message
         });
       }

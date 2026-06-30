@@ -16,7 +16,7 @@ import {
   saveEnvConfig,
   saveSecrets
 } from "../src/config.js";
-import { resolveSourcePath } from "../src/sources/scan.js";
+import { resolveSourcePath, resolveSourcePaths } from "../src/sources/scan.js";
 
 test("config reads defaults and persists source paths", () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-todo-config-"));
@@ -33,12 +33,13 @@ test("config reads defaults and persists source paths", () => {
         model: "deepseek/deepseek-v4-flash",
         endpoint: "https://api.novita.ai/openai/v1",
         thinkingDepth: "medium",
-        pythonPath: "python3",
         timeoutMs: 120000
       },
       organize: {
         sinceDays: 7,
-        maxInteractionsPerSession: 10
+        maxInteractionsPerSession: 10,
+        maxSessions: 8,
+        maxObservationsPerSession: 40
       }
     });
 
@@ -53,12 +54,13 @@ test("config reads defaults and persists source paths", () => {
         model: "custom/model",
         endpoint: "https://llm.example.test/v1",
         thinkingDepth: "high" as const,
-        pythonPath: "/usr/bin/python3",
         timeoutMs: 30000
       },
       organize: {
         sinceDays: 14,
-        maxInteractionsPerSession: 20
+        maxInteractionsPerSession: 20,
+        maxSessions: 12,
+        maxObservationsPerSession: 30
       }
     };
     saveConfig(paths, config);
@@ -90,12 +92,13 @@ test("config rejects invalid files and preserves source path precedence", () => 
         model: "deepseek/deepseek-v4-flash",
         endpoint: "https://api.novita.ai/openai/v1",
         thinkingDepth: "medium",
-        pythonPath: "python3",
         timeoutMs: 120000
       },
       organize: {
         sinceDays: 7,
-        maxInteractionsPerSession: 10
+        maxInteractionsPerSession: 10,
+        maxSessions: 8,
+        maxObservationsPerSession: 40
       }
     });
     assert.equal(resolveSourcePath("codex", explicit, paths), explicit);
@@ -127,7 +130,7 @@ test("config rejects invalid llm settings", () => {
         thinkingDepth: "medium",
         timeoutMs: 120000
       },
-      organize: { sinceDays: 7, maxInteractionsPerSession: 10 }
+      organize: { sinceDays: 7, maxInteractionsPerSession: 10, maxSessions: 8, maxObservationsPerSession: 40 }
     }), /config_invalid/);
     assert.throws(() => saveConfig(paths, {
       sources: { codex: {}, "claude-code": {} },
@@ -139,7 +142,7 @@ test("config rejects invalid llm settings", () => {
         thinkingDepth: "medium",
         timeoutMs: 120000
       },
-      organize: { sinceDays: 7, maxInteractionsPerSession: 10 }
+      organize: { sinceDays: 7, maxInteractionsPerSession: 10, maxSessions: 8, maxObservationsPerSession: 40 }
     }), /config_invalid/);
     assert.throws(() => saveConfig(paths, {
       sources: { codex: {}, "claude-code": {} },
@@ -151,7 +154,7 @@ test("config rejects invalid llm settings", () => {
         thinkingDepth: "medium",
         timeoutMs: 120000
       },
-      organize: { sinceDays: 7, maxInteractionsPerSession: 10 }
+      organize: { sinceDays: 7, maxInteractionsPerSession: 10, maxSessions: 8, maxObservationsPerSession: 40 }
     }), /config_invalid/);
     assert.throws(() => saveConfig(paths, {
       sources: { codex: {}, "claude-code": {} },
@@ -163,7 +166,7 @@ test("config rejects invalid llm settings", () => {
         thinkingDepth: "medium",
         timeoutMs: 0
       },
-      organize: { sinceDays: 7, maxInteractionsPerSession: 10 }
+      organize: { sinceDays: 7, maxInteractionsPerSession: 10, maxSessions: 8, maxObservationsPerSession: 40 }
     }), /config_invalid/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -207,17 +210,55 @@ test("env config parses comments, quotes, defaults, and masks api keys", () => {
   }
 });
 
+test("env config ignores removed python setting for existing installs", () => {
+  const removedKey = "AI_TODO_LLM_" + "PYTHON";
+  assert.deepEqual(parseEnvFile(`${removedKey}=python3\nAI_TODO_LLM_MODEL=custom/model`), {
+    AI_TODO_LLM_MODEL: "custom/model"
+  });
+});
+
 test("default env generation writes necessary values without empty api key", () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-todo-env-default-"));
   try {
     const paths = getAppPaths(dir);
     ensureDefaultEnv(paths);
     const text = readFileSync(paths.envPath, "utf8");
+    assert.match(text, /AI_TODO_CODEX_HOME=.*\.codex/);
+    assert.doesNotMatch(text, /AI_TODO_CODEX_HOME=.*\.codex\/sessions/);
     assert.match(text, /AI_TODO_LLM_MODEL=deepseek\/deepseek-v4-flash/);
     assert.match(text, /AI_TODO_ORGANIZE_SINCE_DAYS=7/);
+    assert.match(text, /AI_TODO_ORGANIZE_MAX_SESSIONS=8/);
+    assert.match(text, /AI_TODO_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION=40/);
     assert.doesNotMatch(text, /AI_TODO_LLM_API_KEY/);
     assert.equal((readFileSync(paths.envPath).byteLength > 0), true);
     assert.equal(statSync(paths.envPath).mode & 0o777, 0o600);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("codex home expands to sessions and archived sessions roots", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-codex-roots-"));
+  try {
+    const codexHome = join(dir, ".codex");
+    mkdirSync(join(codexHome, "sessions"), { recursive: true });
+    mkdirSync(join(codexHome, "archived_sessions"), { recursive: true });
+    assert.deepEqual(resolveSourcePaths("codex", codexHome), [
+      join(codexHome, "sessions"),
+      join(codexHome, "archived_sessions")
+    ]);
+    assert.equal(resolveSourcePath("codex", codexHome), join(codexHome, "sessions"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("stale temporary source paths are ignored when loading config", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-stale-config-"));
+  try {
+    const paths = getAppPaths(dir);
+    saveEnvConfig(paths, parseEnvFile("AI_TODO_CODEX_HOME=/var/folders/x/ai-todo-http-deadbeef/codex"));
+    assert.deepEqual(loadConfig(paths).sources.codex, {});
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

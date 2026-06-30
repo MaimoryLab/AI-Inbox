@@ -1,6 +1,6 @@
 import type { OrganizeResult, SourceKind, TodoCard } from "../contracts.js";
 import type { Database } from "../db/index.js";
-import { extractRuleCandidate, stableId } from "../extract/rules.js";
+import { stableId } from "../extract/rules.js";
 
 export interface TodoEvidence {
   id: string;
@@ -14,7 +14,6 @@ export interface TodoEnhancer {
 
 export type LlmOrganizeWarning =
   | "llm_config_missing"
-  | "llm_runtime_missing"
   | "llm_timeout"
   | "llm_provider_failed"
   | "llm_output_invalid"
@@ -22,7 +21,7 @@ export type LlmOrganizeWarning =
   | "llm_input_truncated"
   | "llm_batch_failed"
   | "organize_scope_truncated"
-  | "organize_failed_fallback";
+  | "organize_failed";
 
 export interface LlmTodoCandidate {
   title: string;
@@ -35,7 +34,7 @@ export interface LlmTodoCandidate {
 
 export type LlmExtractResult =
   | { ok: true; todos: LlmTodoCandidate[] }
-  | { ok: false; warning: LlmOrganizeWarning };
+  | { ok: false; warning: LlmOrganizeWarning; reason?: string; retryable?: boolean };
 
 export interface OrganizeOptions {
   enhancer?: TodoEnhancer["enhance"];
@@ -43,6 +42,8 @@ export interface OrganizeOptions {
   scope?: {
     sinceDays: number;
     maxInteractionsPerSession: number;
+    maxSessions?: number;
+    maxObservationsPerSession?: number;
   };
   limits?: Partial<OrganizeLimits>;
 }
@@ -56,42 +57,43 @@ export interface ObservationForOrganize {
   createdAt: string;
 }
 
-type WriteResult = { created: number; updated: number; engine: "rules" | "rules+llm" | "llm" };
+type WriteResult = { created: number; updated: number; engine: "llm" };
+type OrganizeDetails = NonNullable<OrganizeResult["details"]>;
 
 export interface OrganizeLimits {
   maxUserBlocks: number;
   maxTotalTextChars: number;
   maxBlockTextChars: number;
   llmBatchSize: number;
+  maxObservationTextChars: number;
+  maxSessionPayloadChars: number;
+  maxBatchPayloadChars: number;
 }
 
 export const DEFAULT_ORGANIZE_LIMITS: OrganizeLimits = {
   maxUserBlocks: 120,
   maxTotalTextChars: 80000,
   maxBlockTextChars: 4000,
-  llmBatchSize: 20
+  llmBatchSize: 20,
+  maxObservationTextChars: 3000,
+  maxSessionPayloadChars: 24000,
+  maxBatchPayloadChars: 32000
 };
 
 export async function organizeTodos(db: Database, options: OrganizeOptions = {}): Promise<OrganizeResult> {
   const started = Date.now();
   const runId = stableId("organize", new Date(started).toISOString(), Math.random().toString(36));
   const warnings = new Set<string>();
+  const details: OrganizeDetails = {};
   const limits = { ...DEFAULT_ORGANIZE_LIMITS, ...options.limits };
-  const observations = limitObservations(
-    scopeObservations(loadScopedObservations(db, options.scope), options.scope),
-    limits,
-    warnings
-  );
+  const observations = planScopedObservations(loadScopedObservations(db, options.scope), options.scope, limits, warnings, details);
   const sourceCounts = new Map<SourceKind, number>();
   for (const observation of observations) {
     sourceCounts.set(observation.source, (sourceCounts.get(observation.source) ?? 0) + 1);
   }
-  let writeResult: WriteResult | null = options.llmExtractor
-    ? await writeBatchedLlmTodos(db, observations, options, limits, warnings)
-    : null;
-  if (!writeResult) {
-    writeResult = await writeRuleTodos(db, observations, options, warnings);
-  }
+  const writeResult: WriteResult = options.llmExtractor
+    ? await writeBatchedLlmTodos(db, observations, options, limits, warnings, details)
+    : noLlmResult(warnings, "llm_config_missing");
 
   const result: OrganizeResult = {
     runId,
@@ -105,6 +107,7 @@ export async function organizeTodos(db: Database, options: OrganizeOptions = {})
     warnings: Array.from(warnings),
     durationMs: Date.now() - started
   };
+  if (hasOrganizeDetails(details)) result.details = details;
 
   db.prepare(
     "INSERT INTO organize_runs (id, result_json, created_at) VALUES (?, ?, ?)"
@@ -157,96 +160,153 @@ function takeRecentInteractions(observations: ObservationForOrganize[], maxInter
   return observations.slice(cutoff);
 }
 
-function limitObservations(
+function planScopedObservations(
+  observations: ObservationForOrganize[],
+  scope: OrganizeOptions["scope"],
+  limits: OrganizeLimits,
+  warnings: Set<string>,
+  details: OrganizeDetails
+): ObservationForOrganize[] {
+  const scoped = scopeObservationsBySession(observations, scope, limits, warnings, details);
+  return applyPayloadBudget(scoped, limits, warnings, details);
+}
+
+function scopeObservationsBySession(
+  observations: ObservationForOrganize[],
+  scope: OrganizeOptions["scope"],
+  limits: OrganizeLimits,
+  warnings: Set<string>,
+  details: OrganizeDetails
+): ObservationForOrganize[] {
+  const base = scope ? observations.filter((observation) => {
+    const cutoffMs = Date.now() - scope.sinceDays * 24 * 60 * 60 * 1000;
+    return Date.parse(observation.createdAt) >= cutoffMs;
+  }) : observations;
+  const sessions = new Map<string, ObservationForOrganize[]>();
+  for (const observation of base) {
+    const group = sessions.get(observation.sessionId) ?? [];
+    group.push(observation);
+    sessions.set(observation.sessionId, group);
+  }
+  const maxSessions = scope?.maxSessions ?? Number.POSITIVE_INFINITY;
+  const maxObservationsPerSession = scope?.maxObservationsPerSession ?? Number.POSITIVE_INFINITY;
+  const rankedSessions = Array.from(sessions.values())
+    .map((group) => group.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)))
+    .sort((a, b) => latestTimestamp(b).localeCompare(latestTimestamp(a)));
+  const selected = rankedSessions.slice(0, maxSessions);
+  const sessionsDropped = Math.max(0, rankedSessions.length - selected.length);
+  let observationsDropped = rankedSessions.slice(maxSessions).reduce((sum, group) => sum + group.length, 0);
+  const scoped: ObservationForOrganize[] = [];
+  for (const group of selected) {
+    const interactionScoped = scope ? takeRecentInteractions(group, scope.maxInteractionsPerSession) : group;
+    const observationScoped = interactionScoped.slice(Math.max(0, interactionScoped.length - maxObservationsPerSession));
+    observationsDropped += Math.max(0, group.length - interactionScoped.length) + Math.max(0, interactionScoped.length - observationScoped.length);
+    scoped.push(...observationScoped);
+  }
+  if (sessionsDropped > 0 || observationsDropped > 0) {
+    warnings.add("organize_scope_truncated");
+    details.scope = {
+      sessionsScanned: selected.length,
+      sessionsDropped,
+      observationsDropped
+    };
+  }
+  return scoped.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+}
+
+function latestTimestamp(observations: ObservationForOrganize[]): string {
+  return observations.reduce((latest, observation) => observation.createdAt > latest ? observation.createdAt : latest, "");
+}
+
+function applyPayloadBudget(
   observations: ObservationForOrganize[],
   limits: OrganizeLimits,
-  warnings: Set<string>
+  warnings: Set<string>,
+  details: OrganizeDetails
 ): ObservationForOrganize[] {
   let totalText = 0;
   let userBlocks = 0;
+  const sessionText = new Map<string, number>();
   const limited: ObservationForOrganize[] = [];
   for (const observation of observations) {
-    if (observation.role !== "user") {
-      limited.push(observation);
-      continue;
-    }
-    if (userBlocks >= limits.maxUserBlocks) {
+    if (observation.role === "user" && userBlocks >= limits.maxUserBlocks) {
       warnings.add("organize_scope_truncated");
       continue;
     }
-    const text = observation.text.length > limits.maxBlockTextChars
-      ? observation.text.slice(0, limits.maxBlockTextChars)
+    const maxTextChars = observation.role === "user"
+      ? Math.min(limits.maxBlockTextChars, limits.maxObservationTextChars)
+      : limits.maxObservationTextChars;
+    let text = observation.text.length > maxTextChars
+      ? observation.text.slice(0, maxTextChars)
       : observation.text;
-    if (text.length !== observation.text.length) warnings.add("llm_input_truncated");
-    if (totalText + text.length > limits.maxTotalTextChars) {
+    if (text.length !== observation.text.length) {
+      addTruncationDetail(details, observation, observation.text.length, text.length);
+      warnings.add("llm_input_truncated");
+    }
+    const sessionUsed = sessionText.get(observation.sessionId) ?? 0;
+    if (sessionUsed + text.length > limits.maxSessionPayloadChars) {
+      const available = Math.max(0, limits.maxSessionPayloadChars - sessionUsed);
+      if (available === 0) {
+        warnings.add("organize_scope_truncated");
+        continue;
+      }
+      text = text.slice(0, available);
+      addTruncationDetail(details, observation, observation.text.length, text.length);
+      warnings.add("llm_input_truncated");
+    }
+    if (totalText + text.length > limits.maxTotalTextChars || totalText + text.length > limits.maxBatchPayloadChars) {
       warnings.add("organize_scope_truncated");
       continue;
     }
     totalText += text.length;
-    userBlocks++;
+    sessionText.set(observation.sessionId, sessionUsed + text.length);
+    if (observation.role === "user") userBlocks++;
     limited.push(text === observation.text ? observation : { ...observation, text });
   }
   return limited;
 }
 
-async function writeRuleTodos(
-  db: Database,
-  observations: ObservationForOrganize[],
-  options: OrganizeOptions,
-  warnings: Set<string>
-): Promise<WriteResult> {
-  let created = 0;
-  let updated = 0;
-  let enhanced = false;
+function addTruncationDetail(
+  details: OrganizeDetails,
+  observation: ObservationForOrganize,
+  originalChars: number,
+  keptChars: number
+): void {
+  details.truncations ??= [];
+  details.truncations.push({
+    sessionId: observation.sessionId,
+    source: observation.source,
+    role: observation.role,
+    originalChars,
+    keptChars
+  });
+}
 
-  for (const observation of observations) {
-    if (observation.role !== "user") continue;
-
-    const candidate = extractRuleCandidate(observation.text);
-    if (!candidate) continue;
-    if (!options.enhancer && !options.llmExtractor) warnings.add("llm_enhancer_unavailable");
-    const card = await enhanceCandidate({ ...candidate, evidenceText: observation.text }, options.enhancer, warnings);
-    enhanced ||= card.enhanced;
-
-    const todoId = stableId(candidate.mergeKey);
-    const now = new Date().toISOString();
-    const existing = db.prepare("SELECT id FROM todos WHERE id = ?").get(todoId);
-    if (existing) {
-      db.prepare(
-        "UPDATE todos SET description = ?, updated_at = ? WHERE id = ?"
-      ).run(card.description, now, todoId);
-      updated++;
-    } else {
-      db.prepare(
-        "INSERT INTO todos (id, title, description, status, updated_at) VALUES (?, ?, ?, 'todo', ?)"
-      ).run(todoId, card.title, card.description, now);
-      created++;
-    }
-
-    db.prepare(
-      "INSERT OR REPLACE INTO evidence (id, todo_id, observation_id, text) VALUES (?, ?, ?, ?)"
-    ).run(stableId(todoId, observation.id), todoId, observation.id, observation.text);
-  }
-
-  return { created, updated, engine: enhanced ? "rules+llm" : "rules" };
+function hasOrganizeDetails(details: OrganizeDetails): boolean {
+  return !!details.scope || !!details.truncations?.length || !!details.batchFailures?.length;
 }
 
 async function writeLlmTodos(
   db: Database,
   observations: ObservationForOrganize[],
   extractor: NonNullable<OrganizeOptions["llmExtractor"]>,
-  warnings: Set<string>
-): Promise<WriteResult | null> {
+  warnings: Set<string>,
+  details: OrganizeDetails
+): Promise<WriteResult> {
   const extracted = await extractor(observations);
   if (!extracted.ok) {
     warnings.add(extracted.warning);
-    return null;
+    addBatchFailureDetail(details, observations, extracted);
+    return noLlmResult(warnings);
   }
   const byId = new Map(observations.map((observation) => [observation.id, observation]));
-  const candidates = extracted.todos.filter((candidate) => validLlmCandidate(candidate, byId));
+  const candidates = dedupeLlmCandidates(
+    extracted.todos.filter((candidate) => validLlmCandidate(candidate, byId)),
+    existingActiveTodos(db)
+  );
   if (candidates.length === 0) {
     warnings.add("llm_no_valid_candidates");
-    return null;
+    return noLlmResult(warnings);
   }
 
   let created = 0;
@@ -280,52 +340,82 @@ async function writeBatchedLlmTodos(
   observations: ObservationForOrganize[],
   options: OrganizeOptions,
   limits: OrganizeLimits,
-  warnings: Set<string>
-): Promise<WriteResult | null> {
+  warnings: Set<string>,
+  details: OrganizeDetails
+): Promise<WriteResult> {
   const extractor = options.llmExtractor;
-  if (!extractor) return null;
-  const batches = chunkObservations(observations, limits.llmBatchSize);
+  if (!extractor) return noLlmResult(warnings, "llm_config_missing");
+  const batches = chunkObservationsBySession(observations, limits.llmBatchSize);
   let totalCreated = 0;
   let totalUpdated = 0;
-  let llmSucceeded = false;
-  let rulesUsed = false;
+  let attempted = false;
 
   for (const batch of batches) {
     if (!batch.some((observation) => observation.role === "user")) continue;
     const warningsBefore = new Set(warnings);
-    const result = await writeLlmTodos(db, batch, extractor, warnings);
-    if (result) {
-      totalCreated += result.created;
-      totalUpdated += result.updated;
-      llmSucceeded = true;
-      continue;
-    }
+    attempted = true;
+    const result = await writeLlmTodos(db, batch, extractor, warnings, details);
     if (hasBatchFailureWarning(warnings, warningsBefore)) warnings.add("llm_batch_failed");
-    const fallback = await writeRuleTodos(db, batch, options, warnings);
-    totalCreated += fallback.created;
-    totalUpdated += fallback.updated;
-    rulesUsed = true;
+    totalCreated += result.created;
+    totalUpdated += result.updated;
   }
 
-  if (!llmSucceeded && !rulesUsed) return null;
-  return {
-    created: totalCreated,
-    updated: totalUpdated,
-    engine: llmSucceeded && rulesUsed ? "rules+llm" : llmSucceeded ? "llm" : "rules"
-  };
+  if (!attempted) warnings.add("llm_no_valid_candidates");
+  return { created: totalCreated, updated: totalUpdated, engine: "llm" };
+}
+
+function addBatchFailureDetail(
+  details: OrganizeDetails,
+  observations: ObservationForOrganize[],
+  failure: Extract<LlmExtractResult, { ok: false }>
+): void {
+  const first = observations.find((observation) => observation.role === "user") ?? observations[0];
+  if (!first) return;
+  details.batchFailures ??= [];
+  details.batchFailures.push({
+    sessionId: first.sessionId,
+    source: first.source,
+    warning: failure.warning,
+    reason: failure.reason ?? failure.warning,
+    retryable: failure.retryable ?? isRetryableWarning(failure.warning)
+  });
+}
+
+function isRetryableWarning(warning: LlmOrganizeWarning): boolean {
+  return warning === "llm_timeout" ||
+    warning === "llm_provider_failed" ||
+    warning === "llm_output_invalid";
 }
 
 function hasBatchFailureWarning(warnings: Set<string>, before: Set<string>): boolean {
   for (const warning of warnings) {
     if (before.has(warning)) continue;
     if (
-      warning === "llm_runtime_missing" ||
       warning === "llm_timeout" ||
       warning === "llm_provider_failed" ||
       warning === "llm_output_invalid"
     ) return true;
   }
   return false;
+}
+
+function noLlmResult(warnings: Set<string>, warning?: LlmOrganizeWarning): WriteResult {
+  if (warning) warnings.add(warning);
+  return { created: 0, updated: 0, engine: "llm" };
+}
+
+function chunkObservationsBySession(observations: ObservationForOrganize[], batchSize: number): ObservationForOrganize[][] {
+  const sessions = new Map<string, ObservationForOrganize[]>();
+  for (const observation of observations) {
+    const group = sessions.get(observation.sessionId) ?? [];
+    group.push(observation);
+    sessions.set(observation.sessionId, group);
+  }
+  const chunks: ObservationForOrganize[][] = [];
+  for (const group of sessions.values()) {
+    chunks.push(...chunkObservations(group, batchSize));
+  }
+  return chunks;
 }
 
 function chunkObservations(observations: ObservationForOrganize[], batchSize: number): ObservationForOrganize[][] {
@@ -359,38 +449,120 @@ function validLlmCandidate(candidate: LlmTodoCandidate, observations: Map<string
     !!candidate.dedupeKey.trim() &&
     typeof candidate.confidence === "number" &&
     Number.isFinite(candidate.confidence) &&
-    candidate.confidence >= 0.55;
+    candidate.confidence >= 0.75 &&
+    candidatePassesQualityGate(candidate);
 }
 
-async function enhanceCandidate(
-  candidate: { title: string; description: string; mergeKey: string; evidenceText: string },
-  enhancer: OrganizeOptions["enhancer"],
-  warnings: Set<string>
-): Promise<{ title: string; description: string; enhanced: boolean }> {
-  if (!enhancer) return { title: candidate.title, description: candidate.description, enhanced: false };
-  try {
-    const enhanced = await enhancer(candidate);
-    if (!enhanced) {
-      warnings.add("llm_enhancer_invalid");
-      return { title: candidate.title, description: candidate.description, enhanced: false };
-    }
-    if (enhanced.title !== undefined && (typeof enhanced.title !== "string" || !enhanced.title.trim())) {
-      warnings.add("llm_enhancer_invalid");
-      return { title: candidate.title, description: candidate.description, enhanced: false };
-    }
-    if (enhanced.description !== undefined && (typeof enhanced.description !== "string" || !enhanced.description.trim())) {
-      warnings.add("llm_enhancer_invalid");
-      return { title: candidate.title, description: candidate.description, enhanced: false };
-    }
-    return {
-      title: enhanced.title?.trim() ?? candidate.title,
-      description: enhanced.description?.trim() ?? candidate.description,
-      enhanced: true
-    };
-  } catch {
-    warnings.add("llm_enhancer_failed");
-    return { title: candidate.title, description: candidate.description, enhanced: false };
+function candidatePassesQualityGate(candidate: LlmTodoCandidate): boolean {
+  const title = normalizeTodoText(candidate.title);
+  const description = normalizeTodoText(candidate.description);
+  const quote = normalizeTodoText(candidate.quote);
+  const combined = `${title} ${description} ${quote}`;
+  return !looksIncompleteTitle(title) &&
+    !isCompletedOrStatusOnly(combined) &&
+    !isToolPolluted(combined) &&
+    !isPureProcessChore(combined) &&
+    !hasLongTechnicalIdentifier(title);
+}
+
+function dedupeLlmCandidates(candidates: LlmTodoCandidate[], existingTodos: ExistingTodoForDedupe[]): LlmTodoCandidate[] {
+  const accepted: LlmTodoCandidate[] = [];
+  const keys = new Set(existingTodos.map((todo) => candidateIdentityKey(todo)));
+  for (const candidate of candidates) {
+    const todoId = stableId(candidate.dedupeKey);
+    const key = candidateIdentityKey(candidate);
+    if (existingTodos.some((todo) => todo.id !== todoId && nearDuplicateTodo(todo, candidate))) continue;
+    if (accepted.some((item) => nearDuplicateTodo(item, candidate))) continue;
+    keys.add(key);
+    accepted.push(candidate);
   }
+  return accepted;
+}
+
+interface ExistingTodoForDedupe {
+  id: string;
+  title: string;
+  description: string;
+}
+
+function existingActiveTodos(db: Database): ExistingTodoForDedupe[] {
+  return db.prepare("SELECT id, title, description FROM todos WHERE status = 'todo'").all() as unknown as ExistingTodoForDedupe[];
+}
+
+function candidateIdentityKey(candidate: Pick<LlmTodoCandidate, "title" | "description">): string {
+  return `${normalizeTodoKey(candidate.title)}|${normalizeTodoKey(candidate.description)}`;
+}
+
+function nearDuplicateTodo(left: Pick<LlmTodoCandidate, "title" | "description">, right: Pick<LlmTodoCandidate, "title" | "description">): boolean {
+  const leftTitle = normalizeTodoKey(left.title);
+  const rightTitle = normalizeTodoKey(right.title);
+  if (!leftTitle || !rightTitle) return false;
+  if (leftTitle === rightTitle) return true;
+  if (leftTitle.includes(rightTitle) || rightTitle.includes(leftTitle)) return true;
+  return tokenSimilarity(leftTitle, rightTitle) >= 0.72;
+}
+
+function tokenSimilarity(left: string, right: string): number {
+  const leftTokens = todoTokens(left);
+  const rightTokens = todoTokens(right);
+  if (leftTokens.size === 0 || rightTokens.size === 0) return 0;
+  let overlap = 0;
+  for (const token of leftTokens) {
+    if (rightTokens.has(token)) overlap++;
+  }
+  return overlap / Math.max(leftTokens.size, rightTokens.size);
+}
+
+function todoTokens(value: string): Set<string> {
+  const tokens = new Set<string>();
+  for (const match of value.matchAll(/[a-z0-9]+|[\u4e00-\u9fff]/giu)) {
+    const token = match[0].toLowerCase();
+    if (token && token !== "并" && token !== "和" && token !== "与") tokens.add(token);
+  }
+  return tokens;
+}
+
+function normalizeTodoText(value: string): string {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeTodoKey(value: string): string {
+  return normalizeTodoText(value)
+    .toLowerCase()
+    .replace(/[，。！？；：,.!?;:()[\]{}"'`“”‘’\s-]/g, "");
+}
+
+function looksIncompleteTitle(title: string): boolean {
+  if (Array.from(title).length < 3) return true;
+  if (!/[A-Za-z\u4e00-\u9fff]/u.test(title)) return true;
+  if (/(?:返回|status|code|状态码)\s*\d{1,2}$/i.test(title)) return true;
+  if (/[、,，]\s*\/[A-Za-z]{1,4}$/u.test(title)) return true;
+  if (/\bhttps?:\/\/\S*[:/]$/i.test(title)) return true;
+  if (/^(?:准备|开始|继续|接下来|现在我会)\s*[^\n。！？]{0,80}(?:到|为|把|对|向|在|从|将)$/u.test(title)) return true;
+  return false;
+}
+
+function isCompletedOrStatusOnly(value: string): boolean {
+  const text = normalizeTodoText(value);
+  if (/(?:已完成|已通过|已经完成|完成了|都能显示|服务可用|健康检查已完成|worktree clean|working tree clean|process exited 0|no changes)/i.test(text)) return true;
+  return /^(?:确认|检查|状态确认|健康检查|服务可用|review settings|status check)[\s\S]{0,80}$/i.test(text);
+}
+
+function isToolPolluted(value: string): boolean {
+  return /\b(?:Bash|Shell|exec_command|apply_patch|toolUseId|function_call|function_call_output|process exited|Chunk ID|Wall time|yield_time_ms|max_output_tokens)\b/i.test(value) ||
+    /"(?:cmd|command|workdir|yield_time_ms|max_output_tokens)"\s*:/i.test(value);
+}
+
+function isPureProcessChore(value: string): boolean {
+  const text = normalizeTodoText(value);
+  if (!/(?:做最后一次状态确认|最后一次状态确认|启动后做健康检查|做健康检查|确认工作区干净|确认当前分支|确认 PR 链接|重启后再测一次|重启 Codex desktop app 后再测一次)/i.test(text)) {
+    return false;
+  }
+  return !/(?:修复|修正|补充|实现|调整|排查|定位|创建|更新|推送|提交|fix|add|update|create|implement|resolve)/i.test(text);
+}
+
+function hasLongTechnicalIdentifier(title: string): boolean {
+  return /(?:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+|[A-Za-z0-9_.-]{24,}|https?:\/\/|\/(?:Users|tmp|var|private|Volumes)\/)/i.test(title);
 }
 
 export function listTodos(db: Database): TodoCard[] {

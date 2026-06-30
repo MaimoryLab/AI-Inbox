@@ -34,15 +34,12 @@ test("MCP tools scan, organize, list, update, and open", async () => {
     assert.equal(scan.scanned, 1);
 
     const organize = await callMcpTool(db, "todo_organize", {}, paths);
-    assert.equal(organize.created, 1);
-    assert.equal(organize.engine, "rules");
+    assert.equal(organize.created, 0);
+    assert.equal(organize.engine, "llm");
     assert.deepEqual(organize.warnings, ["llm_config_missing"]);
 
     const listed = await callMcpTool(db, "todo_list", {}, paths);
-    assert.equal(listed.length, 1);
-
-    const updated = await callMcpTool(db, "todo_update", { id: listed[0].id, status: "done" }, paths);
-    assert.equal(updated.status, "done");
+    assert.equal(listed.length, 0);
 
     const open = await callMcpTool(db, "todo_open", {}, paths);
     db.close();
@@ -78,10 +75,14 @@ test("MCP organize can use configured llm extraction", async () => {
         })
       }
     });
-    db.close();
 
     assert.equal(organize.engine, "llm");
     assert.equal(organize.created, 1);
+    const listed = await callMcpTool(db, "todo_list", {}, paths);
+    assert.equal(listed.length, 1);
+    const updated = await callMcpTool(db, "todo_update", { id: listed[0].id, status: "done" }, paths);
+    assert.equal(updated.status, "done");
+    db.close();
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

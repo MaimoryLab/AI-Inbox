@@ -13,14 +13,34 @@ export function listSources(db: Database) {
 
 export function listSessions(db: Database): SessionRecord[] {
   return db.prepare(
-    "SELECT id, source, path, updated_at as updatedAt FROM sessions ORDER BY updated_at DESC"
+    `SELECT
+      sessions.id,
+      sessions.source,
+      sessions.path,
+      sessions.updated_at as updatedAt,
+      COUNT(observations.id) as observationCount,
+      COALESCE((
+        SELECT text
+        FROM observations preview
+        WHERE preview.session_id = sessions.id
+          AND preview.role IN ('user', 'assistant')
+        ORDER BY preview.created_at, preview.id
+        LIMIT 1
+      ), '') as preview
+    FROM sessions
+    JOIN observations ON observations.session_id = sessions.id
+    GROUP BY sessions.id
+    HAVING observationCount > 0
+    ORDER BY sessions.updated_at DESC`
   ).all().map((row) => {
     const record = row as Record<string, unknown>;
     return {
       id: String(record.id),
       source: record.source as SessionRecord["source"],
       path: String(record.path),
-      updatedAt: String(record.updatedAt)
+      updatedAt: String(record.updatedAt),
+      observationCount: Number(record.observationCount),
+      preview: String(record.preview)
     };
   });
 }
