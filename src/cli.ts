@@ -12,8 +12,27 @@ import { defaultEnvConfig, ensureDefaultEnv, type EnvConfig } from "./config.js"
 import { getLlmDoctorStatus, organizeConfiguredTodos } from "./todos/configured.js";
 import { listTodos, updateTodoStatus } from "./todos/service.js";
 
+export const DEFAULT_UI_PORT = 3111;
+const HELP_TEXT = `Usage: ai-todo [command]
+
+Commands:
+  init [options]              Create local config.
+  doctor                      Check local config, data, and LLM setup.
+  scan <codex|claude-code> [path]
+  organize                    Extract todos from configured sessions.
+  list                        List todos.
+  done <todo-id>              Mark a todo complete.
+  ignore <todo-id>            Ignore a todo.
+  open [--port <port>]        Start the local UI.
+  mcp                         Start the MCP stdio server.`;
+
 export async function main(argv = process.argv.slice(2)): Promise<number> {
   const command = argv[0] ?? "doctor";
+
+  if (command === "help" || argv.includes("--help") || argv.includes("-h")) {
+    console.log(HELP_TEXT);
+    return 0;
+  }
 
   if (command === "init") {
     return init(argv.slice(1));
@@ -33,9 +52,6 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     console.log(`llm key: ${llm.keyConfigured ? "configured" : "missing"}`);
     console.log(`llm model: ${llm.model}`);
     console.log(`llm endpoint: ${llm.endpoint}`);
-    console.log(`llm python: ${llm.pythonPath}`);
-    console.log(`llm sidecar: ${llm.sidecarPath}`);
-    console.log(`llm runtime: ${llm.runtimeReady ? "ready" : "missing"}`);
     console.log("ok");
     return 0;
   }
@@ -78,7 +94,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
   }
 
   if (command === "open") {
-    return openUi();
+    return openUi(argv.slice(1));
   }
 
   if (command === "mcp") {
@@ -102,7 +118,9 @@ async function init(argv: string[]): Promise<number> {
     AI_TODO_CODEX_HOME: args["codex-home"],
     AI_TODO_CLAUDE_HOME: args["claude-home"],
     AI_TODO_ORGANIZE_SINCE_DAYS: args["since-days"],
-    AI_TODO_ORGANIZE_MAX_INTERACTIONS_PER_SESSION: args["max-interactions"]
+    AI_TODO_ORGANIZE_MAX_INTERACTIONS_PER_SESSION: args["max-interactions"],
+    AI_TODO_ORGANIZE_MAX_SESSIONS: args["max-sessions"],
+    AI_TODO_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION: args["max-observations"]
   };
 
   if (process.stdin.isTTY && Object.keys(args).length === 0) {
@@ -130,7 +148,9 @@ async function promptInit(defaults: EnvConfig): Promise<EnvConfig> {
       AI_TODO_LLM_ENDPOINT: await ask(rl, "LLM endpoint", env.AI_TODO_LLM_ENDPOINT),
       AI_TODO_LLM_API_KEY: await ask(rl, "LLM API key", env.AI_TODO_LLM_API_KEY),
       AI_TODO_ORGANIZE_SINCE_DAYS: await ask(rl, "Look-back days", env.AI_TODO_ORGANIZE_SINCE_DAYS),
-      AI_TODO_ORGANIZE_MAX_INTERACTIONS_PER_SESSION: await ask(rl, "Max interactions per session", env.AI_TODO_ORGANIZE_MAX_INTERACTIONS_PER_SESSION)
+      AI_TODO_ORGANIZE_MAX_INTERACTIONS_PER_SESSION: await ask(rl, "Max interactions per session", env.AI_TODO_ORGANIZE_MAX_INTERACTIONS_PER_SESSION),
+      AI_TODO_ORGANIZE_MAX_SESSIONS: await ask(rl, "Max sessions", env.AI_TODO_ORGANIZE_MAX_SESSIONS),
+      AI_TODO_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION: await ask(rl, "Max observations per session", env.AI_TODO_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION)
     };
   } finally {
     rl.close();
@@ -169,12 +189,28 @@ async function withDatabase(fn: (db: Database) => number | Promise<number>): Pro
   }
 }
 
-async function openUi(): Promise<number> {
+async function openUi(argv: string[] = []): Promise<number> {
+  const args = parseOptions(argv);
+  const port = args.port ? Number(args.port) : DEFAULT_UI_PORT;
+  if (!Number.isInteger(port) || port < 0 || port > 65535) {
+    console.error("invalid port");
+    return 1;
+  }
   const paths = getAppPaths();
   const db = openDatabase(paths);
   const startupScanner = createStartupScanner(db, paths);
   const server = createAppServer({ db, paths, startupScan: startupScanner.status });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    await listen(server, port);
+  } catch (error) {
+    db.close();
+    if ((error as NodeJS.ErrnoException).code === "EADDRINUSE") {
+      console.error(`${port} is already in use. Try ai-todo open --port <port>.`);
+      return 1;
+    }
+    console.error((error as Error).message);
+    return 1;
+  }
   startupScanner.start();
   const address = server.address();
   if (!address || typeof address === "string") return 1;
@@ -191,6 +227,16 @@ async function openUi(): Promise<number> {
     process.once("SIGTERM", stop);
   });
   return 0;
+}
+
+function listen(server: ReturnType<typeof createAppServer>, port: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, "127.0.0.1", () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
 }
 
 function scan(db: Database, source: string | undefined, path: string | undefined): number {

@@ -39,13 +39,15 @@ export const MCP_TOOLS = [
 
 export type TodoStatus = "todo" | "done" | "ignored";
 export type SourceKind = "codex" | "claude-code" | "browser";
-export type OrganizeEngine = "rules" | "llm" | "rules+llm";
+export type OrganizeEngine = "llm";
 
 export interface SessionRecord {
   id: string;
   source: SourceKind;
   path: string;
   updatedAt: string;
+  observationCount: number;
+  preview: string;
 }
 
 export interface ObservationRecord {
@@ -62,8 +64,27 @@ export interface TodoCard {
   title: string;
   description: string;
   status: TodoStatus;
+  metadata: TodoMetadata;
+  origin?: TodoOrigin;
   evidenceIds: string[];
   updatedAt: string;
+}
+
+export interface TodoOrigin {
+  source: SourceKind;
+  projectTitle?: string;
+  projectPath?: string;
+  sessionId: string;
+  sessionTitle?: string;
+  sessionTemporary?: boolean;
+  observationId: string;
+}
+
+export interface TodoMetadata {
+  completionState?: string;
+  completionSummary?: string;
+  nextStep?: string;
+  sourceObservationId?: string;
 }
 
 export interface OrganizeResult {
@@ -76,5 +97,26 @@ export interface OrganizeResult {
   ignored: number;
   engine: OrganizeEngine;
   warnings: string[];
+  details?: {
+    scope?: {
+      sessionsScanned: number;
+      sessionsDropped: number;
+      observationsDropped: number;
+    };
+    truncations?: Array<{
+      sessionId: string;
+      source: SourceKind;
+      role: string;
+      originalChars: number;
+      keptChars: number;
+    }>;
+    batchFailures?: Array<{
+      sessionId: string;
+      source: SourceKind;
+      warning: string;
+      reason: string;
+      retryable: boolean;
+    }>;
+  };
   durationMs: number;
 }

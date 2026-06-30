@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { main } from "../src/cli.js";
+import { DEFAULT_UI_PORT, main } from "../src/cli.js";
 
-test("CLI runs scan, organize, list, done, and ignore", async () => {
+test("CLI scans and organize does not create rule fallback cards without LLM config", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-todo-cli-"));
   const previousHome = process.env.AI_TODO_HOME;
   process.env.AI_TODO_HOME = join(dir, "home");
@@ -26,22 +27,13 @@ test("CLI runs scan, organize, list, done, and ignore", async () => {
     assert.match(rescanned.stdout, /skipped: 1/);
     const organized = await capture(() => main(["organize"]));
     assert.equal(organized.code, 0);
-    assert.match(organized.stdout, /created: 1/);
-    assert.match(organized.stdout, /engine: rules/);
+    assert.match(organized.stdout, /created: 0/);
+    assert.match(organized.stdout, /engine: llm/);
     assert.match(organized.stdout, /warnings: llm_config_missing/);
 
     const listed = await capture(() => main(["list"]));
     assert.equal(listed.code, 0);
-    assert.match(listed.stdout, /\btodo\b/);
-    assert.match(listed.stdout, /Add CLI list output/);
-    const id = listed.stdout.match(/^([a-f0-9]{40})\s+/m)?.[1];
-    assert.ok(id);
-
-    assert.equal((await capture(() => main(["done", id]))).code, 0);
-    assert.match((await capture(() => main(["list"]))).stdout, /\bdone\b/);
-
-    assert.equal((await capture(() => main(["ignore", id]))).code, 0);
-    assert.match((await capture(() => main(["list"]))).stdout, /\bignored\b/);
+    assert.match(listed.stdout, /No todos/);
   } finally {
     process.env.AI_TODO_HOME = previousHome;
     rmSync(dir, { recursive: true, force: true });
@@ -155,6 +147,43 @@ test("CLI scan uses default source paths with environment overrides", async () =
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("CLI open reports the fixed default port when it is occupied", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-cli-open-"));
+  const previousHome = process.env.AI_TODO_HOME;
+  process.env.AI_TODO_HOME = join(dir, "home");
+  const blocker = await tryListenOnDefaultPort();
+
+  try {
+    const opened = await capture(() => main(["open"]));
+    assert.equal(opened.code, 1);
+    assert.match(opened.stderr, /3111 is already in use/);
+    assert.match(opened.stderr, /ai-todo open --port <port>/);
+  } finally {
+    process.env.AI_TODO_HOME = previousHome;
+    if (blocker) {
+      await new Promise<void>((resolve, reject) => blocker.close((error) => error ? reject(error) : resolve()));
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+async function tryListenOnDefaultPort() {
+  const blocker = createServer();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      blocker.once("error", reject);
+      blocker.listen(DEFAULT_UI_PORT, "127.0.0.1", () => {
+        blocker.off("error", reject);
+        resolve();
+      });
+    });
+    return blocker;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EADDRINUSE") return undefined;
+    throw error;
+  }
+}
 
 async function capture(fn: () => Promise<number>) {
   let stdout = "";

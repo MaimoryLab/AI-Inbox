@@ -15,6 +15,9 @@ data-*/
 .claude/
 .agentmemory-python/
 .gstack/
+.codegraph/
 
 docs/hybrid-rebuild/
 docs/rebuild/
+docs/product-overview-cn.md
+docs/task-chain-perspective-cn.md

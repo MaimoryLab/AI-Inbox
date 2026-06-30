@@ -12,7 +12,27 @@ test("HTTP API scans sources, lists sessions, observations, runs, and updates to
   const fixture = createFixture();
   const paths = getAppPaths(join(fixture.root, "home"));
   const db = openDatabase(paths);
-  const server = await startServer(db, paths);
+  const server = await startServer(db, paths, {
+    llmExtractor: async (observations: Array<{ id: string; role: string; text: string }>) => {
+      const observation = observations.find((item) => item.role === "user");
+      assert.ok(observation);
+      return {
+        ok: true,
+        todos: [{
+          title: "Add HTTP API routes",
+          description: "Add HTTP API routes for the local todo service.",
+          metadata: {
+            completionState: "blocked",
+            completionSummary: "The route list is drafted; error responses still need review."
+          },
+          confidence: 0.9,
+          sourceObservationId: observation.id,
+          quote: observation.text,
+          dedupeKey: "http-api-routes"
+        }]
+      };
+    }
+  });
 
   try {
     const scan = await postJson(server.url("/sources/scan"), {
@@ -51,7 +71,20 @@ test("HTTP API scans sources, lists sessions, observations, runs, and updates to
     assert.equal((await run.json()).runId, organizeBody.runId);
 
     const todos = await getJson(server.url("/todos"));
+    const observationBody = await getJson(server.url(`/sessions/${sessionBody[0].id}/observations`));
+    const sourceObservationId = (await observationBody.json())[0].id;
     const todo = (await todos.json())[0];
+    assert.equal(todo.metadata.completionSummary, "The route list is drafted; error responses still need review.");
+    assert.equal(todo.metadata.sourceObservationId, sourceObservationId);
+    assert.deepEqual(todo.origin, {
+      source: "codex",
+      projectTitle: "codex",
+      projectPath: fixture.codexFile,
+      sessionId: sessionBody[0].id,
+      sessionTitle: "Please add HTTP API routes",
+      sessionTemporary: true,
+      observationId: sourceObservationId
+    });
     const patch = await patchJson(server.url(`/todos/${todo.id}`), { status: "done" });
     assert.equal(patch.status, 200);
     assert.equal((await patch.json()).status, "done");
@@ -106,8 +139,9 @@ test("HTTP API reports missing database", async () => {
 
 test("HTTP API reports invalid JSON", async () => {
   const fixture = createFixture();
-  const db = openDatabase(getAppPaths(join(fixture.root, "home")));
-  const server = await startServer(db);
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const server = await startServer(db, paths);
 
   try {
     const badJson = await fetch(server.url("/sources/scan"), {
@@ -162,8 +196,9 @@ test("HTTP source scan uses default paths with environment overrides", async () 
   const fixture = createFixture();
   const previousCodex = process.env.AI_TODO_CODEX_HOME;
   process.env.AI_TODO_CODEX_HOME = fixture.codex;
-  const db = openDatabase(getAppPaths(join(fixture.root, "home")));
-  const server = await startServer(db);
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const server = await startServer(db, paths);
 
   try {
     const response = await postJson(server.url("/sources/scan"), { source: "codex" });
@@ -181,8 +216,28 @@ test("HTTP source scan uses default paths with environment overrides", async () 
   }
 });
 
+test("HTTP source scan reports existing paths with no sessions", async () => {
+  const fixture = createFixture();
+  const emptyCodex = join(fixture.root, "empty-codex");
+  mkdirSync(emptyCodex, { recursive: true });
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const server = await startServer(db, paths);
+
+  try {
+    const response = await postJson(server.url("/sources/scan"), { source: "codex", path: emptyCodex });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).warning, "codex_no_sessions");
+  } finally {
+    await server.close();
+    db.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test("HTTP settings persist source paths and scan uses config path", async () => {
   const fixture = createFixture();
+  const missingClaudePath = join(tmpdir(), `ai-todo-missing-claude-${Date.now()}`);
   const paths = getAppPaths(join(fixture.root, "home"));
   const db = openDatabase(paths);
   const server = await startServer(db, paths);
@@ -195,37 +250,46 @@ test("HTTP settings persist source paths and scan uses config path", async () =>
     assert.equal(initialBody.llm.apiKeyConfigured, false);
     assert.equal(initialBody.llm.apiKeyMasked, "");
     assert.equal(initialBody.organize.sinceDays, 7);
+    assert.equal(initialBody.organize.maxSessions, 16);
 
     const saved = await putJson(server.url("/settings"), {
-      sources: { codex: { path: fixture.codex }, "claude-code": {} },
+      sources: { codex: { path: fixture.codex }, "claude-code": { path: missingClaudePath } },
       llm: {
         enabled: true,
         provider: "openai",
         model: "custom/model",
         endpoint: "https://llm.example.test/v1",
         thinkingDepth: "high",
-        pythonPath: "python3",
         timeoutMs: 30000,
         apiKey: "dummy-llm-key-value"
       },
       organize: {
         sinceDays: 30,
-        maxInteractionsPerSession: 15
+        maxInteractionsPerSession: 15,
+        maxSessions: 200,
+        maxObservationsPerSession: 40
       }
     });
     assert.equal(saved.status, 200);
     const savedBody = await saved.json();
     assert.equal(savedBody.sources.codex.path, fixture.codex);
+    assert.equal(savedBody.sources["claude-code"].path, missingClaudePath);
     assert.equal(savedBody.llm.model, "custom/model");
     assert.equal(savedBody.llm.apiKeyConfigured, true);
     assert.equal(savedBody.llm.apiKeyMasked, "dum****alue");
     assert.equal(savedBody.llm.apiKey, undefined);
     assert.equal(savedBody.organize.sinceDays, 30);
+    assert.equal(savedBody.organize.maxSessions, 200);
     assert.match(readFileSync(paths.envPath, "utf8"), /AI_TODO_LLM_API_KEY=dummy-llm-key-value/);
+    assert.match(readFileSync(paths.envPath, "utf8"), /AI_TODO_ORGANIZE_MAX_SESSIONS=200/);
 
     const scan = await postJson(server.url("/sources/scan"), { source: "codex" });
     assert.equal(scan.status, 200);
     assert.equal((await scan.json()).scanned, 1);
+
+    const missingClaude = await postJson(server.url("/sources/scan"), { source: "claude-code" });
+    assert.equal(missingClaude.status, 400);
+    assert.equal((await missingClaude.json()).error, "path_not_found");
   } finally {
     await server.close();
     db.close();
@@ -278,7 +342,6 @@ test("HTTP settings clears llm api key when requested", async () => {
         model: "deepseek/deepseek-v4-flash",
         endpoint: "https://api.novita.ai/openai/v1",
         thinkingDepth: "medium",
-        pythonPath: "python3",
         timeoutMs: 120000,
         apiKey: "dummy-llm-key-value"
       },
@@ -298,7 +361,6 @@ test("HTTP settings clears llm api key when requested", async () => {
         model: "deepseek/deepseek-v4-flash",
         endpoint: "https://api.novita.ai/openai/v1",
         thinkingDepth: "medium",
-        pythonPath: "python3",
         timeoutMs: 120000,
         apiKey: ""
       },
@@ -319,8 +381,9 @@ test("HTTP settings clears llm api key when requested", async () => {
 
 test("HTTP browser ingest validates input", async () => {
   const fixture = createFixture();
-  const db = openDatabase(getAppPaths(join(fixture.root, "home")));
-  const server = await startServer(db);
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const server = await startServer(db, paths);
 
   try {
     assert.equal((await postJson(server.url("/browser/sessions"), {})).status, 400);
@@ -360,7 +423,7 @@ test("HTTP organize returns structured failure", async () => {
     const body = await response.json();
     assert.equal(response.status, 500);
     assert.equal(body.error, "organize_failed");
-    assert.deepEqual(body.warnings, ["organize_failed_fallback"]);
+    assert.deepEqual(body.warnings, ["organize_failed"]);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     db.close();
@@ -368,7 +431,88 @@ test("HTTP organize returns structured failure", async () => {
   }
 });
 
-test("HTTP server serves the minimal UI assets", async () => {
+test("GET /todos tolerates missing origin records", async () => {
+  const fixture = createFixture();
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const server = await startServer(db, paths);
+  db.prepare(
+    "INSERT INTO todos (id, title, description, status, metadata_json, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
+  ).run(
+    "todo-missing-origin",
+    "Keep old todo",
+    "Old cards should still list when their source observation is gone.",
+    "todo",
+    JSON.stringify({ sourceObservationId: "missing-observation" }),
+    "2026-06-30T00:00:00.000Z"
+  );
+
+  try {
+    const response = await getJson(server.url("/todos"));
+    assert.equal(response.status, 200);
+    const todo = (await response.json())[0];
+    assert.equal(todo.title, "Keep old todo");
+    assert.equal(todo.origin, undefined);
+  } finally {
+    await server.close();
+    db.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("GET /todos falls back to evidence when todo metadata has no source observation", async () => {
+  const fixture = createFixture();
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const server = await startServer(db, paths);
+  db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES (?, ?, ?, ?)").run(
+    "legacy-session",
+    "codex",
+    fixture.codexFile,
+    "2026-06-30T00:00:00.000Z"
+  );
+  db.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
+    "legacy-observation",
+    "legacy-session",
+    "codex",
+    "user",
+    "Please restore linked sources",
+    "2026-06-30T00:00:00.000Z"
+  );
+  db.prepare(
+    "INSERT INTO todos (id, title, description, status, metadata_json, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
+  ).run(
+    "legacy-todo",
+    "Restore linked sources",
+    "Old cards should still resolve their origin through evidence.",
+    "todo",
+    "{}",
+    "2026-06-30T00:00:01.000Z"
+  );
+  db.prepare("INSERT INTO evidence (id, todo_id, observation_id, text) VALUES (?, ?, ?, ?)").run(
+    "legacy-evidence",
+    "legacy-todo",
+    "legacy-observation",
+    "Please restore linked sources"
+  );
+
+  try {
+    const response = await getJson(server.url("/todos"));
+    assert.equal(response.status, 200);
+    const todo = (await response.json())[0];
+    assert.equal(todo.id, "legacy-todo");
+    assert.equal(todo.origin.sessionId, "legacy-session");
+    assert.equal(todo.origin.observationId, "legacy-observation");
+    assert.equal(todo.origin.projectTitle, "codex");
+    assert.equal(todo.origin.sessionTitle, "Please restore linked sources");
+  } finally {
+    await server.close();
+    db.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("HTTP server serves the React UI assets", async () => {
   const fixture = createFixture();
   const db = openDatabase(getAppPaths(join(fixture.root, "home")));
   const server = await startServer(db);
@@ -376,15 +520,14 @@ test("HTTP server serves the minimal UI assets", async () => {
   try {
     const index = await getJson(server.url("/"));
     assert.equal(index.status, 200);
-    assert.match(await index.text(), /Source Dashboard/);
+    const html = await index.text();
+    assert.match(html, /AI Todo/);
+    const asset = html.match(/src="([^"]+\.js)"/)?.[1];
+    assert.ok(asset);
 
-    const css = await getJson(server.url("/app.css"));
-    assert.equal(css.status, 200);
-    assert.match(css.headers.get("content-type") ?? "", /text\/css/);
-
-    const js = await getJson(server.url("/app.js"));
+    const js = await getJson(server.url(asset));
     assert.equal(js.status, 200);
-    assert.match(await js.text(), /organize/);
+    assert.match(js.headers.get("content-type") ?? "", /text\/javascript/);
   } finally {
     await server.close();
     db.close();
@@ -396,14 +539,15 @@ function createFixture() {
   const root = mkdtempSync(join(tmpdir(), "ai-todo-http-"));
   const codex = join(root, "codex");
   mkdirSync(codex);
-  writeFileSync(join(codex, "session.jsonl"), [
+  const codexFile = join(codex, "session.jsonl");
+  writeFileSync(codexFile, [
     JSON.stringify({ role: "user", text: "Please add HTTP API routes", timestamp: new Date().toISOString() })
   ].join("\n"));
-  return { root, codex };
+  return { root, codex, codexFile };
 }
 
-async function startServer(db: Database, paths = getAppPaths()) {
-  const server = createAppServer({ db, paths });
+async function startServer(db: Database, paths = getAppPaths(), organizeOptions = {}) {
+  const server = createAppServer({ db, paths, organizeOptions });
   await new Promise<void>((resolve) => server.listen(0, resolve));
   const address = server.address();
   assert.ok(address && typeof address !== "string");
