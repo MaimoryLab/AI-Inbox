@@ -112,21 +112,23 @@ export function App() {
     await refresh();
   }
 
-  async function openTodoSources(todo: TodoCard) {
-    if (!todo.origin) {
+  async function openTodoSources(todo: TodoCard, target?: Pick<TodoEvidence, "sessionId" | "observationId">) {
+    const sessionId = target?.sessionId ?? todo.origin?.sessionId;
+    const observationId = target?.observationId ?? todo.origin?.observationId;
+    if (!sessionId || !observationId) {
       setView("sources");
       setStatus(text.noLinkedSource);
       return;
     }
-    const session = await ensureSessionLoaded(todo.origin.sessionId);
+    const session = await ensureSessionLoaded(sessionId);
     if (!session) {
       setView("sources");
       setStatus(text.linkedSourceMissing);
       return;
     }
-    setSelectedSessionId(todo.origin.sessionId);
-    setHighlightedObservationId(todo.origin.observationId);
-    await loadObservations(todo.origin.sessionId);
+    setSelectedSessionId(sessionId);
+    setHighlightedObservationId(observationId);
+    await loadObservations(sessionId);
     setView("sources");
   }
 
@@ -177,7 +179,7 @@ export function App() {
           closedTodos={closedTodos}
           onComplete={(id) => void updateTodo(id, "done")}
           onIgnore={(id) => void updateTodo(id, "ignored")}
-          onSources={(todo) => void openTodoSources(todo)}
+          onSources={(todo, target) => void openTodoSources(todo, target)}
           evidenceByTodo={evidenceByTodo}
           evidenceErrorsByTodo={evidenceErrorsByTodo}
           onSelectTodo={(todo) => void loadTodoEvidence(todo.id)}

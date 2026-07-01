@@ -34,6 +34,12 @@ export interface TodoCard {
 export interface TodoEvidence {
   id: string;
   observationId: string;
+  sessionId?: string;
+  source?: SourceKind;
+  role?: string;
+  createdAt?: string;
+  sessionTitle?: string;
+  projectTitle?: string;
   text: string;
 }
 

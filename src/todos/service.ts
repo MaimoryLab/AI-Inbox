@@ -6,6 +6,12 @@ import { stableId } from "../extract/rules.js";
 export interface TodoEvidence {
   id: string;
   observationId: string;
+  sessionId: string;
+  source: SourceKind;
+  role: string;
+  createdAt: string;
+  sessionTitle: string;
+  projectTitle?: string;
   text: string;
 }
 
@@ -955,20 +961,41 @@ export function updateTodoStatus(db: Database, id: string, status: "done" | "ign
 export function listTodoEvidence(db: Database, todoId: string): TodoEvidence[] | null {
   const todo = db.prepare("SELECT id FROM todos WHERE id = ?").get(todoId);
   if (!todo) return null;
-  return db.prepare(
-    `SELECT
-      evidence.id,
-      evidence.observation_id as observationId,
-      observations.text as text
-    FROM evidence
-    JOIN observations ON observations.id = evidence.observation_id
-    WHERE evidence.todo_id = ?
-    ORDER BY evidence.id`
+	  return db.prepare(
+	    `SELECT
+	      evidence.id,
+	      evidence.observation_id as observationId,
+	      observations.text as text,
+	      observations.session_id as sessionId,
+	      observations.source,
+	      observations.role,
+	      observations.created_at as createdAt,
+      COALESCE(sessions.project_path, sessions.path) as projectPath,
+      COALESCE((
+        SELECT preview.text
+        FROM observations preview
+        WHERE preview.session_id = observations.session_id
+          AND preview.role IN ('user', 'assistant')
+        ORDER BY preview.created_at, preview.id
+        LIMIT 1
+      ), '') as sessionPreview
+	    FROM evidence
+	    JOIN observations ON observations.id = evidence.observation_id
+	    JOIN sessions ON sessions.id = observations.session_id
+	    WHERE evidence.todo_id = ?
+	    ORDER BY evidence.id`
   ).all(todoId).map((row) => {
     const record = row as Record<string, unknown>;
+    const projectPath = String(record.projectPath);
     return {
       id: String(record.id),
       observationId: String(record.observationId),
+      sessionId: String(record.sessionId),
+      source: record.source as SourceKind,
+      role: String(record.role),
+      createdAt: String(record.createdAt),
+      sessionTitle: truncateOriginText(String(record.sessionPreview) || String(record.text)) || "Temporary session",
+      projectTitle: projectTitleFromPath(projectPath),
       text: String(record.text)
     };
   });
