@@ -14,17 +14,15 @@ Without LLM configuration, AI-Todo can still open the UI and scan sources, but i
 ### Recommended: Web Workspace
 
 ```bash
-npm install
-npm run build
-AI_TODO_HOME=.local/ai-todo node dist/cli.js open
+./scripts/start-local.sh
 ```
 
 Then open [http://127.0.0.1:3111/](http://127.0.0.1:3111/).
 
-`open` automatically discovers default Codex and Claude Code paths at startup and writes missing source settings. It does not overwrite paths you already configured. The default port is fixed at `3111`; if it is occupied, choose one explicitly:
+`start` automatically discovers default Codex and Claude Code paths at startup and writes missing source settings. It does not overwrite paths you already configured. The default port is fixed at `3111`; if it is occupied, choose one explicitly:
 
 ```bash
-AI_TODO_HOME=.local/ai-todo node dist/cli.js open --port 3112
+npm start -- --port 3112
 ```
 
 Use the web workspace for daily work:
@@ -52,11 +50,12 @@ AI_TODO_HOME=.local/ai-todo node dist/cli.js list
 | --- | --- |
 | `init --api-key <key>` | Create local config and save the LLM key |
 | `doctor` | Check config, data directory, and database |
-| `open [--port <n>]` | Start the web workspace |
+| `start [--port <n>]` / `open [--port <n>]` | Start the web workspace |
 | `scan <codex\|claude-code> [path]` | Scan a source |
-| `organize` | Ask the LLM to extract todo cards |
-| `list` | Print current todos |
-| `done <id>` / `ignore <id>` | Update card status |
+| `extract` / `organize` | Ask the LLM to extract todo cards |
+| `list` / `ls` | Print current todos |
+| `done <id>` / `complete <id>` | Mark a card complete |
+| `ignore <id>` / `dismiss <id>` | Ignore a card |
 | `mcp` | Start the MCP stdio server |
 
 ### Configuration
@@ -64,7 +63,7 @@ AI_TODO_HOME=.local/ai-todo node dist/cli.js list
 The default config directory is `~/.ai-todo`. Set `AI_TODO_HOME` to use another location:
 
 ```bash
-AI_TODO_HOME=.local/ai-todo node dist/cli.js open
+AI_TODO_HOME=.local/ai-todo npm start
 ```
 
 The web `Settings` page and CLI read and write the same `.env` config. Common fields:

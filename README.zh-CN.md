@@ -14,17 +14,15 @@ AI-Todo 是一个本地优先的 AI 会话行动收件箱。它扫描 Codex、Cl
 ### 推荐用法：前端工作台
 
 ```bash
-npm install
-npm run build
-AI_TODO_HOME=.local/ai-todo node dist/cli.js open
+./scripts/start-local.sh
 ```
 
 打开后访问 [http://127.0.0.1:3111/](http://127.0.0.1:3111/)。
 
-`open` 会在启动时自动发现 Codex 和 Claude Code 的默认路径，并写入缺失的来源配置；它不会覆盖你已经配置过的路径。默认端口固定为 `3111`，如果端口被占用，请显式指定：
+`start` 会在启动时自动发现 Codex 和 Claude Code 的默认路径，并写入缺失的来源配置；它不会覆盖你已经配置过的路径。默认端口固定为 `3111`，如果端口被占用，请显式指定：
 
 ```bash
-AI_TODO_HOME=.local/ai-todo node dist/cli.js open --port 3112
+npm start -- --port 3112
 ```
 
 前端适合日常使用：
@@ -52,11 +50,12 @@ AI_TODO_HOME=.local/ai-todo node dist/cli.js list
 | --- | --- |
 | `init --api-key <key>` | 创建本地配置并保存 LLM key |
 | `doctor` | 检查配置、数据目录和数据库 |
-| `open [--port <n>]` | 启动前端工作台 |
+| `start [--port <n>]` / `open [--port <n>]` | 启动前端工作台 |
 | `scan <codex\|claude-code> [path]` | 扫描指定来源 |
-| `organize` | 调用 LLM 抽取待办卡片 |
-| `list` | 列出当前待办 |
-| `done <id>` / `ignore <id>` | 更新卡片状态 |
+| `extract` / `organize` | 调用 LLM 抽取待办卡片 |
+| `list` / `ls` | 列出当前待办 |
+| `done <id>` / `complete <id>` | 标记卡片完成 |
+| `ignore <id>` / `dismiss <id>` | 忽略卡片 |
 | `mcp` | 启动 MCP stdio server |
 
 ### 配置
@@ -64,7 +63,7 @@ AI_TODO_HOME=.local/ai-todo node dist/cli.js list
 默认配置目录是 `~/.ai-todo`。设置 `AI_TODO_HOME` 可以改到项目内或其他位置，例如：
 
 ```bash
-AI_TODO_HOME=.local/ai-todo node dist/cli.js open
+AI_TODO_HOME=.local/ai-todo npm start
 ```
 
 前端 `设置` 和 CLI 都读写同一个 `.env` 配置。常见字段：

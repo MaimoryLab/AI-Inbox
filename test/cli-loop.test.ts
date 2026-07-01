@@ -105,6 +105,34 @@ test("CLI reports empty lists and invalid todo updates", async () => {
   }
 });
 
+test("CLI exposes common command aliases", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-cli-aliases-"));
+  const previousHome = process.env.AI_TODO_HOME;
+  process.env.AI_TODO_HOME = join(dir, "home");
+
+  try {
+    const listed = await capture(() => main(["ls"]));
+    assert.equal(listed.code, 0);
+    assert.match(listed.stdout, /No todos/);
+
+    const extracted = await capture(() => main(["extract"]));
+    assert.equal(extracted.code, 0);
+    assert.match(extracted.stdout, /created: 0/);
+    assert.match(extracted.stdout, /engine: llm/);
+
+    const missingComplete = await capture(() => main(["complete"]));
+    assert.equal(missingComplete.code, 1);
+    assert.match(missingComplete.stderr, /missing todo id/);
+
+    const missingDismiss = await capture(() => main(["dismiss", "missing"]));
+    assert.equal(missingDismiss.code, 1);
+    assert.match(missingDismiss.stderr, /todo not found/);
+  } finally {
+    process.env.AI_TODO_HOME = previousHome;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("CLI scan uses default source paths with environment overrides", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-todo-cli-defaults-"));
   const previousHome = process.env.AI_TODO_HOME;
@@ -159,6 +187,26 @@ test("CLI open reports the fixed default port when it is occupied", async () => 
     assert.equal(opened.code, 1);
     assert.match(opened.stderr, /3111 is already in use/);
     assert.match(opened.stderr, /ai-todo open --port <port>/);
+  } finally {
+    process.env.AI_TODO_HOME = previousHome;
+    if (blocker) {
+      await new Promise<void>((resolve, reject) => blocker.close((error) => error ? reject(error) : resolve()));
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI start reports the fixed default port when it is occupied", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-cli-start-"));
+  const previousHome = process.env.AI_TODO_HOME;
+  process.env.AI_TODO_HOME = join(dir, "home");
+  const blocker = await tryListenOnDefaultPort();
+
+  try {
+    const opened = await capture(() => main(["start"]));
+    assert.equal(opened.code, 1);
+    assert.match(opened.stderr, /3111 is already in use/);
+    assert.match(opened.stderr, /ai-todo start --port <port>/);
   } finally {
     process.env.AI_TODO_HOME = previousHome;
     if (blocker) {

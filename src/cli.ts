@@ -19,11 +19,11 @@ Commands:
   init [options]              Create local config.
   doctor                      Check local config, data, and LLM setup.
   scan <codex|claude-code> [path]
-  organize                    Extract todos from configured sessions.
-  list                        List todos.
-  done <todo-id>              Mark a todo complete.
-  ignore <todo-id>            Ignore a todo.
-  open [--port <port>]        Start the local UI.
+  extract|organize            Extract todos from configured sessions.
+  list|ls                     List todos.
+  done|complete <todo-id>     Mark a todo complete.
+  ignore|dismiss <todo-id>    Ignore a todo.
+  start|open [--port <port>]  Start the local UI.
   mcp                         Start the MCP stdio server.`;
 
 export async function main(argv = process.argv.slice(2)): Promise<number> {
@@ -60,7 +60,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     return withDatabase((db) => scan(db, argv[1], argv[2]));
   }
 
-  if (command === "organize") {
+  if (command === "extract" || command === "organize") {
     const paths = getAppPaths();
     return withDatabase(async (db) => {
       const result = await organizeConfiguredTodos(db, paths);
@@ -75,7 +75,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     });
   }
 
-  if (command === "list") {
+  if (command === "list" || command === "ls") {
     return withDatabase((db) => {
       const todos = listTodos(db);
       if (todos.length === 0) {
@@ -89,12 +89,12 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     });
   }
 
-  if (command === "done" || command === "ignore") {
-    return withDatabase((db) => updateStatus(db, argv[1], command === "done" ? "done" : "ignored"));
+  if (command === "done" || command === "complete" || command === "ignore" || command === "dismiss") {
+    return withDatabase((db) => updateStatus(db, argv[1], command === "done" || command === "complete" ? "done" : "ignored"));
   }
 
-  if (command === "open") {
-    return openUi(argv.slice(1));
+  if (command === "start" || command === "open") {
+    return openUi(argv.slice(1), command);
   }
 
   if (command === "mcp") {
@@ -189,7 +189,7 @@ async function withDatabase(fn: (db: Database) => number | Promise<number>): Pro
   }
 }
 
-async function openUi(argv: string[] = []): Promise<number> {
+async function openUi(argv: string[] = [], command = "start"): Promise<number> {
   const args = parseOptions(argv);
   const port = args.port ? Number(args.port) : DEFAULT_UI_PORT;
   if (!Number.isInteger(port) || port < 0 || port > 65535) {
@@ -205,7 +205,7 @@ async function openUi(argv: string[] = []): Promise<number> {
   } catch (error) {
     db.close();
     if ((error as NodeJS.ErrnoException).code === "EADDRINUSE") {
-      console.error(`${port} is already in use. Try ai-todo open --port <port>.`);
+      console.error(`${port} is already in use. Try ai-todo ${command} --port <port>.`);
       return 1;
     }
     console.error((error as Error).message);

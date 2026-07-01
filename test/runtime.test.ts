@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -37,7 +37,12 @@ test("help prints CLI usage", async () => {
   const help = await capture(() => main(["--help"]));
   assert.equal(help.code, 0);
   assert.match(help.stdout, /Usage: ai-todo/);
-  assert.match(help.stdout, /open \[--port <port>\]/);
+  assert.match(help.stdout, /start\|open \[--port <port>\]/);
+});
+
+test("npm start launches the web workspace command", () => {
+  const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> };
+  assert.equal(pkg.scripts.start, "node dist/cli.js start");
 });
 
 test("healthz returns ok", async () => {
