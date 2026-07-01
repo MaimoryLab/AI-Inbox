@@ -4,6 +4,7 @@ import { sourceLabel, textFor, type Locale } from "../i18n.js";
 import { cn } from "../lib/utils.js";
 import type { ObservationRecord, SessionRecord, SourceSummary } from "../types.js";
 import type { SourceFilter } from "../view-model.js";
+import { ObservationText } from "./observation-text.js";
 import { Badge, Button, Card, Input, SectionTitle, SegmentedFilter } from "./ui.js";
 import { sessionProjectLabel, sourceCount, SourceIcon } from "./source-labels.js";
 
@@ -162,7 +163,7 @@ export function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sess
                     <span className="font-semibold capitalize text-[var(--app-muted)]">{observation.role === "unknown" ? text.message : observation.role}</span>
                     <time dateTime={observation.createdAt}>{new Date(observation.createdAt).toLocaleString()}</time>
                   </div>
-                  <p className="whitespace-pre-wrap break-words text-sm leading-6 text-[var(--app-ink)]">{observation.text}</p>
+                  <ObservationText observation={observation} />
                 </article>
               ))}
               {!showAllMessages && observations.length > visibleObservations.length && (

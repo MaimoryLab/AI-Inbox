@@ -11,10 +11,11 @@ test("React UI keeps task-first Sources wording and accessible icon controls", (
   const appShell = readFileSync("src/web/src/components/app-shell.tsx", "utf8");
   const todoBoard = readFileSync("src/web/src/components/todo-board.tsx", "utf8");
   const sourcesWorkspace = readFileSync("src/web/src/components/sources-workspace.tsx", "utf8");
+  const observationText = readFileSync("src/web/src/components/observation-text.tsx", "utf8");
   const settingsWorkspace = readFileSync("src/web/src/components/settings-workspace.tsx", "utf8");
   const ui = readFileSync("src/web/src/components/ui.tsx", "utf8");
   const css = readFileSync("src/web/src/styles/globals.css", "utf8");
-  const frontend = [app, appShell, todoBoard, sourcesWorkspace, settingsWorkspace, ui, css].join("\n");
+  const frontend = [app, appShell, todoBoard, sourcesWorkspace, observationText, settingsWorkspace, ui, css].join("\n");
 
   assert.match(viewModel, /type View = "todos" \| "sources" \| "settings"/);
   assert.match(i18n, /type Locale = "zh-CN" \| "en-US"/);
@@ -84,6 +85,14 @@ test("React UI keeps task-first Sources wording and accessible icon controls", (
   assert.doesNotMatch(todoBoard, /sourceRailClass\(todo\.origin\?\.source\)/);
   assert.match(sourcesWorkspace, /sessionProjectLabel\(session, locale\)/);
   assert.match(sourcesWorkspace, /sourceLabel\(session\.source, locale\)/);
+  assert.match(sourcesWorkspace, /<ObservationText observation=\{observation\}/);
+  assert.match(observationText, /from "react-markdown"/);
+  assert.match(observationText, /skipHtml/);
+  assert.match(observationText, /observation\.role === "assistant"/);
+  assert.match(observationText, /sourceDisplayText\(observation\.text\)/);
+  assert.doesNotMatch(observationText, /dangerouslySetInnerHTML/);
+  assert.doesNotMatch(observationText, /rehype-raw/);
+  assert.match(css, /\.source-markdown/);
   assert.match(i18n, /completedIgnored: "已完成 \/ 已忽略"/);
   assert.match(i18n, /happenedNow: "刚刚发生"/);
   assert.match(i18n, /happenedNow: "Happened just now"/);
