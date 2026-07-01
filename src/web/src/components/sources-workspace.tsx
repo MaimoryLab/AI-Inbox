@@ -43,24 +43,24 @@ export function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sess
 
   return (
     <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-      <Card className="min-w-0 p-3">
-        <div className="mb-3 space-y-3 px-1">
+      <Card className="min-w-0 overflow-hidden">
+        <div className="border-b border-[var(--app-border)] bg-[var(--app-surface)] p-3">
           <div className="flex items-center gap-2">
-            <Search className="h-4 w-4 text-neutral-400" aria-hidden="true" />
+            <Search className="h-4 w-4 text-[var(--app-subtle)]" aria-hidden="true" />
             <SectionTitle>{text.sources}</SectionTitle>
           </div>
-          <label className="relative block">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" aria-hidden="true" />
+          <label className="relative mt-3 block">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--app-subtle)]" aria-hidden="true" />
             <Input aria-label={text.searchSources} placeholder={text.searchSources} value={query} onChange={(event) => setQuery(event.target.value)} className="pl-9" />
           </label>
-          <SegmentedFilter aria-label={text.sourceFilter}>
+          <SegmentedFilter className="mt-3" aria-label={text.sourceFilter}>
             {filters.map((filter) => (
               <button
                 key={filter}
                 type="button"
                 className={cn(
-                  "inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium",
-                  sourceFilter === filter ? "bg-neutral-950 text-white" : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+                  "inline-flex min-h-7 shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition active:translate-y-px",
+                  sourceFilter === filter ? "bg-[var(--app-ink)] text-white" : "text-[var(--app-muted)] hover:bg-[var(--app-surface)] hover:text-[var(--app-ink)]"
                 )}
                 onClick={() => onFilter(filter)}
               >
@@ -70,56 +70,56 @@ export function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sess
             ))}
           </SegmentedFilter>
         </div>
-        <div className="max-h-[calc(100vh-220px)] space-y-2 overflow-y-auto pr-1">
-          {sessions.length === 0 && <div className="rounded-md bg-neutral-50 p-4 text-sm text-neutral-600">{text.connectSource}</div>}
-          {sessions.length > 0 && groups.length === 0 && <div className="rounded-md bg-neutral-50 p-4 text-sm text-neutral-600">{text.noSessionsMatch}</div>}
+        <div className="app-scroll max-h-[34rem] space-y-2 overflow-y-auto p-3 xl:max-h-[calc(100vh-220px)]">
+          {sessions.length === 0 && <div className="rounded-md bg-[var(--app-surface-muted)] p-4 text-sm text-[var(--app-muted)]">{text.connectSource}</div>}
+          {sessions.length > 0 && groups.length === 0 && <div className="rounded-md bg-[var(--app-surface-muted)] p-4 text-sm text-[var(--app-muted)]">{text.noSessionsMatch}</div>}
           {groups.map((group) => {
             const expanded = expandedGroups[group.key] ?? false;
             const visibleSessions = expanded ? group.sessions : group.sessions.slice(0, SESSION_GROUP_PREVIEW_LIMIT);
             const hiddenCount = group.sessions.length - visibleSessions.length;
             return (
-              <section key={group.key} className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+              <section key={group.key} className="overflow-hidden rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)]">
                 <button
                   type="button"
                   aria-expanded={expanded}
-                  className="flex w-full items-center justify-between gap-3 border-b border-neutral-100 bg-neutral-50/70 px-3 py-2 text-left"
+                  className="flex w-full items-center justify-between gap-3 border-b border-[var(--app-border)] bg-[var(--app-surface-muted)] px-3 py-2 text-left transition hover:bg-white"
                   onClick={() => setExpandedGroups((current) => ({ ...current, [group.key]: !expanded }))}
                 >
                   <span className="flex min-w-0 items-center gap-2">
-                    <FolderOpen className="h-4 w-4 shrink-0 text-neutral-500" aria-hidden="true" />
+                    <FolderOpen className="h-4 w-4 shrink-0 text-[var(--app-subtle)]" aria-hidden="true" />
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold text-neutral-800">{group.label}</span>
-                      <span className="block text-xs text-neutral-500">{text.sessionCount(group.sessions.length)}</span>
+                      <span className="block truncate text-sm font-semibold text-[var(--app-ink)]">{group.label}</span>
+                      <span className="block text-xs text-[var(--app-subtle)]">{text.sessionCount(group.sessions.length)}</span>
                     </span>
                   </span>
-                  <ChevronDown className={cn("h-4 w-4 text-neutral-500 transition", expanded && "rotate-180")} aria-hidden="true" />
+                  <ChevronDown className={cn("h-4 w-4 text-[var(--app-subtle)] transition", expanded && "rotate-180")} aria-hidden="true" />
                 </button>
-                <div className="divide-y divide-neutral-100">
+                <div className="divide-y divide-[var(--app-border)]">
                   {visibleSessions.map((session) => (
                     <button
                       key={session.id}
                       type="button"
                       className={cn(
                         "w-full p-3 text-left transition",
-                        selected?.id === session.id ? "bg-blue-50" : "bg-white hover:bg-neutral-50"
+                        selected?.id === session.id ? "bg-[var(--app-surface-selected)] shadow-[inset_3px_0_0_var(--app-accent)]" : "bg-[var(--app-surface)] hover:bg-[var(--app-surface-muted)]"
                       )}
                       onClick={() => {
                         setShowAllMessages(false);
                         onSelect(session.id);
                       }}
                     >
-                      <div className="flex items-center gap-2 text-sm font-medium">
+                      <div className="flex items-center gap-2 text-sm font-medium text-[var(--app-ink)]">
                         <SourceIcon source={session.source} />
                         <span className="truncate">{sourceLabel(session.source, locale)}</span>
                       </div>
-                      <div className="mt-1 truncate text-sm text-neutral-600">{session.preview || text.temporarySession}</div>
-                      <div className="mt-2 text-xs text-neutral-400">{text.messageCount(session.observationCount)}</div>
+                      <div className="mt-1 line-clamp-2 text-sm leading-5 text-[var(--app-muted)]">{session.preview || text.temporarySession}</div>
+                      <div className="mt-2 text-xs text-[var(--app-subtle)]">{text.messageCount(session.observationCount)}</div>
                     </button>
                   ))}
                   {hiddenCount > 0 && (
                     <button
                       type="button"
-                      className="w-full px-3 py-2 text-left text-sm font-medium text-blue-700 hover:bg-blue-50"
+                      className="w-full px-3 py-2 text-left text-sm font-medium text-[var(--app-accent)] transition hover:bg-[var(--app-surface-selected)]"
                       onClick={() => setExpandedGroups((current) => ({ ...current, [group.key]: true }))}
                     >
                       {text.moreSessions(hiddenCount)}
@@ -136,32 +136,33 @@ export function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sess
           )}
         </div>
       </Card>
-      <Card className="min-w-0 p-4">
+      <Card className="min-w-0 overflow-hidden">
         {selected ? (
           <>
-            <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="flex items-start justify-between gap-3 border-b border-[var(--app-border)] bg-[var(--app-surface)] p-4">
               <div className="min-w-0">
                 <SectionTitle>{sourceLabel(selected.source, locale)}</SectionTitle>
-                <h2 className="truncate text-xl font-semibold tracking-normal">{selected.preview || text.temporarySession}</h2>
+                <h2 className="mt-1 line-clamp-2 text-lg font-semibold leading-6 tracking-normal text-[var(--app-ink)]">{selected.preview || text.temporarySession}</h2>
               </div>
               <Badge>{text.messageCount(selected.observationCount)}</Badge>
             </div>
-            <div className="max-h-[calc(100vh-220px)] space-y-3 overflow-y-auto pr-1">
-              {observations.length === 0 && <div className="rounded-md bg-neutral-50 p-4 text-sm text-neutral-600">{text.selectSource}</div>}
+            <div className="app-scroll max-h-[42rem] space-y-3 overflow-y-auto bg-[var(--app-surface-muted)] p-3 xl:max-h-[calc(100vh-220px)]">
+              {observations.length === 0 && <div className="rounded-md bg-white p-4 text-sm text-[var(--app-muted)]">{text.selectSource}</div>}
               {visibleObservations.map((observation) => (
                 <article
                   id={`obs-${observation.id}`}
                   key={observation.id}
                   className={cn(
-                    "rounded-md border border-neutral-200 bg-white p-3",
-                    highlightedObservationId === observation.id && "border-amber-300 bg-amber-50"
+                    "source-message rounded-md border border-[var(--app-border)] bg-white p-3",
+                    observation.role === "assistant" && "ml-auto",
+                    highlightedObservationId === observation.id && "border-amber-300 bg-amber-50 shadow-[inset_3px_0_0_var(--app-amber)]"
                   )}
                 >
-                  <div className="mb-2 flex items-center justify-between gap-2 text-xs text-neutral-500">
-                    <span className="capitalize">{observation.role === "unknown" ? text.message : observation.role}</span>
-                    <time>{new Date(observation.createdAt).toLocaleString()}</time>
+                  <div className="mb-2 flex flex-col gap-1 text-xs text-[var(--app-subtle)] sm:flex-row sm:items-center sm:justify-between">
+                    <span className="font-semibold capitalize text-[var(--app-muted)]">{observation.role === "unknown" ? text.message : observation.role}</span>
+                    <time dateTime={observation.createdAt}>{new Date(observation.createdAt).toLocaleString()}</time>
                   </div>
-                  <p className="whitespace-pre-wrap break-words text-sm leading-6 text-neutral-800">{observation.text}</p>
+                  <p className="whitespace-pre-wrap break-words text-sm leading-6 text-[var(--app-ink)]">{observation.text}</p>
                 </article>
               ))}
               {!showAllMessages && observations.length > visibleObservations.length && (
@@ -173,7 +174,7 @@ export function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sess
             </div>
           </>
         ) : (
-          <div className="rounded-md bg-neutral-50 p-4 text-sm text-neutral-600">{text.noSourceSessions}</div>
+          <div className="m-3 rounded-md bg-[var(--app-surface-muted)] p-4 text-sm text-[var(--app-muted)]">{text.noSourceSessions}</div>
         )}
       </Card>
     </div>

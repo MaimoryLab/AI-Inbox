@@ -53,92 +53,109 @@ export function SettingsWorkspace({ settings, startup, locale, onLocale, onSaved
 
   return (
     <div className="space-y-4">
-      <Card className="p-4">
-        <div className="flex items-center gap-2">
-          <SlidersHorizontal className="h-4 w-4 text-neutral-500" aria-hidden="true" />
-          <SectionTitle>{text.settings}</SectionTitle>
-        </div>
-        <div className="mt-4 space-y-6">
-          <section>
-            <h2 className="text-base font-semibold">{text.language}</h2>
-            <p className="mt-1 text-sm text-neutral-600">{text.languageDescription}</p>
-            <div className="mt-3 inline-flex rounded-md border border-neutral-200 bg-neutral-50 p-1">
-              {(["zh-CN", "en-US"] as const).map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className={cn(
-                    "rounded px-3 py-1.5 text-sm font-medium",
-                    locale === option ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-600 hover:text-neutral-950"
-                  )}
-                  aria-pressed={locale === option}
-                  onClick={() => onLocale(option)}
-                >
-                  {option === "zh-CN" ? text.chinese : text.english}
-                </button>
-              ))}
-            </div>
-          </section>
-          <section>
-            <h2 className="text-base font-semibold">{text.sourceSettings}</h2>
-            <p className="mt-1 text-sm text-neutral-600">{text.sourceSettingsDescription}</p>
-            <div className="mt-3 grid gap-4 md:grid-cols-2">
-              <Field label={text.codexSource}>
-                <Input value={form.sources.codex.path ?? ""} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, sources: { ...form.sources, codex: { path: event.target.value } } })} />
-              </Field>
-              <Field label={text.claudeSource}>
-                <Input value={form.sources["claude-code"].path ?? ""} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, sources: { ...form.sources, "claude-code": { path: event.target.value } } })} />
-              </Field>
-            </div>
-            {startup?.discovery.length ? (
-              <div className="mt-3 rounded-md border border-neutral-200 bg-neutral-50 p-3">
-                <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{text.discovery}</div>
-                <div className="mt-2 grid gap-2 text-sm text-neutral-700">
-                  {startup.discovery.map((item) => (
-                    <div key={item.source} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                      <span className="font-medium">{sourceLabel(item.source, locale)}</span>
-                      <span className="text-neutral-600">
-                        {discoveryStatusLabel(item.status, locale)}
-                        {item.path ? ` · ${item.path}` : ""}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+      <Card className="overflow-hidden">
+        <form autoComplete="off" onSubmit={(event) => {
+          event.preventDefault();
+          void save();
+        }}>
+          <div className="flex items-center gap-2 border-b border-[var(--app-border)] bg-[var(--app-surface)] p-4">
+            <SlidersHorizontal className="h-4 w-4 text-[var(--app-subtle)]" aria-hidden="true" />
+            <SectionTitle>{text.settings}</SectionTitle>
+          </div>
+          <div className="divide-y divide-[var(--app-border)]">
+            <section className="grid gap-3 p-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+              <div>
+                <h2 className="text-base font-semibold text-[var(--app-ink)]">{text.language}</h2>
+                <p className="mt-1 text-sm text-[var(--app-muted)]">{text.languageDescription}</p>
               </div>
-            ) : null}
-          </section>
-          <section>
-            <h2 className="text-base font-semibold">{text.extraction}</h2>
-            <p className="mt-1 text-sm text-neutral-600">{text.extractionDescription}</p>
-            <div className="mt-3 grid gap-4 md:grid-cols-3">
-              <Field label={text.lookbackDays}>
-                <Input type="number" min={1} value={form.organize.sinceDays} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, organize: { ...form.organize, sinceDays: Number(event.target.value) } })} />
-              </Field>
-              <Field label={text.maxSessions}>
-                <Input type="number" min={1} max={200} value={form.organize.maxSessions} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, organize: { ...form.organize, maxSessions: Number(event.target.value) } })} />
-              </Field>
-              <Field label={text.apiKey}>
-                <Input type="password" placeholder={settings.llm.apiKeyConfigured ? `${text.configured} ${settings.llm.apiKeyMasked}` : text.pasteApiKey} value={apiKey} onChange={(event: ChangeEvent<HTMLInputElement>) => setApiKey(event.target.value)} />
-              </Field>
-            </div>
-            <label className="mt-3 flex items-center gap-2 text-sm text-neutral-700">
-              <input type="checkbox" checked={clearKey} onChange={(event) => setClearKey(event.target.checked)} />
-              {text.clearSavedApiKey}
-            </label>
-          </section>
-        </div>
-        <Button className="mt-4" onClick={() => void save()} disabled={saving}>
-          <Save className="h-4 w-4" aria-hidden="true" />
-          {text.saveSettings}
-        </Button>
-        {saveError && <StatusCallout tone="danger" className="mt-3">{saveError}</StatusCallout>}
+              <div className="inline-flex w-fit rounded-lg bg-[var(--app-surface-muted)] p-1">
+                {(["zh-CN", "en-US"] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-sm font-medium transition active:translate-y-px",
+                      locale === option ? "bg-white text-[var(--app-ink)] shadow-sm" : "text-[var(--app-muted)] hover:text-[var(--app-ink)]"
+                    )}
+                    aria-pressed={locale === option}
+                    onClick={() => onLocale(option)}
+                  >
+                    {option === "zh-CN" ? text.chinese : text.english}
+                  </button>
+                ))}
+              </div>
+            </section>
+            <section className="grid gap-3 p-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+              <div>
+                <h2 className="text-base font-semibold text-[var(--app-ink)]">{text.sourceSettings}</h2>
+                <p className="mt-1 text-sm text-[var(--app-muted)]">{text.sourceSettingsDescription}</p>
+              </div>
+              <div className="min-w-0 space-y-3">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label={text.codexSource}>
+                    <Input autoComplete="off" value={form.sources.codex.path ?? ""} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, sources: { ...form.sources, codex: { path: event.target.value } } })} />
+                  </Field>
+                  <Field label={text.claudeSource}>
+                    <Input autoComplete="off" value={form.sources["claude-code"].path ?? ""} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, sources: { ...form.sources, "claude-code": { path: event.target.value } } })} />
+                  </Field>
+                </div>
+                {startup?.discovery.length ? (
+                  <div className="rounded-md border border-[var(--app-border)] bg-[var(--app-surface-muted)] p-3">
+                    <SectionTitle>{text.discovery}</SectionTitle>
+                    <div className="mt-2 grid gap-2 text-sm text-[var(--app-muted)]">
+                      {startup.discovery.map((item) => (
+                        <div key={item.source} className="grid gap-1 sm:grid-cols-[140px_minmax(0,1fr)] sm:items-center">
+                          <span className="font-medium text-[var(--app-ink)]">{sourceLabel(item.source, locale)}</span>
+                          <span className="min-w-0 break-words">
+                            {discoveryStatusLabel(item.status, locale)}
+                            {item.path ? ` · ${item.path}` : ""}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+            <section className="grid gap-3 p-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+              <div>
+                <h2 className="text-base font-semibold text-[var(--app-ink)]">{text.extraction}</h2>
+                <p className="mt-1 text-sm text-[var(--app-muted)]">{text.extractionDescription}</p>
+              </div>
+              <div className="min-w-0">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <Field label={text.lookbackDays}>
+                    <Input type="number" min={1} value={form.organize.sinceDays} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, organize: { ...form.organize, sinceDays: Number(event.target.value) } })} />
+                  </Field>
+                  <Field label={text.maxSessions}>
+                    <Input type="number" min={1} max={200} value={form.organize.maxSessions} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, organize: { ...form.organize, maxSessions: Number(event.target.value) } })} />
+                  </Field>
+                  <Field label={text.apiKey}>
+                    <Input type="password" autoComplete="off" placeholder={settings.llm.apiKeyConfigured ? `${text.configured} ${settings.llm.apiKeyMasked}` : text.pasteApiKey} value={apiKey} onChange={(event: ChangeEvent<HTMLInputElement>) => setApiKey(event.target.value)} />
+                  </Field>
+                </div>
+                <label className="mt-3 flex items-center gap-2 text-sm text-[var(--app-muted)]">
+                  <input type="checkbox" checked={clearKey} onChange={(event) => setClearKey(event.target.checked)} />
+                  {text.clearSavedApiKey}
+                </label>
+              </div>
+            </section>
+          </div>
+          <div className="border-t border-[var(--app-border)] bg-[var(--app-surface-muted)] p-4">
+            <Button type="submit" disabled={saving}>
+              <Save className="h-4 w-4" aria-hidden="true" />
+              {text.saveSettings}
+            </Button>
+            {saveError && <StatusCallout tone="danger" className="mt-3">{saveError}</StatusCallout>}
+          </div>
+        </form>
       </Card>
-      <details className="rounded-lg border border-neutral-200 bg-white p-4">
-        <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium">
+      <details className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
+        <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium text-[var(--app-ink)]">
           {text.advancedDiagnostics}
-          <ChevronDown className="h-4 w-4" aria-hidden="true" />
+          <ChevronDown className="h-4 w-4 text-[var(--app-subtle)]" aria-hidden="true" />
         </summary>
-        <div className="mt-3 grid gap-4 text-sm text-neutral-600 md:grid-cols-2">
+        <div className="mt-3 grid gap-4 text-sm text-[var(--app-muted)] md:grid-cols-2">
           <Field label={text.model}>
             <Input value={form.llm.model} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, llm: { ...form.llm, model: event.target.value } })} />
           </Field>

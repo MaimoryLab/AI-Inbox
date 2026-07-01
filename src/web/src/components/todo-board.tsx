@@ -24,9 +24,9 @@ export function TodoBoard(props: {
   if (props.openTodos.length === 0 && props.closedTodos.length === 0) {
     return (
       <Card className="flex min-h-80 flex-col items-center justify-center p-6 text-center">
-        <Sparkles className="h-10 w-10 text-neutral-400" aria-hidden="true" />
-        <h2 className="mt-3 text-lg font-semibold">{text.noCards}</h2>
-        <p className="mt-1 max-w-md text-sm text-neutral-600">{text.noCardsDescription}</p>
+        <Sparkles className="h-10 w-10 text-[var(--app-subtle)]" aria-hidden="true" />
+        <h2 className="mt-3 text-lg font-semibold text-[var(--app-ink)]">{text.noCards}</h2>
+        <p className="mt-1 max-w-md text-sm text-[var(--app-muted)]">{text.noCardsDescription}</p>
         <Button aria-label={text.organizeEmpty} title={text.organizeEmpty} className="mt-4" onClick={props.onOrganize} disabled={props.busy}>
           <Sparkles className="h-4 w-4" aria-hidden="true" />
           {text.organize}
@@ -38,10 +38,10 @@ export function TodoBoard(props: {
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+        <div className="min-w-0">
           <SectionTitle>{text.todos}</SectionTitle>
-          <h2 className="text-xl font-semibold tracking-normal">{text.openLoopsTitle}</h2>
-          <p className="mt-1 text-sm text-neutral-600">{text.openLoopsDescription}</p>
+          <h2 className="text-xl font-semibold tracking-normal text-[var(--app-ink)]">{text.openLoopsTitle}</h2>
+          <p className="mt-1 max-w-3xl text-sm text-[var(--app-muted)]">{text.openLoopsDescription}</p>
         </div>
         <Badge className="self-start border-blue-200 bg-blue-50 text-blue-700">{text.openCount(props.openTodos.length)}</Badge>
       </div>
@@ -51,23 +51,23 @@ export function TodoBoard(props: {
         const visibleTodos = expanded ? sortedTodos : sortedTodos.slice(0, OPEN_GROUP_PREVIEW_LIMIT);
         const hiddenCount = group.todos.length - visibleTodos.length;
         return (
-          <section key={group.key} className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+          <section key={group.key} className="overflow-hidden rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)]">
             <button
               type="button"
-              className="flex w-full items-center justify-between gap-3 border-b border-neutral-100 bg-neutral-50/70 px-3 py-2 text-left"
+              className={cn("flex w-full items-center justify-between gap-3 border-b border-[var(--app-border)] px-3 py-2 text-left transition hover:bg-white", group.headerClass)}
               aria-expanded={expanded}
               onClick={() => setExpandedOpenGroups((current) => ({ ...current, [group.key]: !expanded }))}
             >
               <span className="min-w-0">
-                <h3 className="text-sm font-semibold text-neutral-800">{group.label}</h3>
-                <span className="block truncate text-xs text-neutral-500">{group.description}</span>
+                <h3 className="text-sm font-semibold text-[var(--app-ink)]">{group.label}</h3>
+                <span className="block truncate text-xs text-[var(--app-muted)]">{group.description}</span>
               </span>
               <span className="inline-flex items-center gap-2">
                 <Badge className={group.badgeClass}>{group.todos.length}</Badge>
-                <ChevronDown className={cn("h-4 w-4 text-neutral-500 transition", expanded && "rotate-180")} aria-hidden="true" />
+                <ChevronDown className={cn("h-4 w-4 text-[var(--app-subtle)] transition", expanded && "rotate-180")} aria-hidden="true" />
               </span>
             </button>
-            <div className="divide-y divide-neutral-100">
+            <div className="divide-y divide-[var(--app-border)]">
               {visibleTodos.map((todo) => (
                 <TodoItem key={todo.id} todo={todo} locale={props.locale} onComplete={props.onComplete} onIgnore={props.onIgnore} onSources={props.onSources} compactStatus />
               ))}
@@ -83,16 +83,16 @@ export function TodoBoard(props: {
         );
       })}
       {props.closedTodos.length > 0 && (
-        <section className="rounded-lg border border-neutral-200 bg-white p-3">
-          <button className="flex w-full items-center justify-between gap-3 text-left text-sm font-semibold text-neutral-700" type="button" aria-expanded={showClosed} onClick={() => setShowClosed(!showClosed)}>
+        <section className="overflow-hidden rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)]">
+          <button className="flex w-full items-center justify-between gap-3 bg-[var(--app-surface-muted)] px-3 py-2 text-left text-sm font-semibold text-[var(--app-muted)] transition hover:bg-white" type="button" aria-expanded={showClosed} onClick={() => setShowClosed(!showClosed)}>
             {text.completedIgnored}
-            <span className="inline-flex items-center gap-2 text-xs font-medium text-neutral-500">
+            <span className="inline-flex items-center gap-2 text-xs font-medium text-[var(--app-subtle)]">
               {props.closedTodos.length}
               <ChevronDown className={cn("h-4 w-4 transition", showClosed && "rotate-180")} aria-hidden="true" />
             </span>
           </button>
           {showClosed && (
-            <div className="mt-3 space-y-3">
+            <div className="divide-y divide-[var(--app-border)] border-t border-[var(--app-border)]">
               {sortTodosByEventTime(props.closedTodos).map((todo) => (
                 <TodoItem key={todo.id} todo={todo} locale={props.locale} onComplete={props.onComplete} onIgnore={props.onIgnore} onSources={props.onSources} muted />
               ))}
@@ -104,12 +104,12 @@ export function TodoBoard(props: {
   );
 }
 
-function todoGroups(todos: TodoCard[], locale: Locale): Array<{ key: string; label: string; description: string; badgeClass: string; todos: TodoCard[] }> {
+function todoGroups(todos: TodoCard[], locale: Locale): Array<{ key: string; label: string; description: string; badgeClass: string; headerClass: string; todos: TodoCard[] }> {
   const text = textFor(locale);
   const groups = [
-    { key: "blocked", label: text.blocked, description: text.blockedDescription, badgeClass: "border-red-200 bg-red-50 text-red-700", todos: [] as TodoCard[] },
-    { key: "in_progress", label: text.inProgress, description: text.inProgressDescription, badgeClass: "border-blue-200 bg-blue-50 text-blue-700", todos: [] as TodoCard[] },
-    { key: "needs_review", label: text.needsReview, description: text.needsReviewDescription, badgeClass: "border-amber-200 bg-amber-50 text-amber-700", todos: [] as TodoCard[] }
+    { key: "blocked", label: text.blocked, description: text.blockedDescription, badgeClass: "border-red-200 bg-red-50 text-red-700", headerClass: "bg-red-50/70", todos: [] as TodoCard[] },
+    { key: "in_progress", label: text.inProgress, description: text.inProgressDescription, badgeClass: "border-blue-200 bg-blue-50 text-blue-700", headerClass: "bg-blue-50/70", todos: [] as TodoCard[] },
+    { key: "needs_review", label: text.needsReview, description: text.needsReviewDescription, badgeClass: "border-amber-200 bg-amber-50 text-amber-700", headerClass: "bg-amber-50/70", todos: [] as TodoCard[] }
   ];
   for (const todo of todos) {
     const state = todo.metadata.completionState?.toLowerCase().replace(/\s+/g, "_");
@@ -132,8 +132,8 @@ function TodoItem({ todo, muted, compactStatus, locale, onComplete, onIgnore, on
   const eventTime = todoEventTime(todo);
   const eventTitle = new Date(eventTime).toLocaleString();
   return (
-    <Card className={cn("relative overflow-hidden rounded-none border-0 border-b border-neutral-100 p-4 shadow-none last:border-b-0", muted && "opacity-70")}>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <Card className={cn("relative overflow-hidden rounded-none border-0 p-4 shadow-none", muted && "opacity-70")}>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div className="min-w-0 space-y-2">
           {!compactStatus && (
             <div className="flex flex-wrap items-center gap-2">
@@ -141,28 +141,28 @@ function TodoItem({ todo, muted, compactStatus, locale, onComplete, onIgnore, on
               {todo.metadata.completionState && <Badge>{todo.metadata.completionState}</Badge>}
             </div>
           )}
-          <h3 className="break-words text-lg font-semibold tracking-normal">{todo.title}</h3>
-          <p className="todo-description break-words text-sm leading-6 text-neutral-700">{todo.description}</p>
+          <h3 className="break-words text-base font-semibold leading-6 tracking-normal text-[var(--app-ink)] sm:text-lg">{todo.title}</h3>
+          <p className="todo-description break-words text-sm leading-6 text-[var(--app-muted)]">{todo.description}</p>
           <div className="todo-meta-row">
-            <button aria-label={text.openSourceSession(todo.title)} className="inline-flex min-w-0 items-center gap-1.5 rounded-md text-left text-xs font-medium text-neutral-600 hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-70" type="button" title={originLabel(todo, locale)} disabled={!todo.origin} onClick={() => onSources(todo)}>
+            <button aria-label={text.openSourceSession(todo.title)} className="inline-flex min-w-0 items-center gap-1.5 rounded-md text-left text-xs font-medium text-[var(--app-muted)] transition hover:text-[var(--app-ink)] disabled:cursor-not-allowed disabled:opacity-70" type="button" title={originLabel(todo, locale)} disabled={!todo.origin} onClick={() => onSources(todo)}>
               <SourceIcon source={todo.origin?.source} />
               <span className="truncate">{originProjectLabel(todo, locale)}</span>
             </button>
-            <time className="shrink-0 text-xs text-neutral-500" dateTime={eventTime} title={eventTitle}>{formatRelativeTime(todoEventTime(todo), locale)}</time>
+            <time className="shrink-0 text-xs text-[var(--app-subtle)]" dateTime={eventTime} title={eventTitle}>{formatRelativeTime(todoEventTime(todo), locale)}</time>
           </div>
           {todo.metadata.completionSummary && (
-            <details className="text-sm text-neutral-500">
-              <summary className="cursor-pointer font-medium text-neutral-600">{text.agentProgress}</summary>
-              <p className="mt-1 break-words">{todo.metadata.completionSummary}</p>
+            <details className="rounded-md bg-[var(--app-surface-muted)] px-3 py-2 text-sm text-[var(--app-muted)]">
+              <summary className="cursor-pointer font-medium text-[var(--app-ink)]">{text.agentProgress}</summary>
+              <p className="mt-1 break-words leading-6">{todo.metadata.completionSummary}</p>
             </details>
           )}
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
-          <Button aria-label={text.completeTodo(todo.title)} variant="secondary" onClick={() => onComplete(todo.id)}>
+        <div className="grid shrink-0 grid-cols-[1fr_1fr_auto] gap-2 lg:min-w-[17rem]">
+          <Button aria-label={text.completeTodo(todo.title)} variant="secondary" size="sm" onClick={() => onComplete(todo.id)}>
             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
             {text.complete}
           </Button>
-          <Button aria-label={text.openTodoSources(todo.title)} variant="secondary" onClick={() => onSources(todo)}>
+          <Button aria-label={text.openTodoSources(todo.title)} variant="secondary" size="sm" onClick={() => onSources(todo)}>
             <Eye className="h-4 w-4" aria-hidden="true" />
             {text.sources}
           </Button>

@@ -3,10 +3,19 @@
 @tailwind utilities;
 
 :root {
-  --app-bg: #f3f5f1;
+  --app-bg: #f4f6f2;
+  --app-surface: #ffffff;
+  --app-surface-muted: #f7f8f5;
+  --app-surface-selected: #edf4ff;
   --app-ink: #172033;
-  --app-line: #d9ddd4;
-  --app-blue: #1d4ed8;
+  --app-muted: #4f5968;
+  --app-subtle: #7a828d;
+  --app-border: #dfe4da;
+  --app-border-strong: #cbd3c5;
+  --app-line: var(--app-border);
+  --app-accent: #1f5fc4;
+  --app-accent-strong: #174a9c;
+  --app-blue: var(--app-accent);
   --app-green: #15803d;
   --app-amber: #b45309;
   --app-red: #b42318;
@@ -16,6 +25,7 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
 }
 
 * {
@@ -48,6 +58,10 @@ body {
   overflow-x: hidden;
 }
 
+body {
+  scrollbar-color: #aeb8a9 transparent;
+}
+
 p,
 h1,
 h2,
@@ -63,6 +77,25 @@ textarea {
   background: #bfdbfe;
 }
 
+.app-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #aeb8a9 transparent;
+}
+
+.app-scroll::-webkit-scrollbar {
+  height: 0.5rem;
+  width: 0.5rem;
+}
+
+.app-scroll::-webkit-scrollbar-thumb {
+  background: #aeb8a9;
+  border-radius: 999px;
+}
+
+.app-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .todo-description {
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -76,6 +109,10 @@ textarea {
   flex-wrap: wrap;
   gap: 0.5rem 0.75rem;
   min-width: 0;
+}
+
+.source-message {
+  max-width: 78ch;
 }
 
 @media (max-width: 430px) {
