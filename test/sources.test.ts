@@ -103,6 +103,83 @@ test("codex scanner dedupes mirrored event and response messages", () => {
   }
 });
 
+test("codex scanner stores readable file and image references", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-source-attachments-"));
+  try {
+    mkdirSync(join(dir, "codex"));
+    const imagePath = "/var/folders/demo/codex-clipboard-a1ec.png";
+    const filePath = "/Users/ppio/Documents/brief.md";
+    writeFileSync(join(dir, "codex", "session.jsonl"), [
+      JSON.stringify({
+        type: "event_msg",
+        payload: {
+          type: "user_message",
+          message: [
+            "Please inspect the attached screenshot.",
+            "",
+            "# Files mentioned by the user:",
+            "",
+            `## brief.md: ${filePath}`,
+            "",
+            `## codex-clipboard-a1ec.png: ${imagePath}`,
+            "",
+            `<image name=[Image #1] path="${imagePath}">`,
+            "</image>"
+          ].join("\n"),
+          timestamp: "2026-01-01T00:00:01.000Z"
+        }
+      })
+    ].join("\n"));
+
+    const db = openDatabase(getAppPaths(join(dir, "home")));
+    assert.equal(scanCodexSessions(db, join(dir, "codex")).observations, 1);
+    const row = db.prepare("SELECT text FROM observations").get() as { text: string };
+    db.close();
+
+    assert.match(row.text, /Please inspect the attached screenshot/);
+    assert.match(row.text, /Files mentioned: brief\.md \(\/Users\/ppio\/Documents\/brief\.md\)/);
+    assert.match(row.text, /Image: Image #1 \(\/var\/folders\/demo\/codex-clipboard-a1ec\.png\)/);
+    assert.doesNotMatch(row.text, /Files mentioned: codex-clipboard-a1ec\.png/);
+    assert.equal((row.text.match(/\/var\/folders\/demo\/codex-clipboard-a1ec\.png/g) ?? []).length, 1);
+    assert.equal((row.text.match(/\/Users\/ppio\/Documents\/brief\.md/g) ?? []).length, 1);
+    assert.doesNotMatch(row.text, /<image|<\/image>/);
+    assert.doesNotMatch(row.text, /# Files mentioned by the user/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("codex scanner stores structured local image references without inline image tags", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-source-local-images-"));
+  try {
+    mkdirSync(join(dir, "codex"));
+    writeFileSync(join(dir, "codex", "session.jsonl"), [
+      JSON.stringify({
+        type: "event_msg",
+        payload: {
+          type: "user_message",
+          message: "Please compare this screenshot with the expected layout.",
+          images: [{ path: "/tmp/layout.png", name: "layout.png" }],
+          local_images: ["/tmp/layout.png", { path: "/tmp/extra.png", name: "extra.png" }],
+          timestamp: "2026-01-01T00:00:01.000Z"
+        }
+      })
+    ].join("\n"));
+
+    const db = openDatabase(getAppPaths(join(dir, "home")));
+    assert.equal(scanCodexSessions(db, join(dir, "codex")).observations, 1);
+    const row = db.prepare("SELECT text FROM observations").get() as { text: string };
+    db.close();
+
+    assert.match(row.text, /Please compare this screenshot/);
+    assert.match(row.text, /Image: layout\.png \(\/tmp\/layout\.png\)/);
+    assert.match(row.text, /Image: extra\.png \(\/tmp\/extra\.png\)/);
+    assert.equal((row.text.match(/\/tmp\/layout\.png/g) ?? []).length, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("clean transcript preserves meaningful newlines and does not drop user JSON examples", () => {
   const multiline = observationFromRecord("codex", "session", "/tmp/session.jsonl", {
     line: 1,
@@ -207,6 +284,40 @@ test("claude scanner keeps visible user and assistant text after filtering metad
     assert.ok(rows.some((row) => row.role === "user" && row.text === "Please clean Claude visible transcript"));
     assert.ok(rows.some((row) => row.role === "assistant" && row.text === "I will keep only readable transcript text."));
     assert.ok(!rows.some((row) => String(row.text).includes("sidechain")));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("claude scanner stores readable attachment references", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-source-claude-attachments-"));
+  try {
+    mkdirSync(join(dir, "claude"));
+    writeFileSync(join(dir, "claude", "session.jsonl"), [
+      JSON.stringify({
+        type: "user",
+        message: {
+          role: "user",
+          content: [
+            { type: "text", text: "Please review these inputs." },
+            { type: "image", name: "mockup.png", path: "/tmp/mockup.png" },
+            { type: "attachment", name: "notes.md", path: "/tmp/notes.md" },
+            { type: "text", text: '<image name="mockup.png" path="/tmp/mockup.png"></image>' }
+          ]
+        }
+      })
+    ].join("\n"));
+
+    const db = openDatabase(getAppPaths(join(dir, "home")));
+    assert.equal(scanClaudeCodeSessions(db, join(dir, "claude")).observations, 1);
+    const row = db.prepare("SELECT text FROM observations").get() as { text: string };
+    db.close();
+
+    assert.match(row.text, /Please review these inputs/);
+    assert.match(row.text, /Image: mockup\.png \(\/tmp\/mockup\.png\)/);
+    assert.match(row.text, /File: notes\.md \(\/tmp\/notes\.md\)/);
+    assert.equal((row.text.match(/\/tmp\/mockup\.png/g) ?? []).length, 1);
+    assert.doesNotMatch(row.text, /<image|<\/image>/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

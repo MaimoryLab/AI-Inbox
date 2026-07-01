@@ -134,9 +134,11 @@ function codexObservationFromRecord(value: Record<string, unknown>): { role: str
   if (type === "event_msg" && payload) {
     const eventType = stringValue(payload.type);
     if (eventType !== "user_message" && eventType !== "agent_message") return null;
+    const role = eventType === "user_message" ? "user" : "assistant";
+    const text = firstString(payload.message, payload.text) || textFromContent(payload.content, role);
     return {
-      role: eventType === "user_message" ? "user" : "assistant",
-      text: firstString(payload.message, payload.text) || textFromContent(payload.content, eventType === "user_message" ? "user" : "assistant"),
+      role,
+      text: withAttachmentText(text, payload),
       createdAt: timestampFrom(value, payload),
       channel: "event_msg"
     };
@@ -201,7 +203,13 @@ function textPart(part: unknown, role: string): string {
     || (role === "user" && type === "input_text")
     || (role === "assistant" && type === "output_text")
     || (!type && typeof record.text === "string");
-  return isVisibleText ? stringValue(record.text) ?? "" : "";
+  if (isVisibleText) return stringValue(record.text) ?? "";
+  if (type === "image" || type === "input_image" || type === "file" || type === "attachment") {
+    const imageUrl = objectValue(record.image_url);
+    const kind = type === "image" || type === "input_image" ? "Image" : "File";
+    return attachmentLine(kind, firstString(record.name, record.file_name), firstString(record.path, record.file_path, record.url, imageUrl?.url));
+  }
+  return "";
 }
 
 function visibleRole(value: unknown): "user" | "assistant" | null {
@@ -227,7 +235,6 @@ function firstString(...values: unknown[]): string {
 function cleanVisibleText(source: SourceKind, value: string): string {
   let text = value.trim();
   if (!text) return "";
-  if (source === "claude-code" && looksLikeClaudeControlText(text)) return "";
   text = text
     .replace(/# AGENTS\.md instructions[\s\S]*?<\/INSTRUCTIONS>/g, "")
     .replace(/<environment_context>[\s\S]*?<\/environment_context>/g, "")
@@ -240,6 +247,7 @@ function cleanVisibleText(source: SourceKind, value: string): string {
     .replace(/^## My request for Codex:\s*/m, "")
     .replace(/^The next image is untrusted page evidence[\s\S]*?instructions\.\s*/m, "")
     .trim();
+  text = normalizeInlineAttachments(text);
   if (!text) return "";
   const noisyPrefixes = [
     "# AGENTS.md instructions",
@@ -265,6 +273,115 @@ function cleanVisibleText(source: SourceKind, value: string): string {
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function withAttachmentText(text: string, record: Record<string, unknown>): string {
+  const lines = [text, ...structuredAttachmentLines(record)].filter(Boolean);
+  return lines.join("\n");
+}
+
+function normalizeInlineAttachments(text: string): string {
+  const lines = attachmentLinesFromText(text);
+  const body = stripInlineAttachmentMarkup(text)
+    .split(/\r?\n/)
+    .filter((line) => !isFilesMentionedHeader(line))
+    .filter((line) => !rawFileMentionFromLine(line))
+    .filter((line) => !readableAttachmentFromLine(line))
+    .join("\n")
+    .trim();
+  return [body, ...lines].filter(Boolean).join("\n");
+}
+
+function stripInlineAttachmentMarkup(text: string): string {
+  return text
+    .replace(/<(image|attachment)\b[\s\S]*?<\/\1>/giu, "")
+    .replace(/<(image|attachment)\b[^>]*\/?>/giu, "")
+    .trim();
+}
+
+function structuredAttachmentLines(record: Record<string, unknown>): string[] {
+  return dedupeLines([
+    ...attachmentLinesFromValues("Image", record.images),
+    ...attachmentLinesFromValues("Image", record.local_images),
+    ...attachmentLinesFromValues("File", record.text_elements)
+  ]);
+}
+
+function attachmentLinesFromText(text: string): string[] {
+  const tagLines = [...text.matchAll(/<(image|attachment)\b[^>]*>/giu)].map((match) => {
+    const tag = match[0];
+    const kind = match[1].toLowerCase() === "image" ? "Image" : "File";
+    return attachmentLine(
+      kind,
+      tagAttribute(tag, "name") || tagAttribute(tag, "file_name"),
+      tagAttribute(tag, "path") || tagAttribute(tag, "file_path") || tagAttribute(tag, "url")
+    );
+  });
+  const readableLines = text.split(/\r?\n/).map((line) => readableAttachmentFromLine(line)).filter(Boolean);
+  const fileLines = text.split(/\r?\n/).map((line) => rawFileMentionFromLine(line)).filter(Boolean);
+  return dedupeLines([
+    ...tagLines,
+    ...readableLines.filter((line) => line.startsWith("Image: ")),
+    ...fileLines,
+    ...readableLines.filter((line) => !line.startsWith("Image: "))
+  ]);
+}
+
+function attachmentLinesFromValues(kind: "File" | "Image", value: unknown): string[] {
+  const items = Array.isArray(value) ? value : value === undefined ? [] : [value];
+  return dedupeLines(items.flatMap((item) => {
+    if (typeof item === "string") return attachmentLine(kind, undefined, item);
+    const record = objectValue(item);
+    if (!record) return [];
+    const path = firstString(record.path, record.file_path, record.url);
+    if (path) return attachmentLine(kind, firstString(record.name, record.file_name), path);
+    return attachmentLinesFromText(firstString(record.text, record.content));
+  }).filter(Boolean));
+}
+
+function attachmentLine(kind: string, name: unknown, path: unknown): string {
+  const cleanPath = stringValue(path)?.trim();
+  if (!cleanPath || !looksLikeAttachmentPath(cleanPath)) return "";
+  const cleanName = (stringValue(name)?.trim().replace(/\s+/g, " ") || cleanPath.split("/").filter(Boolean).at(-1) || "attachment")
+    .replace(/^\[|\]$/g, "");
+  return `${kind}: ${cleanName} (${cleanPath})`;
+}
+
+function dedupeLines(lines: string[]): string[] {
+  const seenPaths = new Set<string>();
+  const result: string[] = [];
+  for (const line of lines) {
+    const path = line.match(/\(([^)]+)\)$/)?.[1] ?? line;
+    if (seenPaths.has(path)) continue;
+    seenPaths.add(path);
+    result.push(line);
+  }
+  return result;
+}
+
+function tagAttribute(tag: string, name: string): string {
+  const match = tag.match(new RegExp(`\\b${name}=("([^"]*)"|'([^']*)'|\\[([^\\]]*)\\]|([^\\s>]+))`, "i"));
+  return match?.[2] ?? match?.[3] ?? match?.[4] ?? match?.[5] ?? "";
+}
+
+function isFilesMentionedHeader(line: string): boolean {
+  return /^# Files mentioned by the user:\s*$/i.test(line.trim());
+}
+
+function rawFileMentionFromLine(line: string): string {
+  const match = line.trim().match(/^##\s+(.+?):\s+(.+)$/);
+  if (!match || !looksLikeAttachmentPath(match[2])) return "";
+  return attachmentLine("Files mentioned", match[1], match[2]);
+}
+
+function readableAttachmentFromLine(line: string): string {
+  const match = line.trim().match(/^(Image|File|Files mentioned):\s+(.+?)\s+\(([^)]+)\)$/);
+  if (!match || !looksLikeAttachmentPath(match[3])) return "";
+  return attachmentLine(match[1], match[2], match[3]);
+}
+
+function looksLikeAttachmentPath(value: string): boolean {
+  return /^(?:\/|~\/|[A-Za-z]:\\|https?:\/\/)/.test(value.trim());
 }
 
 function looksLikeClaudeControlText(text: string): boolean {
