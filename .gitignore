@@ -4,6 +4,7 @@ artifacts/
 output/
 data/
 data-*/
+buglist/
 *.tsbuildinfo
 *.log
 .DS_Store
