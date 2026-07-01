@@ -48,9 +48,17 @@ export function sessionProjectLabel(session: SessionRecord, locale: Locale): str
   if (session.source === "browser") {
     return session.path === "browser" ? textFor(locale).browserSessions : (readablePathSegment(session.path) ?? textFor(locale).browserSessions);
   }
+  const projectPath = readableProjectPath(session.projectPath);
+  if (projectPath) return projectPath;
   const parts = session.path.split("/").filter(Boolean);
   if (session.source === "claude-code") return readablePathSegment(parts.at(-2) ?? parts.at(-1)) ?? sourceLabel(session.source, locale);
   return readablePathSegment(parts.at(-3) ?? parts.at(-2) ?? parts.at(-1)) ?? sourceLabel(session.source, locale);
+}
+
+function readableProjectPath(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const parts = value.split("/").filter(Boolean);
+  return readablePathSegment(parts.at(-1));
 }
 
 function readablePathSegment(value: string | undefined): string | undefined {

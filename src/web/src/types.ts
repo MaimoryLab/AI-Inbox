@@ -34,6 +34,7 @@ export interface SessionRecord {
   id: string;
   source: SourceKind;
   path: string;
+  projectPath?: string;
   updatedAt: string;
   observationCount: number;
   preview: string;

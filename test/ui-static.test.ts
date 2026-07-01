@@ -65,6 +65,7 @@ test("React UI keeps task-first Sources wording and accessible icon controls", (
   assert.match(i18n, /sourceScanFailed: "Source scan failed: "/);
   assert.match(app, /startupStatusMessage/);
   assert.match(types, /discovery: Array/);
+  assert.match(types, /projectPath\?: string/);
   assert.match(types, /status: "configured" \| "discovered" \| "missing"/);
   assert.match(settingsWorkspace, /startup\?\.discovery\.length/);
   assert.match(settingsWorkspace, /discoveryStatusLabel/);
@@ -84,6 +85,8 @@ test("React UI keeps task-first Sources wording and accessible icon controls", (
   assert.doesNotMatch(todoBoard, /originSessionLabel\(todo, locale\)/);
   assert.doesNotMatch(todoBoard, /sourceRailClass\(todo\.origin\?\.source\)/);
   assert.match(sourcesWorkspace, /sessionProjectLabel\(session, locale\)/);
+  assert.match(sourcesWorkspace, /sessionProjectLabel\(selected, locale\)/);
+  assert.match(sourcesWorkspace, /sourceLabel\(selected\.source, locale\)\} · \{sessionProjectLabel\(selected, locale\)\}/);
   assert.match(sourcesWorkspace, /sourceLabel\(session\.source, locale\)/);
   assert.match(sourcesWorkspace, /<ObservationText observation=\{observation\}/);
   assert.match(observationText, /from "react-markdown"/);

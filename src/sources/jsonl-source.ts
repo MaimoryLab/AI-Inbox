@@ -24,12 +24,14 @@ export function scanJsonlSource(db: Database, source: SourceKind, root: string):
     ).get(source, path) as { mtime_ms: number; size: number } | undefined;
 
     if (checkpoint?.mtime_ms === stat.mtimeMs && checkpoint.size === stat.size) {
+      backfillProjectPath(db, source, path);
       skipped++;
       continue;
     }
 
     const records = readJsonlFile(path);
     const sessionId = sessionIdFromRecords(source, path, records);
+    const projectPath = projectPathFromRecords(source, records);
     const updatedAt = new Date(stat.mtimeMs).toISOString();
     const cleanObservations = observationsFromRecords(source, sessionId, path, records);
     if (cleanObservations.length === 0) {
@@ -43,8 +45,8 @@ export function scanJsonlSource(db: Database, source: SourceKind, root: string):
     }
 
     db.prepare(
-      "INSERT OR REPLACE INTO sessions (id, source, path, updated_at) VALUES (?, ?, ?, ?)"
-    ).run(sessionId, source, path, updatedAt);
+      "INSERT OR REPLACE INTO sessions (id, source, path, project_path, updated_at) VALUES (?, ?, ?, ?, ?)"
+    ).run(sessionId, source, path, projectPath, updatedAt);
     db.prepare("DELETE FROM observations WHERE session_id = ?").run(sessionId);
 
     for (const observation of cleanObservations) {
@@ -61,6 +63,16 @@ export function scanJsonlSource(db: Database, source: SourceKind, root: string):
   }
 
   return { source, scanned, observations, skipped };
+}
+
+function backfillProjectPath(db: Database, source: SourceKind, path: string): void {
+  if (source !== "codex") return;
+  const session = db.prepare("SELECT id, project_path as projectPath FROM sessions WHERE source = ? AND path = ?")
+    .get(source, path) as { id: string; projectPath?: string | null } | undefined;
+  if (!session || session.projectPath) return;
+  const projectPath = projectPathFromRecords(source, readJsonlFile(path));
+  if (!projectPath) return;
+  db.prepare("UPDATE sessions SET project_path = ? WHERE id = ?").run(projectPath, session.id);
 }
 
 export function observationsFromRecords(
@@ -126,6 +138,16 @@ function sessionIdFromRecords(source: SourceKind, path: string, records: JsonlRe
     if (id) return idFor(source, id);
   }
   return idFor(source, path);
+}
+
+function projectPathFromRecords(source: SourceKind, records: JsonlRecord[]): string | null {
+  if (source !== "codex") return null;
+  for (const record of records) {
+    const meta = record.value.type === "session_meta" ? objectValue(record.value.payload) : null;
+    const cwd = stringValue(meta?.cwd);
+    if (cwd) return cwd;
+  }
+  return null;
 }
 
 function codexObservationFromRecord(value: Record<string, unknown>): { role: string; text: string; createdAt: string; channel: string } | null {

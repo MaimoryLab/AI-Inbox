@@ -60,6 +60,8 @@ test("codex and claude scanners write clean visible transcript and skip unchange
       observations: 2,
       skipped: 0
     });
+    const codexSession = db.prepare("SELECT project_path as projectPath FROM sessions WHERE source = 'codex'").get() as { projectPath: string };
+    assert.equal(codexSession.projectPath, "/tmp/project");
     assert.deepEqual(scanCodexSessions(db, join(dir, "codex")), {
       source: "codex",
       scanned: 0,
@@ -76,6 +78,54 @@ test("codex and claude scanners write clean visible transcript and skip unchange
     assert.ok(!rows.some((row) => String(row.text).includes("tool")));
     assert.ok(!rows.some((row) => String(row.text).includes("reasoning")));
   } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("codex scanner backfills project path when checkpoint is unchanged", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-codex-project-backfill-"));
+  const db = openDatabase(getAppPaths(join(dir, "home")));
+  try {
+    const codexDir = join(dir, "codex");
+    mkdirSync(codexDir);
+    const file = join(codexDir, "session.jsonl");
+    writeFileSync(file, [
+      JSON.stringify({ type: "session_meta", payload: { id: "codex-project-session", cwd: "/Users/demo/workspace", timestamp: "2026-01-01T00:00:00.000Z" } }),
+      JSON.stringify({ type: "event_msg", payload: { type: "user_message", message: "Please keep this session visible", timestamp: "2026-01-01T00:00:00.000Z" } })
+    ].join("\n"));
+
+    assert.equal(scanCodexSessions(db, codexDir).observations, 1);
+    db.prepare("UPDATE sessions SET project_path = NULL WHERE source = 'codex' AND path = ?").run(file);
+    assert.deepEqual(scanCodexSessions(db, codexDir), {
+      source: "codex",
+      scanned: 0,
+      observations: 0,
+      skipped: 1
+    });
+    const row = db.prepare("SELECT project_path as projectPath FROM sessions WHERE source = 'codex' AND path = ?").get(file) as { projectPath: string };
+    assert.equal(row.projectPath, "/Users/demo/workspace");
+  } finally {
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("codex scanner tolerates missing project path metadata", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-codex-no-project-"));
+  const db = openDatabase(getAppPaths(join(dir, "home")));
+  try {
+    const codexDir = join(dir, "codex");
+    mkdirSync(codexDir);
+    writeFileSync(join(codexDir, "session.jsonl"), [
+      JSON.stringify({ type: "session_meta", payload: { id: "codex-no-project", timestamp: "2026-01-01T00:00:00.000Z" } }),
+      JSON.stringify({ type: "event_msg", payload: { type: "user_message", message: "Please still scan this session", timestamp: "2026-01-01T00:00:00.000Z" } })
+    ].join("\n"));
+
+    assert.equal(scanCodexSessions(db, codexDir).observations, 1);
+    const row = db.prepare("SELECT project_path as projectPath FROM sessions WHERE source = 'codex'").get() as { projectPath: string | null };
+    assert.equal(row.projectPath, null);
+  } finally {
+    db.close();
     rmSync(dir, { recursive: true, force: true });
   }
 });

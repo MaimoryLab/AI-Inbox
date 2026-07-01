@@ -112,6 +112,7 @@ export function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sess
                       <div className="flex items-center gap-2 text-sm font-medium text-[var(--app-ink)]">
                         <SourceIcon source={session.source} />
                         <span className="truncate">{sourceLabel(session.source, locale)}</span>
+                        <span className="min-w-0 truncate text-[var(--app-subtle)]">· {sessionProjectLabel(session, locale)}</span>
                       </div>
                       <div className="mt-1 line-clamp-2 text-sm leading-5 text-[var(--app-muted)]">{session.preview || text.temporarySession}</div>
                       <div className="mt-2 text-xs text-[var(--app-subtle)]">{text.messageCount(session.observationCount)}</div>
@@ -142,7 +143,7 @@ export function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sess
           <>
             <div className="flex items-start justify-between gap-3 border-b border-[var(--app-border)] bg-[var(--app-surface)] p-4">
               <div className="min-w-0">
-                <SectionTitle>{sourceLabel(selected.source, locale)}</SectionTitle>
+                <SectionTitle>{sourceLabel(selected.source, locale)} · {sessionProjectLabel(selected, locale)}</SectionTitle>
                 <h2 className="mt-1 line-clamp-2 text-lg font-semibold leading-6 tracking-normal text-[var(--app-ink)]">{selected.preview || text.temporarySession}</h2>
               </div>
               <Badge>{text.messageCount(selected.observationCount)}</Badge>

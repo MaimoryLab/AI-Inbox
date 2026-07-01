@@ -68,7 +68,7 @@ test("sessions endpoint omits zero-observation sessions and returns preview meta
   const server = createAppServer({ db });
 
   db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES ('empty', 'claude-code', 'empty.jsonl', '2026-01-01T00:00:00.000Z')").run();
-  db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES ('visible', 'codex', 'visible.jsonl', '2026-01-02T00:00:00.000Z')").run();
+  db.prepare("INSERT INTO sessions (id, source, path, project_path, updated_at) VALUES ('visible', 'codex', 'visible.jsonl', '/Users/demo/AI-Todo', '2026-01-02T00:00:00.000Z')").run();
   db.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES ('obs1', 'visible', 'codex', 'user', 'Please show this preview', '2026-01-02T00:00:00.000Z')").run();
 
   await new Promise<void>((resolve) => server.listen(0, resolve));
@@ -80,6 +80,7 @@ test("sessions endpoint omits zero-observation sessions and returns preview meta
     const sessions = await response.json();
     assert.equal(sessions.length, 1);
     assert.equal(sessions[0].id, "visible");
+    assert.equal(sessions[0].projectPath, "/Users/demo/AI-Todo");
     assert.equal(sessions[0].observationCount, 1);
     assert.equal(sessions[0].preview, "Please show this preview");
   } finally {

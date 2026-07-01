@@ -37,6 +37,7 @@ export function listSessions(db: Database, options: ListSessionsOptions = {}): S
       sessions.id,
       sessions.source,
       sessions.path,
+      sessions.project_path as projectPath,
       sessions.updated_at as updatedAt,
       COUNT(observations.id) as observationCount,
       COALESCE((
@@ -60,6 +61,7 @@ export function listSessions(db: Database, options: ListSessionsOptions = {}): S
       id: String(record.id),
       source: record.source as SessionRecord["source"],
       path: String(record.path),
+      projectPath: typeof record.projectPath === "string" && record.projectPath ? record.projectPath : undefined,
       updatedAt: String(record.updatedAt),
       observationCount: Number(record.observationCount),
       preview: String(record.preview)
