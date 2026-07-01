@@ -7,7 +7,7 @@ import { openDatabase } from "../src/db/index.js";
 import { getAppPaths } from "../src/paths.js";
 import { createAppServer } from "../src/server/index.js";
 import { ingestBrowserSession } from "../src/sources/browser.js";
-import { listTodos, organizeTodos, scopeObservations } from "../src/todos/service.js";
+import { clearTodoData, listTodos, organizeTodos, scopeObservations } from "../src/todos/service.js";
 
 test("organize without an LLM extractor creates no rule fallback cards", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-todo-organize-no-llm-"));
@@ -31,6 +31,50 @@ test("organize without an LLM extractor creates no rule fallback cards", async (
     assert.equal(result.created, 0);
     assert.equal(result.updated, 0);
     assert.equal(todos.length, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("clearTodoData removes todo-derived rows and preserves source observations", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-clear-todos-"));
+  try {
+    const db = openDatabase(getAppPaths(dir));
+    ingestBrowserSession(db, {
+      id: "browser-1",
+      messages: [{ role: "user", text: "Please keep source observations" }]
+    });
+    db.prepare(
+      "INSERT INTO task_chains (id, session_id, source, title, summary, status, current_node_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run("chain-1", "browser-1", "browser", "Chain", "Summary", "in_progress", "node-1", "2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z");
+    db.prepare(
+      "INSERT INTO task_chain_nodes (id, chain_id, observation_id, position, title, summary, owner, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run("node-1", "chain-1", "browser-1:0", 0, "Current", "Summary", "agent", "current", "2026-01-01T00:00:00.000Z");
+    db.prepare(
+      "INSERT INTO todos (id, title, description, status, chain_node_id, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run("todo-1", "Clear old card", "Old generated card", "todo", "node-1", "2026-01-01T00:00:00.000Z");
+    db.prepare(
+      "INSERT INTO evidence (id, todo_id, observation_id, text) VALUES (?, ?, ?, ?)"
+    ).run("evidence-1", "todo-1", "browser-1:0", "Please keep source observations");
+    db.prepare(
+      "INSERT INTO organize_runs (id, result_json, created_at) VALUES (?, ?, ?)"
+    ).run("run-1", "{}", "2026-01-01T00:00:00.000Z");
+
+    const cleared = clearTodoData(db);
+
+    assert.deepEqual(cleared, {
+      todos: 1,
+      evidence: 1,
+      taskChains: 1,
+      taskChainNodes: 1,
+      organizeRuns: 1
+    });
+    for (const table of ["todos", "evidence", "task_chains", "task_chain_nodes", "organize_runs"]) {
+      assert.equal((db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get() as { count: number }).count, 0);
+    }
+    assert.equal((db.prepare("SELECT COUNT(*) as count FROM sessions").get() as { count: number }).count, 1);
+    assert.equal((db.prepare("SELECT COUNT(*) as count FROM observations").get() as { count: number }).count, 1);
+    db.close();
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

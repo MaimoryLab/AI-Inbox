@@ -10,7 +10,7 @@ import { createAppServer, createStartupScanner } from "./server/index.js";
 import { scanSource } from "./sources/scan.js";
 import { defaultEnvConfig, ensureDefaultEnv, type EnvConfig } from "./config.js";
 import { getLlmDoctorStatus, organizeConfiguredTodos } from "./todos/configured.js";
-import { listTodos, updateTodoStatus } from "./todos/service.js";
+import { clearTodoData, listTodos, updateTodoStatus } from "./todos/service.js";
 
 export const DEFAULT_UI_PORT = 3111;
 const HELP_TEXT = `Usage: ai-todo [command]
@@ -20,6 +20,7 @@ Commands:
   doctor                      Check local config, data, and LLM setup.
   scan <codex|claude-code> [path]
   extract|organize            Extract todos from configured sessions.
+  regenerate --yes            Clear todo cards and regenerate from all observations.
   list|ls                     List todos.
   done|complete <todo-id>     Mark a todo complete.
   ignore|dismiss <todo-id>    Ignore a todo.
@@ -64,13 +65,27 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     const paths = getAppPaths();
     return withDatabase(async (db) => {
       const result = await organizeConfiguredTodos(db, paths);
-      console.log(`scanned: ${result.scanned}`);
-      console.log(`created: ${result.created}`);
-      console.log(`updated: ${result.updated}`);
-      console.log(`completed: ${result.completed}`);
-      console.log(`ignored: ${result.ignored}`);
-      console.log(`engine: ${result.engine}`);
-      if (result.warnings.length > 0) console.log(`warnings: ${result.warnings.join(",")}`);
+      printOrganizeResult(result);
+      return 0;
+    });
+  }
+
+  if (command === "regenerate") {
+    if (!argv.includes("--yes")) {
+      console.error("usage: ai-todo regenerate --yes");
+      console.error("This clears todo cards, evidence, task chains, and organize run history before regenerating.");
+      return 1;
+    }
+    const paths = getAppPaths();
+    return withDatabase(async (db) => {
+      const cleared = clearTodoData(db);
+      const result = await organizeConfiguredTodos(db, paths, { full: true });
+      console.log(`cleared todos: ${cleared.todos}`);
+      console.log(`cleared evidence: ${cleared.evidence}`);
+      console.log(`cleared task chains: ${cleared.taskChains}`);
+      console.log(`cleared task chain nodes: ${cleared.taskChainNodes}`);
+      console.log(`cleared organize runs: ${cleared.organizeRuns}`);
+      printOrganizeResult(result);
       return 0;
     });
   }
@@ -274,6 +289,16 @@ function updateStatus(db: Database, id: string | undefined, status: "done" | "ig
   }
   console.log(`${status}: ${id}`);
   return 0;
+}
+
+function printOrganizeResult(result: Awaited<ReturnType<typeof organizeConfiguredTodos>>): void {
+  console.log(`scanned: ${result.scanned}`);
+  console.log(`created: ${result.created}`);
+  console.log(`updated: ${result.updated}`);
+  console.log(`completed: ${result.completed}`);
+  console.log(`ignored: ${result.ignored}`);
+  console.log(`engine: ${result.engine}`);
+  if (result.warnings.length > 0) console.log(`warnings: ${result.warnings.join(",")}`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

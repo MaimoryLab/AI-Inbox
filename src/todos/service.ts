@@ -85,6 +85,14 @@ export interface ObservationForOrganize {
 type WriteResult = { created: number; updated: number; engine: "llm" };
 type OrganizeDetails = NonNullable<OrganizeResult["details"]>;
 
+export interface ClearTodoDataResult {
+  todos: number;
+  evidence: number;
+  taskChains: number;
+  taskChainNodes: number;
+  organizeRuns: number;
+}
+
 export interface OrganizeLimits {
   maxUserBlocks: number;
   maxTotalTextChars: number;
@@ -106,6 +114,31 @@ export const DEFAULT_ORGANIZE_LIMITS: OrganizeLimits = {
   maxSessionPayloadChars: 24000,
   maxBatchPayloadChars: 32000
 };
+
+export function clearTodoData(db: Database): ClearTodoDataResult {
+  const result = {
+    todos: tableCount(db, "todos"),
+    evidence: tableCount(db, "evidence"),
+    taskChains: tableCount(db, "task_chains"),
+    taskChainNodes: tableCount(db, "task_chain_nodes"),
+    organizeRuns: tableCount(db, "organize_runs")
+  };
+  db.exec("BEGIN");
+  try {
+    db.exec(`
+      DELETE FROM evidence;
+      DELETE FROM todos;
+      DELETE FROM task_chain_nodes;
+      DELETE FROM task_chains;
+      DELETE FROM organize_runs;
+    `);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  return result;
+}
 
 export async function organizeTodos(db: Database, options: OrganizeOptions = {}): Promise<OrganizeResult> {
   const started = Date.now();
@@ -140,6 +173,11 @@ export async function organizeTodos(db: Database, options: OrganizeOptions = {})
     "INSERT INTO organize_runs (id, result_json, created_at) VALUES (?, ?, ?)"
   ).run(runId, JSON.stringify(result), new Date().toISOString());
   return result;
+}
+
+function tableCount(db: Database, table: "todos" | "evidence" | "task_chains" | "task_chain_nodes" | "organize_runs"): number {
+  const row = db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get() as { count: number };
+  return row.count;
 }
 
 function loadScopedObservations(db: Database, scope: OrganizeOptions["scope"]): ObservationForOrganize[] {

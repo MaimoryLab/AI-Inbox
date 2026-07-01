@@ -2,6 +2,7 @@ export const CLI_COMMANDS = [
   "ai-todo",
   "ai-todo scan",
   "ai-todo organize",
+  "ai-todo regenerate --yes",
   "ai-todo list",
   "ai-todo done <id>",
   "ai-todo ignore <id>",

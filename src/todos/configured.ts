@@ -4,16 +4,20 @@ import { createLlmRunner } from "../extract/llm-runner.js";
 import type { AppPaths } from "../paths.js";
 import { organizeTodos, type OrganizeOptions } from "./service.js";
 
+export interface ConfiguredOrganizeOptions extends OrganizeOptions {
+  full?: boolean;
+}
+
 export async function organizeConfiguredTodos(
   db: Database,
   paths: AppPaths,
-  options: OrganizeOptions = {}
+  options: ConfiguredOrganizeOptions = {}
 ) {
   const config = loadConfig(paths);
   const secrets = loadSecrets(paths);
   return organizeTodos(db, {
     ...options,
-    scope: options.scope ?? config.organize,
+    scope: options.full ? undefined : options.scope ?? config.organize,
     llmExtractor: options.llmExtractor ?? createLlmRunner(config.llm, secrets)
   });
 }
