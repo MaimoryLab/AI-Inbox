@@ -1,14 +1,18 @@
 import ReactMarkdown from "react-markdown";
+import { displayAgentContextText, isAgentContextText } from "../../../agent-context.js";
+import { attachmentMarkdownText } from "../../../attachments.js";
 import type { ObservationRecord } from "../types.js";
 
-export function ObservationText({ observation }: { observation: ObservationRecord }) {
+export function ObservationText({ observation, markdown }: { observation: ObservationRecord; markdown?: boolean }) {
   const text = sourceDisplayText(observation.text);
-  return <MarkdownText text={text} markdown={observation.role === "assistant"} />;
+  const renderMarkdown = markdown ?? (observation.role === "assistant" || observation.role === "user" || isAgentContextText(observation.text));
+  return <MarkdownText text={text} markdown={renderMarkdown} observationId={observation.id} />;
 }
 
-export function MarkdownText({ text, markdown }: { text: string; markdown?: boolean }) {
+export function MarkdownText({ text, markdown, observationId }: { text: string; markdown?: boolean; observationId?: string }) {
   const displayText = sourceDisplayText(text);
   if (!markdown) return <p className="whitespace-pre-wrap break-words text-sm leading-6 text-[var(--app-ink)]">{displayText}</p>;
+  const markdownText = observationId ? attachmentMarkdownText(displayText, observationId) : displayText;
 
   return (
     <div className="source-markdown break-words text-sm leading-6 text-[var(--app-ink)]">
@@ -20,25 +24,22 @@ export function MarkdownText({ text, markdown }: { text: string; markdown?: bool
               {children}
             </a>
           ),
-          img: ({ alt }) => <span className="text-[var(--app-subtle)]">Image: {alt || "attachment"}</span>
+          img: ({ alt, ...props }) => (
+            <img
+              {...props}
+              alt={alt || "attachment"}
+              className="max-h-80 max-w-full rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] object-contain"
+              loading="lazy"
+            />
+          )
         }}
       >
-        {displayText}
+        {markdownText}
       </ReactMarkdown>
     </div>
   );
 }
 
 export function sourceDisplayText(text: string): string {
-  let inFence = false;
-  return text.split(/\r?\n/).map((line) => {
-    if (/^\s*```/.test(line)) {
-      inFence = !inFence;
-      return line;
-    }
-    if (inFence) return line;
-    return line.replace(/^(Image|File|Files mentioned):\s+(.+?)\s+\(((?:\/|~\/|[A-Za-z]:\\)[^)]+)\)$/i, (_match, kind: string, name: string) =>
-      `${kind.toLowerCase() === "files mentioned" ? "File" : kind}: ${name}`
-    );
-  }).join("\n");
+  return displayAgentContextText(text);
 }

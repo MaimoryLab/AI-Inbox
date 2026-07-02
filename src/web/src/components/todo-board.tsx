@@ -10,10 +10,8 @@ import { originLabel, originProjectLabel, SourceIcon } from "./source-labels.js"
 const OPEN_GROUP_PREVIEW_LIMIT = 6;
 const OPEN_GROUP_INITIAL_LIMIT = 3;
 const DEFAULT_EXPANDED_GROUP_LIMIT = 2;
-const PROJECT_CHIP_LIMIT = 4;
 type TodoSourceFilter = "all" | SourceKind;
 type SourceTarget = Pick<TodoEvidence, "sessionId" | "observationId">;
-type GroupMode = "collapsed" | "preview" | "full";
 
 export function TodoBoard(props: {
   openTodos: TodoCard[];
@@ -30,15 +28,16 @@ export function TodoBoard(props: {
 }) {
   const text = textFor(props.locale);
   const [showClosed, setShowClosed] = useState(false);
-  const [groupModes, setGroupModes] = useState<Record<string, GroupMode>>({});
+  const [groupLimits, setGroupLimits] = useState<Record<string, number>>({});
   const [selectedTodoId, setSelectedTodoId] = useState("");
   const [sourceFilter, setSourceFilter] = useState<TodoSourceFilter>("all");
   const [projectFilter, setProjectFilter] = useState("all");
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
+  const [projectQuery, setProjectQuery] = useState("");
   const [query, setQuery] = useState("");
   const projectOptions = useMemo(() => projectTodoGroups(props.openTodos, props.locale), [props.openTodos, props.locale]);
-  const projectChipOptions = useMemo(() => visibleProjectChips(projectOptions, projectFilter), [projectOptions, projectFilter]);
-  const moreProjectOptions = useMemo(() => projectOptions.filter((project) => !projectChipOptions.some((visible) => visible.key === project.key)), [projectOptions, projectChipOptions]);
+  const selectedProject = projectFilter === "all" ? undefined : projectOptions.find((project) => project.key === projectFilter);
+  const projectMenuOptions = useMemo(() => filterProjects(projectOptions, projectQuery), [projectOptions, projectQuery]);
   const visibleOpenTodos = useMemo(() => props.openTodos.filter((todo) => matchesTodo(todo, sourceFilter, projectFilter, query)), [props.openTodos, sourceFilter, projectFilter, query]);
   const visibleOpenGroups = useMemo(
     () => projectTodoGroups(visibleOpenTodos, props.locale).map((group) => ({ ...group, chains: projectTaskChains(group.todos) })),
@@ -50,10 +49,6 @@ export function TodoBoard(props: {
   useEffect(() => {
     if (projectFilter !== "all" && !projectOptions.some((project) => project.key === projectFilter)) setProjectFilter("all");
   }, [projectFilter, projectOptions]);
-
-  useEffect(() => {
-    if (moreProjectOptions.length === 0 && projectMenuOpen) setProjectMenuOpen(false);
-  }, [moreProjectOptions.length, projectMenuOpen]);
 
   useEffect(() => {
     if (!selectedTodo) return;
@@ -107,8 +102,8 @@ export function TodoBoard(props: {
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--app-subtle)]" aria-hidden="true" />
                 <Input aria-label={text.searchCards} placeholder={text.searchCards} value={query} onChange={(event) => setQuery(event.target.value)} className="pl-9" />
               </label>
-              <div className="grid gap-2 xl:grid-cols-[auto_minmax(0,1fr)] xl:items-center">
-                <div className="flex min-w-0 gap-2 overflow-x-auto app-scroll" aria-label={text.sourceFilter}>
+              <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_minmax(12rem,18rem)] xl:items-start">
+                <div className="flex min-w-0 flex-wrap gap-2" aria-label={text.sourceFilter}>
                   {(["all", "codex", "claude-code", "browser"] as const).map((filter) => (
                     <button
                       key={filter}
@@ -125,54 +120,48 @@ export function TodoBoard(props: {
                     </button>
                   ))}
                 </div>
-                <div className="flex min-w-0 items-center gap-2 overflow-x-auto app-scroll" aria-label={text.projectFilter}>
-                  <ProjectChip active={projectFilter === "all"} label={text.allProjects} count={props.openTodos.length} onClick={() => setProjectFilter("all")} />
-                  {projectChipOptions.map((project) => (
-                    <ProjectChip key={project.key} active={projectFilter === project.key} label={project.label} count={project.todos.length} onClick={() => setProjectFilter(project.key)} />
-                  ))}
-                  {moreProjectOptions.length > 0 && (
-                    <div className="relative shrink-0" onBlur={(event) => {
-                      if (!event.currentTarget.contains(event.relatedTarget)) setProjectMenuOpen(false);
-                    }}>
-                      <button
-                        type="button"
-                        className={cn(
-                          "inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-sm font-medium transition active:translate-y-px",
-                          projectMenuOpen ? "border-[var(--app-accent)] bg-white text-[var(--app-accent)]" : "border-[var(--app-border)] bg-white text-[var(--app-muted)] hover:text-[var(--app-ink)]"
-                        )}
-                        aria-haspopup="menu"
-                        aria-expanded={projectMenuOpen}
-                        onClick={() => setProjectMenuOpen((open) => !open)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Escape") setProjectMenuOpen(false);
-                        }}
-                      >
-                        {text.moreProjects}
-                        <Badge className="bg-white">{moreProjectOptions.length}</Badge>
-                        <ChevronDown className={cn("h-4 w-4 text-[var(--app-subtle)] transition", projectMenuOpen && "rotate-180")} aria-hidden="true" />
-                      </button>
-                      {projectMenuOpen && (
-                        <div className="absolute left-0 z-20 mt-2 max-h-72 w-72 overflow-y-auto rounded-lg border border-[var(--app-border)] bg-white p-1 shadow-lg" role="menu">
-                          {moreProjectOptions.map((project) => (
-                            <button
-                              key={project.key}
-                              type="button"
-                              role="menuitem"
-                              className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-[var(--app-ink)] hover:bg-[var(--app-surface-muted)]"
-                              onClick={() => {
-                                setProjectFilter(project.key);
-                                setProjectMenuOpen(false);
-                              }}
-                              onKeyDown={(event) => {
-                                if (event.key === "Escape") setProjectMenuOpen(false);
-                              }}
-                            >
-                              <span className="min-w-0 truncate">{project.label}</span>
-                              <Badge className="bg-white">{project.todos.length}</Badge>
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                <div className="relative min-w-0" onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) setProjectMenuOpen(false);
+                }}>
+                  <button
+                    type="button"
+                    className={cn(
+                      "inline-flex min-h-10 w-full min-w-0 items-center justify-between gap-2 rounded-md border bg-white px-3 text-left text-sm font-medium transition active:translate-y-px",
+                      projectMenuOpen ? "border-[var(--app-accent)] text-[var(--app-accent)]" : "border-[var(--app-border)] text-[var(--app-muted)] hover:text-[var(--app-ink)]"
+                    )}
+                    aria-haspopup="menu"
+                    aria-expanded={projectMenuOpen}
+                    aria-label={text.projectFilter}
+                    title={selectedProject?.label ?? text.allProjects}
+                    onClick={() => {
+                      setProjectMenuOpen((open) => !open);
+                      setProjectQuery("");
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") setProjectMenuOpen(false);
+                    }}
+                  >
+                    <span className="min-w-0 truncate">{text.projectPrefix(selectedProject?.label ?? text.allProjects)}</span>
+                    <span className="inline-flex shrink-0 items-center gap-2">
+                      <Badge className="bg-white">{selectedProject?.todos.length ?? props.openTodos.length}</Badge>
+                      <ChevronDown className={cn("h-4 w-4 text-[var(--app-subtle)] transition", projectMenuOpen && "rotate-180")} aria-hidden="true" />
+                    </span>
+                  </button>
+                  {projectMenuOpen && (
+                    <div className="absolute right-0 z-20 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-lg border border-[var(--app-border)] bg-white p-2 shadow-lg" role="menu">
+                      <Input aria-label={text.searchProjects} placeholder={text.searchProjects} value={projectQuery} onChange={(event) => setProjectQuery(event.target.value)} />
+                      <div className="app-scroll mt-2 max-h-72 overflow-y-auto">
+                        <ProjectMenuItem label={text.allProjects} count={props.openTodos.length} active={projectFilter === "all"} onClick={() => {
+                          setProjectFilter("all");
+                          setProjectMenuOpen(false);
+                        }} />
+                        {projectMenuOptions.map((project) => (
+                          <ProjectMenuItem key={project.key} label={project.label} count={project.todos.length} summary={projectSourceSummary(project.todos, props.locale)} active={projectFilter === project.key} onClick={() => {
+                            setProjectFilter(project.key);
+                            setProjectMenuOpen(false);
+                          }} />
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -182,20 +171,16 @@ export function TodoBoard(props: {
 
           {visibleOpenTodos.length === 0 && <Card className="p-6 text-sm text-[var(--app-muted)]">{text.noCardsMatch}</Card>}
           {visibleOpenGroups.map((group) => {
-            const mode = groupModes[group.key] ?? defaultGroupMode(group, visibleOpenGroups, projectFilter, sourceFilter, query);
-            const visibleChains = mode === "full"
-              ? group.chains.slice(0, OPEN_GROUP_PREVIEW_LIMIT)
-              : mode === "preview"
-                ? group.chains.slice(0, OPEN_GROUP_INITIAL_LIMIT)
-                : [];
+            const visibleLimit = groupLimits[group.key] ?? defaultGroupLimit(group, visibleOpenGroups, projectFilter, sourceFilter, query);
+            const visibleChains = group.chains.slice(0, visibleLimit);
             const hiddenCount = group.chains.length - visibleChains.length;
             return (
               <section key={group.key} className="space-y-2">
                 <button
                   type="button"
                   className="flex w-full items-center justify-between gap-3 rounded-lg px-1 py-2 text-left transition hover:bg-white/60"
-                  aria-expanded={mode !== "collapsed"}
-                  onClick={() => setGroupModes((current) => ({ ...current, [group.key]: mode === "collapsed" ? "preview" : "collapsed" }))}
+                  aria-expanded={visibleLimit > 0}
+                  onClick={() => setGroupLimits((current) => ({ ...current, [group.key]: visibleLimit === 0 ? OPEN_GROUP_INITIAL_LIMIT : 0 }))}
                 >
                   <span className="min-w-0">
                     <h2 className="text-sm font-semibold text-[var(--app-muted)]">{group.label}</h2>
@@ -203,7 +188,7 @@ export function TodoBoard(props: {
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <Badge>{group.todos.length}</Badge>
-                    <ChevronDown className={cn("h-4 w-4 text-[var(--app-subtle)] transition", mode !== "collapsed" && "rotate-180")} aria-hidden="true" />
+                    <ChevronDown className={cn("h-4 w-4 text-[var(--app-subtle)] transition", visibleLimit > 0 && "rotate-180")} aria-hidden="true" />
                   </span>
                 </button>
                 <div className="space-y-2">
@@ -219,8 +204,8 @@ export function TodoBoard(props: {
                       onSources={props.onSources}
                     />
                   ))}
-                  {hiddenCount > 0 && mode !== "collapsed" && (
-                    <Button variant="secondary" className="w-full" onClick={() => setGroupModes((current) => ({ ...current, [group.key]: "full" }))}>
+                  {hiddenCount > 0 && visibleLimit > 0 && (
+                    <Button variant="secondary" className="w-full" onClick={() => setGroupLimits((current) => ({ ...current, [group.key]: Math.min(group.chains.length, visibleLimit + OPEN_GROUP_PREVIEW_LIMIT) }))}>
                       {text.showMore(hiddenCount)}
                     </Button>
 	                  )}
@@ -273,45 +258,45 @@ function projectTodoGroups(todos: TodoCard[], locale: Locale): Array<{ key: stri
   return [...groups.values()].sort((first, second) => latestTodoTime(second.todos) - latestTodoTime(first.todos));
 }
 
-function visibleProjectChips<T extends { key: string }>(projects: T[], selectedKey: string): T[] {
-  const visible = projects.slice(0, PROJECT_CHIP_LIMIT);
-  if (selectedKey === "all" || visible.some((project) => project.key === selectedKey)) return visible;
-  const selected = projects.find((project) => project.key === selectedKey);
-  return selected ? [selected, ...visible.slice(0, PROJECT_CHIP_LIMIT - 1)] : visible;
-}
-
-function defaultGroupMode(
+function defaultGroupLimit(
   group: { key: string },
   groups: Array<{ key: string }>,
   projectFilter: string,
   sourceFilter: TodoSourceFilter,
   query: string
-): GroupMode {
-  if (projectFilter !== "all" || sourceFilter !== "all" || query.trim()) return "preview";
-  return groups.findIndex((item) => item.key === group.key) < DEFAULT_EXPANDED_GROUP_LIMIT ? "preview" : "collapsed";
+): number {
+  if (projectFilter !== "all" || sourceFilter !== "all" || query.trim()) return OPEN_GROUP_INITIAL_LIMIT;
+  return groups.findIndex((item) => item.key === group.key) < DEFAULT_EXPANDED_GROUP_LIMIT ? OPEN_GROUP_INITIAL_LIMIT : 0;
 }
 
-function ProjectChip({ active, label, count, onClick }: {
+function ProjectMenuItem({ active, label, count, summary, onClick }: {
   active: boolean;
   label: string;
   count: number;
+  summary?: string;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
-      className={cn(
-        "inline-flex min-h-10 max-w-52 shrink-0 items-center gap-2 rounded-md border px-3 text-sm font-medium transition active:translate-y-px",
-        active ? "border-[var(--app-accent)] bg-white text-[var(--app-accent)]" : "border-[var(--app-border)] bg-white text-[var(--app-muted)] hover:text-[var(--app-ink)]"
-      )}
-      aria-pressed={active}
+      role="menuitem"
+      className={cn("flex w-full min-w-0 items-center justify-between gap-3 rounded-md px-3 py-2 text-left transition", active ? "bg-[var(--app-surface-selected)] text-[var(--app-accent)]" : "text-[var(--app-ink)] hover:bg-[var(--app-surface-muted)]")}
       onClick={onClick}
       title={label}
     >
-      <span className="min-w-0 truncate">{label}</span>
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-medium">{label}</span>
+        {summary && <span className="block truncate text-xs text-[var(--app-subtle)]">{summary}</span>}
+      </span>
       <Badge className="bg-white">{count}</Badge>
     </button>
   );
+}
+
+function filterProjects<T extends { label: string }>(projects: T[], query: string): T[] {
+  const term = query.trim().toLowerCase();
+  if (!term) return projects;
+  return projects.filter((project) => project.label.toLowerCase().includes(term));
 }
 
 function todoProjectKey(todo: TodoCard): string {
@@ -618,8 +603,8 @@ function todoProgress(todo: TodoCard): { label: string; percent: number } | null
 }
 
 function todoConfidence(todo: TodoCard): { value: number; tone: string } | null {
-  const raw = todo.metadata.completionState?.match(/(\d{1,3})(?:%|\/100)?/u)?.[1];
-  const value = raw ? Math.min(100, Number(raw)) : Math.max(45, Math.min(92, 60 + todo.evidenceIds.length * 9));
+  if (typeof todo.metadata.confidence !== "number") return null;
+  const value = Math.round(Math.max(0, Math.min(1, todo.metadata.confidence)) * 100);
   const tone = value < 55 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-green-200 bg-green-50 text-green-700";
   return { value, tone };
 }

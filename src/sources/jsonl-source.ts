@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { markAgentContext } from "../agent-context.js";
 import type { SourceKind } from "../contracts.js";
 import type { Database } from "../db/index.js";
 import { readJsonlFile, type JsonlRecord } from "../parser/jsonl.js";
@@ -27,9 +28,17 @@ export function scanJsonlSource(db: Database, source: SourceKind, root: string):
 
     if (checkpoint?.mtime_ms === stat.mtimeMs && checkpoint.size === stat.size) {
       if (subagentParents.has(path)) {
-        const sessionId = sessionIdFromRecords(source, path, readJsonlFile(path));
+        const records = readJsonlFile(path);
+        const sessionId = sessionIdFromRecords(source, path, records);
         db.prepare("DELETE FROM observations WHERE session_id = ?").run(sessionId);
         db.prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
+        const cleanObservations = observationsFromRecords(source, subagentParents.get(path)!, path, records, true);
+        deleteObservations(db, cleanObservations.map((observation) => observation.id));
+        for (const observation of cleanObservations) {
+          db.prepare(
+            "INSERT OR REPLACE INTO observations (id, session_id, source, role, text, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+          ).run(observation.id, subagentParents.get(path)!, source, observation.role, observation.text, observation.createdAt);
+        }
       } else {
         backfillProjectPath(db, source, path);
       }
@@ -44,7 +53,7 @@ export function scanJsonlSource(db: Database, source: SourceKind, root: string):
     const isSubagent = Boolean(parentSessionId);
     const projectPath = isSubagent ? null : projectPathFromRecords(source, records);
     const updatedAt = new Date(stat.mtimeMs).toISOString();
-    const cleanObservations = observationsFromRecords(source, targetSessionId, path, records);
+    const cleanObservations = observationsFromRecords(source, targetSessionId, path, records, isSubagent);
     if (cleanObservations.length === 0) {
       db.prepare("DELETE FROM observations WHERE session_id = ?").run(sessionId);
       db.prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
@@ -100,7 +109,8 @@ export function observationsFromRecords(
   source: SourceKind,
   sessionId: string,
   path: string,
-  records: JsonlRecord[]
+  records: JsonlRecord[],
+  agentContext = false
 ): Array<{ id: string; role: string; text: string; createdAt: string }> {
   const candidates = records
     .map((record) => observationFromRecord(source, sessionId, path, record))
@@ -116,7 +126,7 @@ export function observationsFromRecords(
   }
   return selected
     .sort((a, b) => a.line - b.line)
-    .map(({ id, role, text, createdAt }) => ({ id, role, text, createdAt }));
+    .map(({ id, role, text, createdAt }) => ({ id, role, text: agentContext ? markAgentContext(text) : text, createdAt }));
 }
 
 export function observationFromRecord(

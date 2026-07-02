@@ -1,4 +1,5 @@
 import { basename, dirname } from "node:path";
+import { isAgentContextText } from "../agent-context.js";
 import type { ChainNodeSummary, OrganizeResult, SourceKind, TaskChainView, TodoCard, TodoMetadata, TodoOrigin } from "../contracts.js";
 import type { Database } from "../db/index.js";
 import { stableId } from "../extract/rules.js";
@@ -61,6 +62,7 @@ export interface LlmTaskChainNode {
 
 export interface LlmTaskChain {
   chainId?: string;
+  userObservationId?: string;
   title: string;
   summary?: string;
   status?: string;
@@ -202,12 +204,12 @@ function loadScopedObservations(db: Database, scope: OrganizeOptions["scope"]): 
     where = "WHERE datetime(created_at) >= datetime(?)";
     params.push(new Date(Date.now() - scope.sinceDays * 24 * 60 * 60 * 1000).toISOString());
   }
-  return db.prepare(
+  return (db.prepare(
     `SELECT id, session_id as sessionId, source, role, text, created_at as createdAt
      FROM observations
      ${where}
      ORDER BY created_at, id`
-  ).all(...params) as unknown as ObservationForOrganize[];
+  ).all(...params) as unknown as ObservationForOrganize[]).filter((observation) => !isAgentContextText(observation.text));
 }
 
 export function scopeObservations(
@@ -308,7 +310,7 @@ function applyPayloadBudget(
   let userBlocks = 0;
   const sessionText = new Map<string, number>();
   const limited: ObservationForOrganize[] = [];
-  for (const observation of observations) {
+  for (const observation of newestSessionFirst(observations)) {
     if (observation.role === "user" && userBlocks >= limits.maxUserBlocks) {
       warnings.add("organize_scope_truncated");
       continue;
@@ -343,7 +345,20 @@ function applyPayloadBudget(
     if (observation.role === "user") userBlocks++;
     limited.push(text === observation.text ? observation : { ...observation, text });
   }
-  return limited;
+  return limited.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+}
+
+function newestSessionFirst(observations: ObservationForOrganize[]): ObservationForOrganize[] {
+  const sessions = new Map<string, ObservationForOrganize[]>();
+  for (const observation of observations) {
+    const group = sessions.get(observation.sessionId) ?? [];
+    group.push(observation);
+    sessions.set(observation.sessionId, group);
+  }
+  return Array.from(sessions.values())
+    .map((group) => group.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)))
+    .sort((a, b) => latestTimestamp(b).localeCompare(latestTimestamp(a)))
+    .flat();
 }
 
 function addTruncationDetail(
@@ -382,7 +397,7 @@ function writeExtractedLlmTodos(
   const chainCandidates = taskChainCandidates(extracted.taskChains ?? [], byId);
   const candidates = dedupeLlmCandidates<ChainCandidate>(
     [...(extracted.todos ?? []).map((candidate): ChainCandidate => ({ candidate })), ...chainCandidates]
-      .filter((item) => validLlmCandidate(item.candidate, byId)),
+      .filter((item) => validLlmCandidate(item, byId)),
     existingActiveTodos(db)
   );
   if (candidates.length === 0) {
@@ -398,7 +413,7 @@ function writeExtractedLlmTodos(
     if (!observation) continue;
     const todoId = stableId(candidate.dedupeKey);
     const now = new Date().toISOString();
-    const metadata = normalizeTodoMetadata(candidate.metadata, candidate.sourceObservationId);
+    const metadata = normalizeTodoMetadata(candidate.metadata, candidate.sourceObservationId, candidate.confidence);
     const metadataJson = JSON.stringify(metadata);
     const chainNodeId = item.chain ? writeTaskChain(db, item.chain, candidate, observation, now) : undefined;
     const existing = db.prepare("SELECT id FROM todos WHERE id = ?").get(todoId);
@@ -593,7 +608,7 @@ function chunkObservationsBySession(
   for (const group of sessions.values()) {
     chunks.push(...chunkObservations(group, batchSize, maxBatchPayloadChars));
   }
-  return chunks;
+  return chunks.map((chunk) => chunk.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)));
 }
 
 function chunkObservations(
@@ -625,9 +640,12 @@ function chunkObservations(
   return chunks;
 }
 
-function validLlmCandidate(candidate: LlmTodoCandidate, observations: Map<string, ObservationForOrganize>): boolean {
+function validLlmCandidate(item: ChainCandidate, observations: Map<string, ObservationForOrganize>): boolean {
+  const candidate = item.candidate;
   const observation = observations.get(candidate.sourceObservationId);
   return !!observation &&
+    chainUsesUserIntentSource(item, observation) &&
+    !isAgentContextText(observation.text) &&
     typeof candidate.title === "string" &&
     !!candidate.title.trim() &&
     typeof candidate.description === "string" &&
@@ -640,7 +658,13 @@ function validLlmCandidate(candidate: LlmTodoCandidate, observations: Map<string
     typeof candidate.confidence === "number" &&
     Number.isFinite(candidate.confidence) &&
     candidate.confidence >= 0.75 &&
-    candidatePassesQualityGate(candidate);
+    candidatePassesQualityGate(candidate) &&
+    candidatePassesValueGate(item);
+}
+
+function chainUsesUserIntentSource(item: ChainCandidate, observation: ObservationForOrganize): boolean {
+  if (!item.chain?.userObservationId) return true;
+  return observation.role === "user" && item.candidate.sourceObservationId === item.chain.userObservationId;
 }
 
 function candidatePassesQualityGate(candidate: LlmTodoCandidate): boolean {
@@ -653,6 +677,23 @@ function candidatePassesQualityGate(candidate: LlmTodoCandidate): boolean {
     !isToolPolluted(combined) &&
     !isPureProcessChore(combined) &&
     !hasLongTechnicalIdentifier(title);
+}
+
+function candidatePassesValueGate(item: ChainCandidate): boolean {
+  const node = item.chain?.currentNode;
+  if (node?.owner !== "agent") return true;
+  const actionText = normalizeTodoText([
+    node.nextStep,
+    node.nodeTitle,
+    node.metadata?.nextStep
+  ].filter(Boolean).join(" "));
+  const text = normalizeTodoText([
+    actionText,
+    node.title,
+    node.description
+  ].filter(Boolean).join(" "));
+  if (!text || !isAgentSelfExecutableStep(text)) return true;
+  return explicitlyNeedsUserInput(actionText);
 }
 
 function dedupeLlmCandidates<T extends { candidate: LlmTodoCandidate }>(candidates: T[], existingTodos: ExistingTodoForDedupe[]): T[] {
@@ -750,6 +791,15 @@ function isPureProcessChore(value: string): boolean {
     return false;
   }
   return !/(?:修复|修正|补充|实现|调整|排查|定位|创建|更新|推送|提交|fix|add|update|create|implement|resolve)/i.test(text);
+}
+
+function isAgentSelfExecutableStep(value: string): boolean {
+  const text = normalizeTodoText(value);
+  return /(?:run|rerun|test|build|verify|validate|restart|submit|commit|scan|refresh|check|inspect|organize|重启|验证|校验|测试|构建|提交|整理提交|检查|刷新|扫描|重新\s*organize|查看日志|跑测试|启动服务|健康检查)/i.test(text);
+}
+
+function explicitlyNeedsUserInput(value: string): boolean {
+  return /(?:user|用户|人工|manual|manually|confirm|confirmation|approve|approval|review|decide|decision|provide|input|credential|credentials|授权|确认|批准|审批|审查|决定|提供|输入|凭据|密钥|手动检查)/i.test(value);
 }
 
 function hasLongTechnicalIdentifier(title: string): boolean {
@@ -923,10 +973,11 @@ function truncateOriginText(value: string): string {
   return Array.from(normalizeTodoText(value)).slice(0, 84).join("");
 }
 
-function normalizeTodoMetadata(metadata: TodoMetadata | undefined, sourceObservationId: string): TodoMetadata {
+function normalizeTodoMetadata(metadata: TodoMetadata | undefined, sourceObservationId: string, confidence?: number): TodoMetadata {
   return {
     ...cleanTodoMetadata(metadata),
-    sourceObservationId
+    sourceObservationId,
+    confidence: normalizedConfidence(confidence)
   };
 }
 
@@ -947,11 +998,19 @@ function cleanTodoMetadata(metadata: TodoMetadata | undefined): TodoMetadata {
   const completionSummary = cleanMetadataText(metadata.completionSummary, 240);
   const nextStep = cleanMetadataText(metadata.nextStep, 240);
   const sourceObservationId = cleanMetadataText(metadata.sourceObservationId);
+  const confidence = normalizedConfidence(metadata.confidence);
   if (completionState) cleaned.completionState = completionState;
   if (completionSummary) cleaned.completionSummary = completionSummary;
   if (nextStep) cleaned.nextStep = nextStep;
   if (sourceObservationId) cleaned.sourceObservationId = sourceObservationId;
+  if (confidence !== undefined) cleaned.confidence = confidence;
   return cleaned;
+}
+
+function normalizedConfidence(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.round(Math.max(0, Math.min(1, value)) * 100) / 100
+    : undefined;
 }
 
 function cleanMetadataText(value: unknown, maxLength = 120): string {

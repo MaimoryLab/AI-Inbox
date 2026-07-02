@@ -7,6 +7,7 @@ import { openDatabase } from "../src/db/index.js";
 import { getAppPaths } from "../src/paths.js";
 import { createAppServer } from "../src/server/index.js";
 import { ingestBrowserSession } from "../src/sources/browser.js";
+import { markAgentContext } from "../src/agent-context.js";
 import { clearTodoData, listTodos, organizeTodos, scopeObservations } from "../src/todos/service.js";
 
 test("organize without an LLM extractor creates no rule fallback cards", async () => {
@@ -196,6 +197,7 @@ test("llm organize creates grounded cards and dedupes by model key", async () =>
     assert.equal(todos[0].metadata.completionSummary, "The settings UI controls are drafted; save wiring remains.");
     assert.equal(todos[0].metadata.nextStep, "Wire the save action.");
     assert.equal(todos[0].metadata.sourceObservationId, observationId);
+    assert.equal(todos[0].metadata.confidence, 0.91);
     assert.equal(todos[0].evidenceIds.length, 1);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -523,6 +525,102 @@ test("llm organize stores user-owned blocked current nodes from task chains", as
   }
 });
 
+test("llm organize rejects agent-only execution current nodes", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-agent-only-current-node-"));
+  try {
+    const db = openDatabase(getAppPaths(dir));
+    ingestBrowserSession(db, {
+      id: "browser-agent-only",
+      messages: [
+        { role: "user", text: "Please improve the local dashboard review flow" },
+        { role: "assistant", text: "The code is ready; next I will restart the service and verify the build." }
+      ]
+    });
+    const userObservationId = String((db.prepare("SELECT id FROM observations WHERE role = 'user' LIMIT 1").get() as any).id);
+
+    const result = await organizeTodos(db, {
+      llmExtractor: async () => ({
+        ok: true,
+        taskChains: [{
+          title: "Improve the local dashboard review flow",
+          summary: "The dashboard work is ready for agent verification.",
+          status: "in_progress",
+          currentNode: {
+            title: "Improve the local dashboard review flow",
+            description: "The user wanted the dashboard review flow improved, but the agent still needs to restart the service and verify the build.",
+            nodeTitle: "Restart service and verify build",
+            owner: "agent",
+            nextStep: "Restart the service and verify the build.",
+            metadata: { completionState: "in_progress" },
+            confidence: 0.9,
+            sourceObservationId: userObservationId,
+            quote: "Please improve the local dashboard review flow",
+            dedupeKey: "improve-dashboard-review-flow"
+          }
+        }]
+      })
+    });
+    const todos = listTodos(db);
+    db.close();
+
+    assert.equal(result.created, 0);
+    assert.deepEqual(result.warnings, ["llm_no_valid_candidates"]);
+    assert.equal(todos.length, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("llm organize keeps agent nodes that explicitly need user confirmation", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-agent-user-confirmation-"));
+  try {
+    const db = openDatabase(getAppPaths(dir));
+    ingestBrowserSession(db, {
+      id: "browser-agent-confirm",
+      messages: [
+        { role: "user", text: "Please clean up the leftover stash backup after the merge" },
+        { role: "assistant", text: "The merge is complete; before deleting the stash backup I need user confirmation." }
+      ]
+    });
+    const userObservationId = String((db.prepare("SELECT id FROM observations WHERE role = 'user' LIMIT 1").get() as any).id);
+
+    const result = await organizeTodos(db, {
+      llmExtractor: async () => ({
+        ok: true,
+        taskChains: [{
+          title: "Clean up leftover stash backup",
+          summary: "The merge is complete; deleting the backup requires user confirmation.",
+          status: "blocked",
+          currentNode: {
+            title: "Confirm deleting the leftover stash backup",
+            description: "The user wanted the stash backup cleaned up, but deletion is waiting for explicit user confirmation.",
+            nodeTitle: "Get user confirmation before deleting stash backup",
+            owner: "agent",
+            nextStep: "Ask the user to confirm deleting the stash backup.",
+            metadata: {
+              completionState: "blocked",
+              completionSummary: "The merge is done; cleanup is blocked on user confirmation."
+            },
+            confidence: 0.9,
+            sourceObservationId: userObservationId,
+            quote: "Please clean up the leftover stash backup after the merge",
+            dedupeKey: "confirm-delete-stash-backup"
+          }
+        }]
+      })
+    });
+    const [todo] = listTodos(db);
+    db.close();
+
+    assert.equal(result.created, 1);
+    assert.equal(todo.title, "Confirm deleting the leftover stash backup");
+    assert.equal(todo.chain?.currentNode.owner, "agent");
+    assert.equal(todo.chain?.currentNode.nextStep, "Ask the user to confirm deleting the stash backup.");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("llm organize ignores fully completed task chains without current nodes", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-todo-task-chain-completed-"));
   try {
@@ -816,6 +914,119 @@ test("organize limits newest sessions before per-session extraction", async () =
   }
 });
 
+test("organize keeps newest sessions when payload user block budget is smaller than scoped sessions", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-organize-newest-budget-"));
+  try {
+    const db = openDatabase(getAppPaths(dir));
+    insertObservation(db, "old-obs", "old-session", "browser", "user", "Please add old budget card", new Date(Date.now() - 60_000).toISOString());
+    insertObservation(db, "new-obs", "new-session", "browser", "user", "Please add new budget card", new Date(Date.now()).toISOString());
+
+    const calls: string[] = [];
+    await organizeTodos(db, {
+      scope: { sinceDays: 7, maxInteractionsPerSession: 10, maxSessions: 2, maxObservationsPerSession: 40 },
+      limits: { maxUserBlocks: 1 },
+      llmExtractor: async (observations) => {
+        const observation = observations.find((item) => item.role === "user")!;
+        calls.push(observation.sessionId);
+        return {
+          ok: true,
+          todos: [{
+            title: "Add new budget card",
+            description: "Create the newest card when user block budget is tight.",
+            confidence: 0.9,
+            sourceObservationId: observation.id,
+            quote: observation.text,
+            dedupeKey: "new-budget-card"
+          }]
+        };
+      }
+    });
+    db.close();
+
+    assert.deepEqual(calls, ["new-session"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("llm organize rejects task-chain cards anchored to assistant when user intent exists", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-organize-assistant-card-source-"));
+  try {
+    const db = openDatabase(getAppPaths(dir));
+    insertObservation(db, "user-obs", "session-1", "browser", "user", "Please fix settings save", "2026-01-01T00:00:00.000Z");
+    insertObservation(db, "assistant-obs", "session-1", "browser", "assistant", "Saving is blocked by validation.", "2026-01-01T00:01:00.000Z");
+
+    const result = await organizeTodos(db, {
+      llmExtractor: async () => ({
+        ok: true,
+        taskChains: [{
+          chainId: "session-1:user-obs",
+          userObservationId: "user-obs",
+          title: "Fix settings save",
+          currentNode: {
+            title: "Fix settings save",
+            description: "The user wants settings save fixed, but validation still blocks saving.",
+            confidence: 0.9,
+            sourceObservationId: "assistant-obs",
+            quote: "Saving is blocked by validation.",
+            dedupeKey: "fix-settings-save"
+          }
+        }]
+      })
+    });
+    const todos = listTodos(db);
+    db.close();
+
+    assert.equal(result.created, 0);
+    assert.deepEqual(result.warnings, ["llm_no_valid_candidates"]);
+    assert.equal(todos.length, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("llm organize accepts user card source with assistant metadata progress source", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-organize-progress-source-"));
+  try {
+    const db = openDatabase(getAppPaths(dir));
+    insertObservation(db, "user-obs", "session-1", "browser", "user", "Please fix settings save", "2026-01-01T00:00:00.000Z");
+    insertObservation(db, "assistant-obs", "session-1", "browser", "assistant", "Saving is blocked by validation.", "2026-01-01T00:01:00.000Z");
+
+    const result = await organizeTodos(db, {
+      llmExtractor: async () => ({
+        ok: true,
+        taskChains: [{
+          chainId: "session-1:user-obs",
+          userObservationId: "user-obs",
+          title: "Fix settings save",
+          currentNode: {
+            title: "Fix settings save",
+            description: "The user wants settings save fixed, but validation still blocks saving.",
+            metadata: {
+              completionState: "blocked",
+              completionSummary: "Saving is blocked by validation.",
+              sourceObservationId: "assistant-obs"
+            },
+            confidence: 0.9,
+            sourceObservationId: "user-obs",
+            quote: "Please fix settings save",
+            dedupeKey: "fix-settings-save"
+          }
+        }]
+      })
+    });
+    const [todo] = listTodos(db);
+    db.close();
+
+    assert.equal(result.created, 1);
+    assert.equal(todo.metadata.sourceObservationId, "user-obs");
+    assert.equal(todo.metadata.completionState, "blocked");
+    assert.equal(todo.metadata.completionSummary, "Saving is blocked by validation.");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("organize trims final LLM payload for user and assistant text with details", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-todo-organize-payload-budget-"));
   try {
@@ -1036,6 +1247,31 @@ test("llm organize rejects ungrounded model output without rules fallback", asyn
     assert.equal(result.engine, "llm");
     assert.deepEqual(result.warnings, ["llm_no_valid_candidates"]);
     assert.equal(result.created, 0);
+    assert.equal(todos.length, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("llm organize ignores agent context as user demand", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-organize-agent-context-"));
+  try {
+    const db = openDatabase(getAppPaths(dir));
+    const createdAt = "2026-01-01T00:00:00.000Z";
+    insertObservation(db, "agent-context", "session-1", "codex", "user", markAgentContext("## Subagent report\nPlease rewrite the dashboard."), createdAt);
+    let called = false;
+
+    const result = await organizeTodos(db, {
+      llmExtractor: async () => {
+        called = true;
+        return { ok: true, todos: [] };
+      }
+    });
+    const todos = listTodos(db);
+    db.close();
+
+    assert.equal(called, false);
+    assert.deepEqual(result.warnings, ["llm_no_valid_candidates"]);
     assert.equal(todos.length, 0);
   } finally {
     rmSync(dir, { recursive: true, force: true });

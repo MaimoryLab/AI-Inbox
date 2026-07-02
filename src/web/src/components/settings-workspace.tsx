@@ -1,5 +1,5 @@
-import { ChevronDown, Save, SlidersHorizontal } from "lucide-react";
-import { useState, type ChangeEvent } from "react";
+import { ChevronDown, Save, SlidersHorizontal, Trash2 } from "lucide-react";
+import { useRef, useState, type ChangeEvent } from "react";
 import { api, localizedUserFacingError } from "../api/client.js";
 import { sourceLabel, textFor, type Locale } from "../i18n.js";
 import { cn } from "../lib/utils.js";
@@ -7,19 +7,22 @@ import type { PublicAppConfig, StartupScanStatus } from "../types.js";
 import type { SessionSource, SourceScanResult } from "../view-model.js";
 import { Button, Card, Field, Input, SectionTitle, StatusCallout } from "./ui.js";
 
-export function SettingsWorkspace({ settings, startup, locale, onLocale, onSaved }: {
+export function SettingsWorkspace({ settings, startup, locale, onLocale, onSaved, onClearTodos }: {
   settings: PublicAppConfig;
   startup: StartupScanStatus | null;
   locale: Locale;
   onLocale: (locale: Locale) => void;
   onSaved: (message?: string) => Promise<void>;
+  onClearTodos: () => Promise<void>;
 }) {
   const text = textFor(locale);
   const [form, setForm] = useState(settings);
   const [apiKey, setApiKey] = useState("");
   const [clearKey, setClearKey] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [clearingTodos, setClearingTodos] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const clearDialogRef = useRef<HTMLDialogElement>(null);
 
   async function save() {
     setSaving(true);
@@ -48,6 +51,19 @@ export function SettingsWorkspace({ settings, startup, locale, onLocale, onSaved
       setSaveError((error as Error).message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function clearTodos() {
+    setClearingTodos(true);
+    setSaveError("");
+    try {
+      await onClearTodos();
+      clearDialogRef.current?.close();
+    } catch (error) {
+      setSaveError((error as Error).message);
+    } finally {
+      setClearingTodos(false);
     }
   }
 
@@ -167,6 +183,35 @@ export function SettingsWorkspace({ settings, startup, locale, onLocale, onSaved
           {startup?.warnings.map((warning: string) => <p key={warning}>{localizedUserFacingError(warning, locale)}</p>)}
         </div>
       </details>
+      <Card className="border-red-200 bg-red-50/40 p-4">
+        <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
+          <div>
+            <h2 className="text-base font-semibold text-red-800">{text.dangerZone}</h2>
+            <p className="mt-1 text-sm text-red-700">{text.clearTodoCardsDescription}</p>
+          </div>
+          <div className="flex items-start">
+            <Button type="button" variant="danger" onClick={() => clearDialogRef.current?.showModal()}>
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+              {text.clearTodoCards}
+            </Button>
+          </div>
+        </div>
+      </Card>
+      <dialog ref={clearDialogRef} className="w-[min(420px,calc(100vw-32px))] rounded-lg border border-red-200 bg-[var(--app-surface)] p-0 text-[var(--app-ink)] shadow-xl backdrop:bg-black/20">
+        <div className="border-b border-[var(--app-border)] p-4">
+          <h2 className="text-base font-semibold">{text.clearTodoCardsConfirmTitle}</h2>
+          <p className="mt-2 text-sm leading-6 text-[var(--app-muted)]">{text.clearTodoCardsConfirmDescription}</p>
+        </div>
+        <div className="flex justify-end gap-2 p-4">
+          <Button type="button" variant="secondary" onClick={() => clearDialogRef.current?.close()} disabled={clearingTodos}>
+            {text.cancel}
+          </Button>
+          <Button type="button" variant="danger" onClick={() => void clearTodos()} disabled={clearingTodos}>
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+            {clearingTodos ? text.clearingTodoCards : text.confirmClearTodoCards}
+          </Button>
+        </div>
+      </dialog>
     </div>
   );
 }

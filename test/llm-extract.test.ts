@@ -38,8 +38,9 @@ test("LLM runner sends OpenAI-compatible request and parses grounded todos", asy
     assert.deepEqual(payload.response_format, { type: "json_object" });
     const userMessage = payload.messages.find((message: any) => message.role === "user");
     const userPayload = JSON.parse(userMessage.content);
-    assert.equal(userPayload.blocks[0].sourceObservationId, "obs-1");
-    assert.equal(userPayload.taskChains[0].latestAssistantReply, assistantObservation.text);
+    assert.equal(userPayload.intentBlocks[0].sourceObservationId, "obs-1");
+    assert.equal(userPayload.progressBlocks[0].sourceObservationId, "obs-2");
+    assert.equal(userPayload.taskChains[0].latestAgentProgress, assistantObservation.text);
     assert.equal(userPayload.taskChains[0].completionState, "in_progress");
     return jsonResponse({
       choices: [{
@@ -88,6 +89,8 @@ test("LLM runner sends task chain instructions and parses structured task chains
     assert.match(systemMessage.content, /currentNode\.title is the Todo card title/);
     assert.match(systemMessage.content, /currentNode\.nodeTitle/);
     assert.match(systemMessage.content, /completedNodes/);
+    assert.match(systemMessage.content, /user-recognizable goal/);
+    assert.match(systemMessage.content, /Agent can complete on its own/);
     return jsonResponse({
       choices: [{
         message: {
@@ -183,6 +186,55 @@ test("LLM runner keeps title anchored to user intent and metadata to agent progr
     assert.equal(result.ok && result.todos?.[0].title, "Add LLM settings UI");
     assert.notEqual(result.ok && result.todos?.[0].title, assistantObservation.text);
     assert.equal(result.ok && result.todos?.[0].metadata?.completionSummary, "The settings UI is added; the save action is still remaining.");
+  } finally {
+    await server.close();
+  }
+});
+
+test("LLM runner separates user intent from latest agent progress in payload", async () => {
+  const middleAssistant = {
+    id: "obs-middle",
+    sessionId: "session-1",
+    source: "browser" as const,
+    role: "assistant",
+    text: "I inspected the files and started editing the form.",
+    createdAt: "2026-01-01T00:00:30.000Z"
+  };
+  const blockedAssistant = {
+    id: "obs-blocked",
+    sessionId: "session-1",
+    source: "browser" as const,
+    role: "assistant",
+    text: "The remaining blocker is that saving fails with a validation error.",
+    createdAt: "2026-01-01T00:02:00.000Z"
+  };
+  const server = await startMockProvider(async (request) => {
+    const payload = await readJson(request);
+    const systemMessage = payload.messages.find((message: any) => message.role === "system");
+    assert.match(systemMessage.content, /intentBlocks/);
+    assert.match(systemMessage.content, /progressBlocks/);
+    assert.match(systemMessage.content, /Titles must be a user-recognizable goal/);
+    assert.match(systemMessage.content, /metadata[\s\S]*ProgressBlocks/i);
+    assert.match(systemMessage.content, /Agent progress must not become the card subject/);
+    const userMessage = payload.messages.find((message: any) => message.role === "user");
+    const userPayload = JSON.parse(userMessage.content);
+    assert.deepEqual(userPayload.blocks, undefined);
+    assert.deepEqual(userPayload.intentBlocks.map((block: any) => block.sourceObservationId), ["obs-1"]);
+    assert.deepEqual(userPayload.progressBlocks.map((block: any) => block.sourceObservationId), ["obs-blocked"]);
+    assert.doesNotMatch(JSON.stringify(userPayload.progressBlocks), /started editing the form/);
+    assert.equal(userPayload.taskChains[0].userObservationId, "obs-1");
+    assert.equal(userPayload.taskChains[0].latestStatusObservationId, "obs-blocked");
+    assert.equal(userPayload.taskChains[0].latestAgentProgress, blockedAssistant.text);
+    return jsonResponse({ todos: [] });
+  });
+
+  try {
+    const runner = createLlmRunner(
+      { ...defaultConfig().llm, model: "test/model", endpoint: server.url("/v1") },
+      { llmApiKey: "dummy-llm-key-value" }
+    );
+    const result = await runner([observation, middleAssistant, blockedAssistant]);
+    assert.equal(result.ok, true);
   } finally {
     await server.close();
   }

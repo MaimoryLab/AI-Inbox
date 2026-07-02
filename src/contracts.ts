@@ -18,6 +18,7 @@ export const HTTP_ROUTES = [
   "POST /sources/scan",
   "GET /sessions",
   "GET /sessions/:id/observations",
+  "GET /attachments",
   "POST /browser/sessions",
   "POST /todos/organize",
   "GET /todos",
@@ -114,6 +115,7 @@ export interface TodoMetadata {
   completionSummary?: string;
   nextStep?: string;
   sourceObservationId?: string;
+  confidence?: number;
 }
 
 export interface OrganizeResult {

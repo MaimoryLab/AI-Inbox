@@ -1,5 +1,6 @@
 import { ChevronDown, FolderOpen, MessageSquareText, Search } from "lucide-react";
 import { useEffect, useState } from "react";
+import { isAgentContextText } from "../../../agent-context.js";
 import { sourceLabel, textFor, type Locale } from "../i18n.js";
 import { cn } from "../lib/utils.js";
 import type { ObservationRecord, SessionRecord, SourceSummary } from "../types.js";
@@ -41,6 +42,17 @@ export function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sess
   useEffect(() => {
     setShowAllMessages(false);
   }, [selectedSessionId]);
+
+  useEffect(() => {
+    if (!highlightedObservationId || !observations.some((observation) => observation.id === highlightedObservationId)) return;
+    if (!visibleObservations.some((observation) => observation.id === highlightedObservationId)) setShowAllMessages(true);
+  }, [highlightedObservationId, observations, visibleObservations]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const group = groups.find((item) => item.sessions.some((session) => session.id === selected.id));
+    if (group && !expandedGroups[group.key]) setExpandedGroups((current) => ({ ...current, [group.key]: true }));
+  }, [selected?.id, groups, expandedGroups]);
 
   return (
     <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -154,14 +166,10 @@ export function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sess
                 <article
                   id={`obs-${observation.id}`}
                   key={observation.id}
-                  className={cn(
-                    "source-message rounded-md border border-[var(--app-border)] bg-white p-3",
-                    observation.role === "assistant" && "ml-auto",
-                    highlightedObservationId === observation.id && "border-amber-300 bg-amber-50 shadow-[inset_3px_0_0_var(--app-amber)]"
-                  )}
+                  className={cn("source-message rounded-md border p-3", sourceMessageTone(observation), highlightedObservationId === observation.id && "border-amber-300 bg-amber-50 shadow-[inset_3px_0_0_var(--app-amber)]")}
                 >
                   <div className="mb-2 flex flex-col gap-1 text-xs text-[var(--app-subtle)] sm:flex-row sm:items-center sm:justify-between">
-                    <span className="font-semibold capitalize text-[var(--app-muted)]">{observation.role === "unknown" ? text.message : observation.role}</span>
+                    <span className="font-semibold capitalize text-[var(--app-muted)]">{sourceRoleLabel(observation, locale)}</span>
                     <time dateTime={observation.createdAt}>{new Date(observation.createdAt).toLocaleString()}</time>
                   </div>
                   <ObservationText observation={observation} />
@@ -200,4 +208,21 @@ function matchesSessionQuery(session: SessionRecord, query: string, locale: Loca
   if (!term) return true;
   return [sourceLabel(session.source, locale), sessionProjectLabel(session, locale), session.preview, session.path]
     .some((value) => value.toLowerCase().includes(term));
+}
+
+function sourceMessageTone(observation: ObservationRecord): string {
+  if (isAgentContext(observation)) return "border-[var(--app-border)] bg-[var(--app-surface-muted)] opacity-80";
+  if (observation.role === "user") return "border-[var(--app-border-strong)] bg-white shadow-[inset_3px_0_0_var(--app-accent)]";
+  if (observation.role === "assistant") return "ml-auto border-[var(--app-border)] bg-white";
+  return "border-[var(--app-border)] bg-white";
+}
+
+function sourceRoleLabel(observation: ObservationRecord, locale: Locale): string {
+  const text = textFor(locale);
+  if (isAgentContext(observation)) return text.agentContext;
+  return observation.role === "unknown" ? text.message : observation.role;
+}
+
+function isAgentContext(observation: ObservationRecord): boolean {
+  return isAgentContextText(observation.text);
 }

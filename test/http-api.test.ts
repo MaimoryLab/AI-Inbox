@@ -164,6 +164,82 @@ test("HTTP API returns optional task chain data for structured todos", async () 
   }
 });
 
+test("HTTP API clears todo cards without deleting source observations", async () => {
+  const fixture = createFixture();
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const server = await startServer(db, paths, {
+    llmExtractor: async (observations: Array<{ id: string; role: string; text: string }>) => {
+      const observation = observations.find((item) => item.role === "user");
+      assert.ok(observation);
+      return {
+        ok: true,
+        todos: [{
+          title: "Clear HTTP todo cards",
+          description: "Create a card that can be cleared through the HTTP API.",
+          confidence: 0.9,
+          sourceObservationId: observation.id,
+          quote: observation.text,
+          dedupeKey: "clear-http-todo-cards"
+        }]
+      };
+    }
+  });
+
+  try {
+    await postJson(server.url("/sources/scan"), { source: "codex", path: fixture.codex });
+    await postJson(server.url("/todos/organize"), {});
+    assert.equal((await (await getJson(server.url("/todos"))).json()).length, 1);
+
+    const clear = await postJson(server.url("/todos/clear"), {});
+    assert.equal(clear.status, 200);
+    assert.equal((await clear.json()).todos, 1);
+    assert.equal((await (await getJson(server.url("/todos"))).json()).length, 0);
+    assert.equal((await (await getJson(server.url("/sessions"))).json()).length, 1);
+  } finally {
+    await server.close();
+    db.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("HTTP attachments only serve files referenced by an observation", async () => {
+  const fixture = createFixture();
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const attachment = join(fixture.root, "image.png");
+  writeFileSync(attachment, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES (?, ?, ?, ?)").run(
+    "attachment-session",
+    "browser",
+    "browser",
+    "2026-01-01T00:00:00.000Z"
+  );
+  db.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
+    "attachment-observation",
+    "attachment-session",
+    "browser",
+    "user",
+    `Please review this.\nImage: Screenshot (${attachment})`,
+    "2026-01-01T00:00:00.000Z"
+  );
+  const server = await startServer(db, paths);
+
+  try {
+    const ok = await getJson(server.url("/attachments?observationId=attachment-observation&index=0"));
+    assert.equal(ok.status, 200);
+    assert.equal(ok.headers.get("content-type"), "image/png");
+    const missing = await getJson(server.url("/attachments?observationId=attachment-observation&index=1"));
+    assert.equal(missing.status, 404);
+    const wrongObservation = await getJson(server.url("/attachments?observationId=missing&index=0"));
+    assert.equal(wrongObservation.status, 404);
+  } finally {
+    await server.close();
+    db.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test("HTTP API returns small explicit errors", async () => {
   const fixture = createFixture();
   const paths = getAppPaths(join(fixture.root, "home"));

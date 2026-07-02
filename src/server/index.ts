@@ -2,6 +2,7 @@ import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { attachmentViewsFromText, isRenderableImagePath } from "../attachments.js";
 import { loadConfig, loadSecrets, parseSettingsUpdate, publicConfig, saveEnvConfig, settingsToEnv } from "../config.js";
 import type { Database } from "../db/index.js";
 import { getAppPaths, type AppPaths } from "../paths.js";
@@ -10,7 +11,7 @@ import { ensureDiscoveredSourceEnv, type SourceDiscoveryResult } from "../source
 import { scanConfiguredSources, scanSource as scanSourceSessions, type ConfiguredScanSummary } from "../sources/scan.js";
 import { listSessionObservations, listSessions, listSources, type ListSessionsOptions } from "../sources/service.js";
 import { organizeConfiguredTodos } from "../todos/configured.js";
-import { getOrganizeRun, listTodoEvidence, listTodos, type OrganizeOptions, updateTodoStatus } from "../todos/service.js";
+import { clearTodoData, getOrganizeRun, listTodoEvidence, listTodos, type OrganizeOptions, updateTodoStatus } from "../todos/service.js";
 
 const PUBLIC_DIR = fileURLToPath(new URL("../../public/", import.meta.url));
 
@@ -80,6 +81,13 @@ export function createAppServer(options: {
 
     if (req.method === "GET" && path === "/startup/scan") {
       writeJson(res, 200, options.startupScan ?? { status: "idle", sources: [], discovery: [], warnings: [] });
+      return;
+    }
+
+    if (req.method === "GET" && path === "/attachments") {
+      const db = requireDb(res, options.db);
+      if (!db) return;
+      serveAttachment(req, res, db, url.searchParams);
       return;
     }
 
@@ -177,6 +185,13 @@ export function createAppServer(options: {
       return;
     }
 
+    if (req.method === "POST" && path === "/todos/clear") {
+      const db = requireDb(res, options.db);
+      if (!db) return;
+      writeJson(res, 200, clearTodoData(db));
+      return;
+    }
+
     if (req.method === "GET" && path === "/todos") {
       const db = requireDb(res, options.db);
       if (!db) return;
@@ -243,6 +258,43 @@ function serveStatic(res: ServerResponse<IncomingMessage>, path: string): boolea
   return true;
 }
 
+function serveAttachment(_req: IncomingMessage, res: ServerResponse<IncomingMessage>, db: Database, params: URLSearchParams): void {
+  const observationId = optionalText(params.get("observationId"), 512);
+  const index = optionalInt(params.get("index"), 0, 1000);
+  if (!observationId || index === null || index === undefined) {
+    writeJson(res, 400, { error: "invalid_attachment_query" });
+    return;
+  }
+  const row = db.prepare("SELECT text FROM observations WHERE id = ?").get(observationId) as { text: string } | undefined;
+  const attachment = row ? attachmentViewsFromText(row.text).find((item) => item.index === index) : undefined;
+  if (!attachment || attachment.path.startsWith("http://") || attachment.path.startsWith("https://")) {
+    writeJson(res, 404, { error: "attachment_not_found" });
+    return;
+  }
+  const file = attachment.path.startsWith("~/")
+    ? join(process.env.HOME ?? "", attachment.path.slice(2))
+    : attachment.path;
+  if (!existsSync(file)) {
+    writeJson(res, 404, { error: "attachment_not_found" });
+    return;
+  }
+  if (attachment.kind === "image" && !isRenderableImagePath(file)) {
+    writeJson(res, 415, { error: "attachment_not_previewable" });
+    return;
+  }
+  const stat = statSync(file);
+  if (!stat.isFile()) {
+    writeJson(res, 404, { error: "attachment_not_found" });
+    return;
+  }
+  res.writeHead(200, {
+    "content-type": attachment.kind === "image" ? contentType(file) : "application/octet-stream",
+    "content-length": stat.size,
+    "content-disposition": `inline; filename="${attachment.label.replace(/["\r\n]/g, "")}"`
+  });
+  createReadStream(file).pipe(res);
+}
+
 function isStaticRequest(path: string): boolean {
   if (path === "/") return true;
   if (path.startsWith("/assets/")) return true;
@@ -252,6 +304,11 @@ function isStaticRequest(path: string): boolean {
 function contentType(file: string): string {
   if (extname(file) === ".css") return "text/css; charset=utf-8";
   if (extname(file) === ".js") return "text/javascript; charset=utf-8";
+  if (extname(file) === ".png") return "image/png";
+  if (extname(file) === ".jpg" || extname(file) === ".jpeg") return "image/jpeg";
+  if (extname(file) === ".gif") return "image/gif";
+  if (extname(file) === ".webp") return "image/webp";
+  if (extname(file) === ".avif") return "image/avif";
   return "text/html; charset=utf-8";
 }
 

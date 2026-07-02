@@ -1,23 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { attachmentMarkdownText, attachmentViewsFromText } from "../src/attachments.js";
 import { sourceDisplayText } from "../src/web/src/components/observation-text.js";
 
-test("sourceDisplayText hides local attachment paths", () => {
+test("sourceDisplayText keeps attachment lines available for rendering", () => {
   assert.equal(
     sourceDisplayText("Image: Image #1 (/var/folders/demo/codex-clipboard.png)"),
-    "Image: Image #1"
+    "Image: Image #1 (/var/folders/demo/codex-clipboard.png)"
   );
   assert.equal(
     sourceDisplayText("Files mentioned: brief.md (/Users/ppio/Documents/brief.md)"),
-    "File: brief.md"
+    "Files mentioned: brief.md (/Users/ppio/Documents/brief.md)"
   );
   assert.equal(
     sourceDisplayText("File: notes.md (~/Downloads/notes.md)"),
-    "File: notes.md"
+    "File: notes.md (~/Downloads/notes.md)"
   );
   assert.equal(
     sourceDisplayText("Image: screenshot (C:\\Users\\ppio\\AppData\\Local\\Temp\\screenshot.png)"),
-    "Image: screenshot"
+    "Image: screenshot (C:\\Users\\ppio\\AppData\\Local\\Temp\\screenshot.png)"
   );
 });
 
@@ -32,4 +33,29 @@ test("sourceDisplayText preserves non-attachment text", () => {
   ].join("\n");
 
   assert.equal(sourceDisplayText(text), text);
+});
+
+test("attachmentViewsFromText parses attachment lines without rewriting ordinary links", () => {
+  const text = [
+    "Image: Screenshot (/tmp/screenshot.png)",
+    "Files mentioned: brief.md (/Users/ppio/Documents/brief.md)",
+    "Link: https://example.com/image.png"
+  ].join("\n");
+
+  assert.deepEqual(attachmentViewsFromText(text), [
+    { index: 0, kind: "image", label: "Screenshot", path: "/tmp/screenshot.png" },
+    { index: 1, kind: "file", label: "brief.md", path: "/Users/ppio/Documents/brief.md" }
+  ]);
+  assert.equal(attachmentMarkdownText(text), [
+    "![Screenshot](/attachments?observationId=obs-1&index=0)",
+    "[brief.md](/attachments?observationId=obs-1&index=1)",
+    "Link: https://example.com/image.png"
+  ].join("\n"));
+});
+
+test("attachmentMarkdownText leaves remote attachments on their original URL", () => {
+  assert.equal(
+    attachmentMarkdownText("Image: Remote (https://example.com/image.png)", "obs-2"),
+    "![Remote](https://example.com/image.png)"
+  );
 });

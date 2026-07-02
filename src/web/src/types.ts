@@ -17,6 +17,7 @@ export interface TodoMetadata {
   completionSummary?: string;
   nextStep?: string;
   sourceObservationId?: string;
+  confidence?: number;
 }
 
 export interface TodoCard {

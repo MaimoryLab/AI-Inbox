@@ -338,7 +338,7 @@ test("codex scanner merges linked subagent sessions into the parent session", ()
     const parentSessionId = testId("codex", "parent-session");
     assert.deepEqual(sessions.map((session) => session.id), [parentSessionId]);
     assert.deepEqual(observations.map((row) => row.sessionId), [parentSessionId, parentSessionId, parentSessionId]);
-    assert.ok(observations.some((row) => row.text === "Subagent found the issue."));
+    assert.ok(observations.some((row) => row.text === "[Agent Context]\nSubagent found the issue."));
     assert.ok(!observations.some((row) => /subagent_notification|agent_path|hidden report/.test(row.text)));
   } finally {
     rmSync(dir, { recursive: true, force: true });

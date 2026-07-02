@@ -4,6 +4,11 @@ import type { LlmExtractResult, LlmTaskChain, LlmTaskChainNode, LlmTodoCandidate
 const TODO_EXTRACTION_PROMPT = `
 You extract actionable AI-Todo cards from cleaned user/assistant transcripts.
 
+Input JSON has three sections:
+- intentBlocks: user-visible requests. Titles, descriptions, dedupeKey, quote, and currentNode.sourceObservationId must primarily use intentBlocks.
+- progressBlocks: recent Agent progress. metadata.completionSummary, metadata.nextStep, and metadata.sourceObservationId should primarily use progressBlocks.
+- taskChains: grouped single-session task flows linking one user intent to recent Agent progress.
+
 Return only JSON:
 {"taskChains":[{"chainId":"...","title":"...","summary":"...","status":"in_progress","completedNodes":[{"title":"...","summary":"...","owner":"agent","status":"completed","observationId":"..."}],"currentNode":{"title":"...","description":"...","nodeTitle":"...","owner":"agent","nextStep":"...","metadata":{"completionState":"...","completionSummary":"...","nextStep":"...","sourceObservationId":"..."},"confidence":0.9,"sourceObservationId":"...","quote":"...","dedupeKey":"..."}}]}
 
@@ -11,12 +16,15 @@ Rules:
 - Use taskChains as the primary unit. Each chain is single-session only and represents one user task flow.
 - Output one current unresolved node per unfinished chain, not every user intent.
 - Put resolved prior work in completedNodes. Do not create a currentNode for fully completed chains.
-- currentNode.title is the Todo card title: summarize the nearby user's core ask, requirement, or task focus so the user remembers the real problem.
+- currentNode.title is the Todo card title: summarize the nearby user's core ask, requirement, or task focus from intentBlocks so the user remembers the real problem.
+- Titles must be a user-recognizable goal from intentBlocks and taskChains[].userIntent, not Agent progress narration or the Agent's next step.
 - currentNode.nodeTitle is optional but should name the actual current unresolved node/action when it differs from the user's core ask.
-- metadata.completionSummary is a concise summary of what the agent already completed, attempted, blocked on, or left pending.
-- metadata.nextStep is only for an obvious remaining user-relevant next action.
-- Prefer sourceObservationId and quote from the user observation that states the core ask. Use an assistant observation only when the blocker exists only there.
+- metadata.completionSummary is a concise summary of what the agent already completed, attempted, blocked on, or left pending from progressBlocks. Agent progress must not become the card subject.
+- metadata.nextStep is only for an obvious remaining user-relevant next action from progressBlocks.
+- Prefer currentNode.sourceObservationId and quote from the user observation that states the core ask. Use metadata.sourceObservationId for the Agent progress observation.
 - Create todos only for unresolved, actionable work: next actions, follow-ups, failed validation, blockers, or work still in progress.
+- A card must be user-visible, still open, and currently valid. Do not create a todo when the remaining step is just Agent execution.
+- If currentNode.owner is "agent" and the nextStep is something the Agent can complete on its own, such as running tests, building, verifying, restarting, submitting, committing, scanning, refreshing, organizing, checking status, or reading logs, omit the currentNode unless it explicitly needs user confirmation, user input, user approval, or user review.
 - Reject completed results, status reports, confirmations, health checks, shell/tool logs, command payloads, and process chores.
 - Titles must read like mature todo app cards: short verb + object + outcome. Do not use transcript fragments.
 - Put long branch names, paths, URLs, commit hashes, package names, and session ids in description, not title.
@@ -33,7 +41,7 @@ Good examples:
 - "修正目录显示文字（去掉重复编号）并更新页码缓存后重渲染" -> same intent as a single card
 
 Negative examples:
-- "做最后一次状态确认", "health check passed", "Viewer URL works", "Bash(git status) process exited 0" -> no todos
+- "重启服务并验证构建", "提交当前更改", "做最后一次状态确认", "health check passed", "Viewer URL works", "Bash(git status) process exited 0" -> no todos
 `.trim();
 
 export function createLlmRunner(
@@ -45,20 +53,21 @@ export function createLlmRunner(
     const visibleObservations = observations.filter((observation) =>
       observation.role === "user" || observation.role === "assistant"
     );
-    const blocks = visibleObservations.map((observation) => ({
-      sourceObservationId: observation.id,
-      sessionId: observation.sessionId,
-      timestamp: observation.createdAt,
-      source: observation.source,
-      role: observation.role,
-      text: observation.text
-    }));
-    if (blocks.length === 0) return { ok: true, todos: [] };
+    const taskChains = buildTaskChains(visibleObservations);
+    const byId = new Map(visibleObservations.map((observation) => [observation.id, observation]));
+    const intentBlocks = taskChains
+      .map((chain) => blockFor(byId.get(String(chain.userObservationId))))
+      .filter((block): block is NonNullable<typeof block> => !!block);
+    const progressBlocks = taskChains
+      .map((chain) => blockFor(byId.get(String(chain.latestStatusObservationId))))
+      .filter((block): block is NonNullable<typeof block> => !!block);
+    if (intentBlocks.length === 0 && progressBlocks.length === 0) return { ok: true, todos: [] };
 
     try {
       return await requestTodos(config, secrets.llmApiKey, JSON.stringify({
-        blocks,
-        taskChains: buildTaskChains(visibleObservations)
+        intentBlocks,
+        progressBlocks,
+        taskChains
       }));
     } catch (error) {
       const reason = (error as Error).message;
@@ -73,6 +82,18 @@ export function createLlmRunner(
         retryable: true
       };
     }
+  };
+}
+
+function blockFor(observation: ObservationForOrganize | undefined) {
+  if (!observation) return null;
+  return {
+    sourceObservationId: observation.id,
+    sessionId: observation.sessionId,
+    timestamp: observation.createdAt,
+    source: observation.source,
+    role: observation.role,
+    text: observation.text
   };
 }
 
@@ -93,7 +114,7 @@ function buildTaskChains(observations: ObservationForOrganize[]): Array<Record<s
     } | null = null;
     const flush = () => {
       if (!activeChain) return;
-      const latestReply = activeChain.replies.at(-1);
+      const latestReply = latestStatusObservation(activeChain.replies);
       const allText = [activeChain.user.text, ...activeChain.replies.map((reply) => reply.text)].join(" ");
       chains.push({
         chainId: `${sessionId}:${activeChain.user.id}`,
@@ -105,6 +126,7 @@ function buildTaskChains(observations: ObservationForOrganize[]): Array<Record<s
         latestAssistantReply: latestReply?.text ?? "",
         latestStatusObservationId: latestReply?.id,
         latestStatus: latestReply?.text ?? "",
+        latestAgentProgress: latestReply?.text ?? "",
         completionState: inferCompletionState(allText),
         completionSummary: latestReply?.text ?? "",
         nextStep: inferNextStep(latestReply?.text ?? activeChain.user.text),
@@ -134,6 +156,13 @@ function buildTaskChains(observations: ObservationForOrganize[]): Array<Record<s
     flush();
   }
   return chains;
+}
+
+function latestStatusObservation(replies: ObservationForOrganize[]): ObservationForOrganize | undefined {
+  for (let index = replies.length - 1; index >= 0; index--) {
+    if (hasProgressSignal(replies[index].text)) return replies[index];
+  }
+  return replies.at(-1);
 }
 
 async function requestTodos(config: AppConfig["llm"], apiKey: string, userContent: string): Promise<LlmExtractResult> {
@@ -257,6 +286,7 @@ function parseTaskChain(value: unknown): LlmTaskChain | null {
   }
   return {
     chainId: stringValue(record.chainId),
+    userObservationId: stringValue(record.userObservationId),
     title: record.title,
     summary: stringValue(record.summary),
     status: stringValue(record.status),
@@ -332,6 +362,10 @@ function isKnownRunnerError(reason: string): boolean {
 
 function isLowInformationUserTurn(text: string): boolean {
   return /^(?:继续|重试|再来一次|继续推进|继续吧|retry|continue|go on|again)$/iu.test(text.trim());
+}
+
+function hasProgressSignal(text: string): boolean {
+  return /(?:已完成|已通过|done|completed|fixed|resolved|blocked|阻塞|失败|failed|error|timeout|无法|不能|剩余|remaining|下一步|next|todo|需要|will|待)/iu.test(text);
 }
 
 function inferCompletionState(text: string): "completed" | "blocked" | "in_progress" | "unknown" {

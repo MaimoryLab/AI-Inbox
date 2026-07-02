@@ -56,7 +56,18 @@ export function App() {
 
   useEffect(() => {
     if (view !== "sources" || !highlightedObservationId || !observationsBySession[selectedSessionId]) return;
-    requestAnimationFrame(() => document.getElementById(`obs-${highlightedObservationId}`)?.scrollIntoView({ block: "center" }));
+    let frame = 0;
+    let attempts = 0;
+    const scroll = () => {
+      const target = document.getElementById(`obs-${highlightedObservationId}`);
+      if (target) {
+        target.scrollIntoView({ block: "center" });
+        return;
+      }
+      if (attempts++ < 5) frame = requestAnimationFrame(scroll);
+    };
+    frame = requestAnimationFrame(scroll);
+    return () => cancelAnimationFrame(frame);
   }, [view, selectedSessionId, highlightedObservationId, observationsBySession]);
 
   useEffect(() => {
@@ -84,6 +95,20 @@ export function App() {
     setSettings(nextSettings);
     setStartup(nextStartup);
     await loadSessions(sourceFilter, 0);
+  }
+
+  async function refreshSources() {
+    setBusy(true);
+    setStatus(text.refreshingSources);
+    try {
+      await Promise.allSettled([scanSource("codex"), scanSource("claude-code")]);
+      await refresh();
+      setStatus(text.ready);
+    } catch {
+      setStatus(localizedUserFacingError("source_scan_failed", locale));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function loadSessions(filter: SourceFilter, offset: number) {
@@ -126,6 +151,14 @@ export function App() {
   async function updateTodo(id: string, status: "done" | "ignored") {
     await api<TodoCard>(`/todos/${encodeURIComponent(id)}`, { method: "PATCH", body: { status } });
     await refresh();
+  }
+
+  async function clearTodoCards() {
+    await api("/todos/clear", { method: "POST", body: {} });
+    await refresh();
+    setEvidenceByTodo({});
+    setEvidenceErrorsByTodo({});
+    setStatus(text.todoCardsCleared);
   }
 
   async function openTodoSources(todo: TodoCard, target?: Pick<TodoEvidence, "sessionId" | "observationId">) {
@@ -186,7 +219,7 @@ export function App() {
       status={status}
       busy={busy}
       onView={setView}
-      onRefresh={() => void refresh()}
+      onRefresh={() => void refreshSources()}
       onOrganize={() => void organize()}
     >
       <OrganizeHistoryPanel items={organizeHistory} locale={locale} />
@@ -236,10 +269,15 @@ export function App() {
             await refresh();
             setStatus(message ?? textFor(locale).settingsSaved);
           }}
+          onClearTodos={() => clearTodoCards()}
         />
       )}
     </AppShell>
   );
+}
+
+async function scanSource(source: Extract<SourceFilter, "codex" | "claude-code">): Promise<void> {
+  await api("/sources/scan", { method: "POST", body: { source } });
 }
 
 function OrganizeHistoryPanel({ items, locale }: { items: OrganizeHistoryItem[]; locale: Locale }) {
