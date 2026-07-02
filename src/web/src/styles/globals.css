@@ -111,6 +111,19 @@ textarea {
   min-width: 0;
 }
 
+.todo-project-section {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.todo-project-cards {
+  border-left: 2px solid var(--app-border);
+  display: grid;
+  gap: 0.5rem;
+  margin-left: 0.75rem;
+  padding-left: 0.75rem;
+}
+
 .source-message {
   max-width: 78ch;
 }
