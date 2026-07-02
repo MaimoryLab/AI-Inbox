@@ -1,5 +1,5 @@
 import type { AppConfig, AppSecrets } from "../config.js";
-import type { LlmExtractResult, LlmTaskChain, LlmTaskChainNode, LlmTodoCandidate, ObservationForOrganize } from "../todos/service.js";
+import type { ExistingCardForLlm, LlmExtractResult, LlmExtractorContext, LlmTaskChain, LlmTaskChainNode, LlmTodoCandidate, ObservationForOrganize } from "../todos/service.js";
 
 const TODO_EXTRACTION_PROMPT = `
 You extract actionable AI-Todo cards from cleaned user/assistant transcripts.
@@ -8,6 +8,7 @@ Input JSON has three sections:
 - intentBlocks: user-visible requests. Titles, descriptions, dedupeKey, quote, and currentNode.sourceObservationId must primarily use intentBlocks.
 - progressBlocks: recent Agent progress. metadata.completionSummary, metadata.nextStep, and metadata.sourceObservationId should primarily use progressBlocks.
 - taskChains: grouped single-session task flows linking one user intent to recent Agent progress.
+- existingCards: currently open cards from the same session, if any. Reuse the same user goal instead of creating a similar new card.
 
 Return only JSON:
 {"taskChains":[{"chainId":"...","title":"...","summary":"...","status":"in_progress","completedNodes":[{"title":"...","summary":"...","owner":"agent","status":"completed","observationId":"..."}],"currentNode":{"title":"...","description":"...","nodeTitle":"...","owner":"agent","nextStep":"...","metadata":{"completionState":"...","completionSummary":"...","nextStep":"...","sourceObservationId":"..."},"confidence":0.9,"sourceObservationId":"...","quote":"...","dedupeKey":"..."}}]}
@@ -31,6 +32,7 @@ Rules:
 - Description is one concise sentence with the user scenario and unresolved gap or blocker. Do not start with "I will", "我会", "现在", or "接下来".
 - quote must be an exact source text span from sourceObservationId.
 - dedupeKey must be a short stable slug of the user's core ask and object. Do not use current status, current node names, raw JSON, paths, logs, call ids, or trace fragments.
+- If a task matches an existingCards item, output the updated version of that same user goal. Do not invent a new title/dedupeKey just because Agent progress changed.
 
 Good examples:
 - "后续需要修复 CI 失败，并重新跑测试。" -> title "修复 CI 失败并重新跑测试"
@@ -47,8 +49,8 @@ Negative examples:
 export function createLlmRunner(
   config: AppConfig["llm"],
   secrets: AppSecrets
-): (observations: ObservationForOrganize[]) => Promise<LlmExtractResult> {
-  return async (observations) => {
+): (observations: ObservationForOrganize[], context?: LlmExtractorContext) => Promise<LlmExtractResult> {
+  return async (observations, context) => {
     if (!config.enabled || !secrets.llmApiKey) return { ok: false, warning: "llm_config_missing" };
     const visibleObservations = observations.filter((observation) =>
       observation.role === "user" || observation.role === "assistant"
@@ -67,7 +69,8 @@ export function createLlmRunner(
       return await requestTodos(config, secrets.llmApiKey, JSON.stringify({
         intentBlocks,
         progressBlocks,
-        taskChains
+        taskChains,
+        existingCards: existingCardsForPrompt(context?.existingCards ?? [])
       }));
     } catch (error) {
       const reason = (error as Error).message;
@@ -95,6 +98,17 @@ function blockFor(observation: ObservationForOrganize | undefined) {
     role: observation.role,
     text: observation.text
   };
+}
+
+function existingCardsForPrompt(cards: ExistingCardForLlm[]): Array<Record<string, unknown>> {
+  return cards.map((card) => ({
+    id: card.id,
+    title: card.title,
+    description: card.description,
+    completionState: card.metadata.completionState,
+    completionSummary: card.metadata.completionSummary,
+    nextStep: card.metadata.nextStep
+  }));
 }
 
 function buildTaskChains(observations: ObservationForOrganize[]): Array<Record<string, unknown>> {

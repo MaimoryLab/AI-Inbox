@@ -137,6 +137,7 @@ export interface OrganizeResult {
       sessionsDropped: number;
       observationsDropped: number;
     };
+    skippedSessions?: number;
     truncations?: Array<{
       source: SourceKind;
       originalChars: number;
@@ -149,6 +150,11 @@ export interface OrganizeResult {
     }>;
   };
   durationMs: number;
+}
+
+export interface OrganizeStatus {
+  running: boolean;
+  startedAt?: string;
 }
 
 export interface StartupScanStatus {

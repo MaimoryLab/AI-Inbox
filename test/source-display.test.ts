@@ -35,6 +35,13 @@ test("sourceDisplayText preserves non-attachment text", () => {
   assert.equal(sourceDisplayText(text), text);
 });
 
+test("sourceDisplayText summarizes turn-aborted system events", () => {
+  assert.equal(
+    sourceDisplayText("<turn_aborted> The user interrupted the previous turn on purpose. Any running unified exec processes may still be running in the background. </turn_aborted>"),
+    "Turn interrupted by the user."
+  );
+});
+
 test("attachmentViewsFromText parses attachment lines without rewriting ordinary links", () => {
   const text = [
     "Image: Screenshot (/tmp/screenshot.png)",

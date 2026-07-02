@@ -1,4 +1,4 @@
-import { Archive, CheckCircle2, ChevronDown, Eye, FileText, Inbox, Search, Sparkles } from "lucide-react";
+import { Archive, CheckCircle2, ChevronDown, Eye, FileText, Inbox, RotateCcw, Search, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { sourceLabel, textFor, type Locale } from "../i18n.js";
 import { cn } from "../lib/utils.js";
@@ -18,6 +18,7 @@ export function TodoBoard(props: {
   closedTodos: TodoCard[];
   onComplete: (id: string) => void;
   onIgnore: (id: string) => void;
+  onRestore: (id: string) => void;
   onSources: (todo: TodoCard, target?: SourceTarget) => void;
   evidenceByTodo: Record<string, TodoEvidence[]>;
   evidenceErrorsByTodo: Record<string, string>;
@@ -45,6 +46,8 @@ export function TodoBoard(props: {
   );
   const orderedVisibleOpenTodos = useMemo(() => visibleOpenGroups.flatMap((group) => group.chains.map((chain) => chain.todo)), [visibleOpenGroups]);
   const selectedTodo = orderedVisibleOpenTodos.find((todo) => todo.id === selectedTodoId) ?? orderedVisibleOpenTodos[0];
+  const completedTodos = sortTodosByEventTime(props.closedTodos.filter((todo) => todo.status === "done"));
+  const ignoredTodos = sortTodosByEventTime(props.closedTodos.filter((todo) => todo.status === "ignored"));
 
   useEffect(() => {
     if (projectFilter !== "all" && !projectOptions.some((project) => project.key === projectFilter)) setProjectFilter("all");
@@ -224,9 +227,8 @@ export function TodoBoard(props: {
               </button>
               {showClosed && (
                 <div className="space-y-2 border-t border-[var(--app-border)] bg-[var(--app-bg)] p-2">
-                  {sortTodosByEventTime(props.closedTodos).map((todo) => (
-                    <TodoItem key={todo.id} todo={todo} locale={props.locale} onComplete={props.onComplete} onIgnore={props.onIgnore} onSources={props.onSources} muted />
-                  ))}
+                  <ClosedTodoGroup label={text.completedCards} todos={completedTodos} locale={props.locale} onComplete={props.onComplete} onIgnore={props.onIgnore} onRestore={props.onRestore} onSources={props.onSources} />
+                  <ClosedTodoGroup label={text.ignoredCards} todos={ignoredTodos} locale={props.locale} onComplete={props.onComplete} onIgnore={props.onIgnore} onRestore={props.onRestore} onSources={props.onSources} />
                 </div>
               )}
             </section>
@@ -354,7 +356,32 @@ function TaskChainContainer({ todo, locale, selected, onSelect, onComplete, onIg
   );
 }
 
-function TodoItem({ todo, muted, compactStatus, selected, locale, onSelect, onComplete, onIgnore, onSources }: {
+function ClosedTodoGroup({ label, todos, locale, onComplete, onIgnore, onRestore, onSources }: {
+  label: string;
+  todos: TodoCard[];
+  locale: Locale;
+  onComplete: (id: string) => void;
+  onIgnore: (id: string) => void;
+  onRestore: (id: string) => void;
+  onSources: (todo: TodoCard, target?: SourceTarget) => void;
+}) {
+  if (todos.length === 0) return null;
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center gap-2 px-1 text-xs font-semibold uppercase text-[var(--app-subtle)]">
+        <span>{label}</span>
+        <Badge>{todos.length}</Badge>
+      </div>
+      <div className="space-y-2">
+        {todos.map((todo) => (
+          <TodoItem key={todo.id} todo={todo} locale={locale} onComplete={onComplete} onIgnore={onIgnore} onRestore={onRestore} onSources={onSources} muted />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TodoItem({ todo, muted, compactStatus, selected, locale, onSelect, onComplete, onIgnore, onRestore, onSources }: {
   todo: TodoCard;
   muted?: boolean;
   compactStatus?: boolean;
@@ -363,6 +390,7 @@ function TodoItem({ todo, muted, compactStatus, selected, locale, onSelect, onCo
   onSelect?: () => void;
   onComplete: (id: string) => void;
   onIgnore: (id: string) => void;
+  onRestore?: (id: string) => void;
   onSources: (todo: TodoCard, target?: SourceTarget) => void;
 }) {
   const text = textFor(locale);
@@ -379,7 +407,7 @@ function TodoItem({ todo, muted, compactStatus, selected, locale, onSelect, onCo
           </div>
           <div className="min-w-0 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            {!compactStatus && <Badge className={todo.status === "todo" ? "border-blue-200 bg-blue-50 text-blue-700" : "border-green-200 bg-green-50 text-green-700"}>{todo.status === "todo" ? text.open : todo.status === "done" ? text.done : text.ignored}</Badge>}
+            {!compactStatus && <Badge className={todoStatusBadgeClass(todo.status)}>{todo.status === "todo" ? text.open : todo.status === "done" ? text.done : text.ignored}</Badge>}
             {confidence && <Badge className={confidence.tone}>{text.confidenceLabel(confidence.value)}</Badge>}
             {warningBadge(todo, locale)}
           </div>
@@ -409,22 +437,37 @@ function TodoItem({ todo, muted, compactStatus, selected, locale, onSelect, onCo
         </div>
         </button>
         <div className="grid shrink-0 gap-2">
-          <Button aria-label={text.completeTodo(todo.title)} variant="secondary" size="sm" onClick={() => onComplete(todo.id)}>
-            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-            {text.complete}
-          </Button>
+          {todo.status === "todo" ? (
+            <Button aria-label={text.completeTodo(todo.title)} variant="secondary" size="sm" onClick={() => onComplete(todo.id)}>
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              {text.complete}
+            </Button>
+          ) : (
+            <Button aria-label={text.restoreTodo(todo.title)} variant="secondary" size="sm" onClick={() => onRestore?.(todo.id)}>
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              {text.restore}
+            </Button>
+          )}
           <Button aria-label={text.openTodoSources(todo.title)} variant="secondary" size="sm" onClick={() => onSources(todo)}>
             <Eye className="h-4 w-4" aria-hidden="true" />
             {text.sources}
           </Button>
-          <Button aria-label={text.ignoreTodo(todo.title)} variant="secondary" size="sm" onClick={() => onIgnore(todo.id)}>
-            <Archive className="h-4 w-4" aria-hidden="true" />
-            {text.ignore}
-          </Button>
+          {todo.status === "todo" && (
+            <Button aria-label={text.ignoreTodo(todo.title)} variant="secondary" size="sm" onClick={() => onIgnore(todo.id)}>
+              <Archive className="h-4 w-4" aria-hidden="true" />
+              {text.ignore}
+            </Button>
+          )}
         </div>
       </div>
     </Card>
   );
+}
+
+function todoStatusBadgeClass(status: TodoCard["status"]): string {
+  if (status === "todo") return "border-blue-200 bg-blue-50 text-blue-700";
+  if (status === "done") return "border-green-200 bg-green-50 text-green-700";
+  return "border-slate-200 bg-slate-50 text-slate-600";
 }
 
 function sortTodosByEventTime(todos: TodoCard[]): TodoCard[] {

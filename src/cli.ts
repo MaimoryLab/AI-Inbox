@@ -24,6 +24,7 @@ Commands:
   list|ls                     List todos.
   done|complete <todo-id>     Mark a todo complete.
   ignore|dismiss <todo-id>    Ignore a todo.
+  restore|reopen <todo-id>    Restore a todo to open.
   start|open [--port <port>]  Start the local UI.
   mcp                         Start the MCP stdio server.`;
 
@@ -104,8 +105,9 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     });
   }
 
-  if (command === "done" || command === "complete" || command === "ignore" || command === "dismiss") {
-    return withDatabase((db) => updateStatus(db, argv[1], command === "done" || command === "complete" ? "done" : "ignored"));
+  if (command === "done" || command === "complete" || command === "ignore" || command === "dismiss" || command === "restore" || command === "reopen") {
+    const status = command === "done" || command === "complete" ? "done" : command === "restore" || command === "reopen" ? "todo" : "ignored";
+    return withDatabase((db) => updateStatus(db, argv[1], status));
   }
 
   if (command === "start" || command === "open") {
@@ -278,7 +280,7 @@ function scan(db: Database, source: string | undefined, path: string | undefined
   return 0;
 }
 
-function updateStatus(db: Database, id: string | undefined, status: "done" | "ignored"): number {
+function updateStatus(db: Database, id: string | undefined, status: "todo" | "done" | "ignored"): number {
   if (!id) {
     console.error("missing todo id");
     return 1;

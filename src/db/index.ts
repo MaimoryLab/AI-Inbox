@@ -96,6 +96,12 @@ export function migrate(db: Database): void {
       result_json TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS organize_checkpoints (
+      session_id TEXT PRIMARY KEY,
+      checkpoint TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
   migrateSessionProjectPath(db);
   migrateTodoMetadata(db);

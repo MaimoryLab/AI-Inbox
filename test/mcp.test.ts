@@ -82,6 +82,8 @@ test("MCP organize can use configured llm extraction", async () => {
     assert.equal(listed.length, 1);
     const updated = await callMcpTool(db, "todo_update", { id: listed[0].id, status: "done" }, paths);
     assert.equal(updated.status, "done");
+    const restored = await callMcpTool(db, "todo_update", { id: listed[0].id, status: "todo" }, paths);
+    assert.equal(restored.status, "todo");
     db.close();
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -95,7 +97,7 @@ test("MCP tools return small explicit errors", async () => {
     const db = openDatabase(paths);
     await assert.rejects(() => callMcpTool(db, "missing", {}, paths), /unknown tool/);
     await assert.rejects(() => callMcpTool(db, "todo_scan", { source: "browser" }, paths), /unsupported source/);
-    await assert.rejects(() => callMcpTool(db, "todo_update", { id: "missing", status: "todo" }, paths), /invalid status/);
+    await assert.rejects(() => callMcpTool(db, "todo_update", { id: "missing", status: "open" }, paths), /invalid status/);
     await assert.rejects(() => callMcpTool(db, "todo_update", { id: "missing", status: "done" }, paths), /todo not found/);
     db.close();
   } finally {

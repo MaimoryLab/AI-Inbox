@@ -60,6 +60,9 @@ test("clearTodoData removes todo-derived rows and preserves source observations"
     db.prepare(
       "INSERT INTO organize_runs (id, result_json, created_at) VALUES (?, ?, ?)"
     ).run("run-1", "{}", "2026-01-01T00:00:00.000Z");
+    db.prepare(
+      "INSERT INTO organize_checkpoints (session_id, checkpoint, updated_at) VALUES (?, ?, ?)"
+    ).run("browser-1", "checkpoint-1", "2026-01-01T00:00:00.000Z");
 
     const cleared = clearTodoData(db);
 
@@ -68,9 +71,10 @@ test("clearTodoData removes todo-derived rows and preserves source observations"
       evidence: 1,
       taskChains: 1,
       taskChainNodes: 1,
-      organizeRuns: 1
+      organizeRuns: 1,
+      organizeCheckpoints: 1
     });
-    for (const table of ["todos", "evidence", "task_chains", "task_chain_nodes", "organize_runs"]) {
+    for (const table of ["todos", "evidence", "task_chains", "task_chain_nodes", "organize_runs", "organize_checkpoints"]) {
       assert.equal((db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get() as { count: number }).count, 0);
     }
     assert.equal((db.prepare("SELECT COUNT(*) as count FROM sessions").get() as { count: number }).count, 1);
@@ -183,6 +187,7 @@ test("llm organize creates grounded cards and dedupes by model key", async () =>
       }]
     });
     const result = await organizeTodos(db, { llmExtractor: extractor });
+    db.prepare("UPDATE sessions SET updated_at = '2026-01-01T00:01:00.000Z' WHERE id = 'browser-1'").run();
     const second = await organizeTodos(db, { llmExtractor: extractor });
     const todos = listTodos(db);
     db.close();
@@ -457,6 +462,7 @@ test("llm organize preserves existing task chain links when a later legacy todo 
       })
     });
 
+    db.prepare("UPDATE sessions SET updated_at = '2026-01-01T00:01:00.000Z' WHERE id = 'browser-chain-preserve'").run();
     await organizeTodos(db, {
       llmExtractor: async () => ({
         ok: true,
@@ -1194,6 +1200,147 @@ test("llm organize suppresses near duplicate cards with different model keys", a
   }
 });
 
+test("llm organize updates an active near-duplicate card when the model key changes", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-organize-update-drifted-key-"));
+  try {
+    const db = openDatabase(getAppPaths(dir));
+    ingestBrowserSession(db, {
+      id: "browser-drift",
+      messages: [
+        { role: "user", text: "Please fix settings save validation" },
+        { role: "assistant", text: "Validation still blocks saving settings." }
+      ]
+    });
+    const observationId = String((db.prepare("SELECT id FROM observations WHERE role = 'user' LIMIT 1").get() as any).id);
+
+    await organizeTodos(db, {
+      llmExtractor: async () => ({
+        ok: true,
+        todos: [{
+          title: "Fix settings save validation",
+          description: "Settings save is blocked by validation.",
+          confidence: 0.9,
+          sourceObservationId: observationId,
+          quote: "Please fix settings save validation",
+          dedupeKey: "fix-settings-save-validation"
+        }]
+      })
+    });
+
+    db.prepare("UPDATE sessions SET updated_at = '2026-01-01T00:01:00.000Z' WHERE id = 'browser-drift'").run();
+    const second = await organizeTodos(db, {
+      llmExtractor: async () => ({
+        ok: true,
+        todos: [{
+          title: "Fix settings save validation",
+          description: "Settings save validation is still failing after the latest pass.",
+          metadata: { completionSummary: "The latest agent progress still reports a validation blocker." },
+          confidence: 0.92,
+          sourceObservationId: observationId,
+          quote: "Please fix settings save validation",
+          dedupeKey: "repair-settings-validation-save"
+        }]
+      })
+    });
+    const todos = listTodos(db);
+    db.close();
+
+    assert.equal(second.created, 0);
+    assert.equal(second.updated, 1);
+    assert.equal(todos.length, 1);
+    assert.equal(todos[0].description, "Settings save validation is still failing after the latest pass.");
+    assert.equal(todos[0].metadata.completionSummary, "The latest agent progress still reports a validation blocker.");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("organize skips sessions whose checkpoint was already processed", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-organize-checkpoint-skip-"));
+  try {
+    const db = openDatabase(getAppPaths(dir));
+    ingestBrowserSession(db, {
+      id: "browser-checkpoint",
+      messages: [{ role: "user", text: "Please add checkpointed card" }]
+    });
+    const observationId = String((db.prepare("SELECT id FROM observations WHERE role = 'user' LIMIT 1").get() as any).id);
+    let calls = 0;
+    const extractor = async () => {
+      calls++;
+      return {
+        ok: true as const,
+        todos: [{
+          title: "Add checkpointed card",
+          description: "Create the card once for this unchanged session.",
+          confidence: 0.9,
+          sourceObservationId: observationId,
+          quote: "Please add checkpointed card",
+          dedupeKey: "checkpointed-card"
+        }]
+      };
+    };
+
+    const first = await organizeTodos(db, { llmExtractor: extractor });
+    const second = await organizeTodos(db, { llmExtractor: extractor });
+    const todos = listTodos(db);
+    db.close();
+
+    assert.equal(calls, 1);
+    assert.equal(first.created, 1);
+    assert.equal(second.scanned, 0);
+    assert.equal(second.created, 0);
+    assert.equal(second.updated, 0);
+    assert.equal(todos.length, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("organize retries sessions whose previous LLM batch failed", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-organize-checkpoint-retry-"));
+  try {
+    const db = openDatabase(getAppPaths(dir));
+    ingestBrowserSession(db, {
+      id: "browser-retry",
+      messages: [{ role: "user", text: "Please add retryable card" }]
+    });
+    const observationId = String((db.prepare("SELECT id FROM observations WHERE role = 'user' LIMIT 1").get() as any).id);
+    let calls = 0;
+
+    const first = await organizeTodos(db, {
+      llmExtractor: async () => {
+        calls++;
+        return { ok: false, warning: "llm_timeout", retryable: true };
+      }
+    });
+    const second = await organizeTodos(db, {
+      llmExtractor: async () => {
+        calls++;
+        return {
+          ok: true,
+          todos: [{
+            title: "Add retryable card",
+            description: "Create the card after the failed batch retries.",
+            confidence: 0.9,
+            sourceObservationId: observationId,
+            quote: "Please add retryable card",
+            dedupeKey: "retryable-card"
+          }]
+        };
+      }
+    });
+    const todos = listTodos(db);
+    db.close();
+
+    assert.equal(calls, 2);
+    assert.ok(first.warnings.includes("llm_timeout"));
+    assert.equal(second.created, 1);
+    assert.equal(todos.length, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("llm unavailable returns warnings without creating rules cards", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-todo-organize-llm-unavailable-"));
   try {
@@ -1259,6 +1406,38 @@ test("llm organize ignores agent context as user demand", async () => {
     const db = openDatabase(getAppPaths(dir));
     const createdAt = "2026-01-01T00:00:00.000Z";
     insertObservation(db, "agent-context", "session-1", "codex", "user", markAgentContext("## Subagent report\nPlease rewrite the dashboard."), createdAt);
+    let called = false;
+
+    const result = await organizeTodos(db, {
+      llmExtractor: async () => {
+        called = true;
+        return { ok: true, todos: [] };
+      }
+    });
+    const todos = listTodos(db);
+    db.close();
+
+    assert.equal(called, false);
+    assert.deepEqual(result.warnings, ["llm_no_valid_candidates"]);
+    assert.equal(todos.length, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("llm organize ignores interrupted-turn events as user demand", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-organize-turn-aborted-"));
+  try {
+    const db = openDatabase(getAppPaths(dir));
+    insertObservation(
+      db,
+      "turn-aborted",
+      "session-1",
+      "codex",
+      "user",
+      "<turn_aborted> The user interrupted the previous turn on purpose. Any running unified exec processes may still be running in the background. </turn_aborted>",
+      "2026-01-01T00:00:00.000Z"
+    );
     let called = false;
 
     const result = await organizeTodos(db, {

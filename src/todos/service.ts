@@ -1,6 +1,6 @@
 import { basename, dirname } from "node:path";
-import { isAgentContextText } from "../agent-context.js";
-import type { ChainNodeSummary, OrganizeResult, SourceKind, TaskChainView, TodoCard, TodoMetadata, TodoOrigin } from "../contracts.js";
+import { isAgentContextText, isTurnAbortedText } from "../agent-context.js";
+import type { ChainNodeSummary, OrganizeResult, SourceKind, TaskChainView, TodoCard, TodoMetadata, TodoOrigin, TodoStatus } from "../contracts.js";
 import type { Database } from "../db/index.js";
 import { stableId } from "../extract/rules.js";
 
@@ -80,7 +80,8 @@ export type LlmExtractResult =
 
 export interface OrganizeOptions {
   enhancer?: TodoEnhancer["enhance"];
-  llmExtractor?: (observations: ObservationForOrganize[]) => Promise<LlmExtractResult>;
+  llmExtractor?: (observations: ObservationForOrganize[], context?: LlmExtractorContext) => Promise<LlmExtractResult>;
+  full?: boolean;
   scope?: {
     sinceDays: number;
     maxInteractionsPerSession: number;
@@ -88,6 +89,17 @@ export interface OrganizeOptions {
     maxObservationsPerSession?: number;
   };
   limits?: Partial<OrganizeLimits>;
+}
+
+export interface LlmExtractorContext {
+  existingCards: ExistingCardForLlm[];
+}
+
+export interface ExistingCardForLlm {
+  id: string;
+  title: string;
+  description: string;
+  metadata: TodoMetadata;
 }
 
 export interface ObservationForOrganize {
@@ -101,6 +113,7 @@ export interface ObservationForOrganize {
 
 type WriteResult = { created: number; updated: number; engine: "llm" };
 type OrganizeDetails = NonNullable<OrganizeResult["details"]>;
+type ResolvedCandidate<T extends ChainCandidate> = T & { todoId: string };
 
 export interface ClearTodoDataResult {
   todos: number;
@@ -108,6 +121,7 @@ export interface ClearTodoDataResult {
   taskChains: number;
   taskChainNodes: number;
   organizeRuns: number;
+  organizeCheckpoints: number;
 }
 
 export interface OrganizeLimits {
@@ -138,7 +152,8 @@ export function clearTodoData(db: Database): ClearTodoDataResult {
     evidence: tableCount(db, "evidence"),
     taskChains: tableCount(db, "task_chains"),
     taskChainNodes: tableCount(db, "task_chain_nodes"),
-    organizeRuns: tableCount(db, "organize_runs")
+    organizeRuns: tableCount(db, "organize_runs"),
+    organizeCheckpoints: tableCount(db, "organize_checkpoints")
   };
   db.exec("BEGIN");
   try {
@@ -148,6 +163,7 @@ export function clearTodoData(db: Database): ClearTodoDataResult {
       DELETE FROM task_chain_nodes;
       DELETE FROM task_chains;
       DELETE FROM organize_runs;
+      DELETE FROM organize_checkpoints;
     `);
     db.exec("COMMIT");
   } catch (error) {
@@ -163,7 +179,8 @@ export async function organizeTodos(db: Database, options: OrganizeOptions = {})
   const warnings = new Set<string>();
   const details: OrganizeDetails = {};
   const limits = { ...DEFAULT_ORGANIZE_LIMITS, ...options.limits };
-  const observations = planScopedObservations(loadScopedObservations(db, options.scope), options.scope, limits, warnings, details);
+  const scopedObservations = planScopedObservations(loadScopedObservations(db, options.scope), options.scope, limits, warnings, details);
+  const observations = options.full ? scopedObservations : filterCheckpointedObservations(db, scopedObservations, details);
   const sourceCounts = new Map<SourceKind, number>();
   for (const observation of observations) {
     sourceCounts.set(observation.source, (sourceCounts.get(observation.source) ?? 0) + 1);
@@ -192,7 +209,7 @@ export async function organizeTodos(db: Database, options: OrganizeOptions = {})
   return result;
 }
 
-function tableCount(db: Database, table: "todos" | "evidence" | "task_chains" | "task_chain_nodes" | "organize_runs"): number {
+function tableCount(db: Database, table: "todos" | "evidence" | "task_chains" | "task_chain_nodes" | "organize_runs" | "organize_checkpoints"): number {
   const row = db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get() as { count: number };
   return row.count;
 }
@@ -209,7 +226,55 @@ function loadScopedObservations(db: Database, scope: OrganizeOptions["scope"]): 
      FROM observations
      ${where}
      ORDER BY created_at, id`
-  ).all(...params) as unknown as ObservationForOrganize[]).filter((observation) => !isAgentContextText(observation.text));
+  ).all(...params) as unknown as ObservationForOrganize[]).filter((observation) => !isNonUserDemandText(observation.text));
+}
+
+function isNonUserDemandText(text: string): boolean {
+  return isAgentContextText(text) || isTurnAbortedText(text);
+}
+
+function filterCheckpointedObservations(db: Database, observations: ObservationForOrganize[], details: OrganizeDetails): ObservationForOrganize[] {
+  const fingerprints = sessionFingerprints(db, observations);
+  const kept = observations.filter((observation) => {
+    const fingerprint = fingerprints.get(observation.sessionId);
+    return !!fingerprint && fingerprint.checkpoint !== fingerprint.previousCheckpoint;
+  });
+  const skippedSessions = new Set<string>();
+  for (const [sessionId, fingerprint] of fingerprints) {
+    if (fingerprint.checkpoint === fingerprint.previousCheckpoint) skippedSessions.add(sessionId);
+  }
+  if (skippedSessions.size > 0) details.skippedSessions = (details.skippedSessions ?? 0) + skippedSessions.size;
+  return kept;
+}
+
+interface SessionFingerprint {
+  checkpoint: string;
+  previousCheckpoint?: string;
+}
+
+function sessionFingerprints(db: Database, observations: ObservationForOrganize[]): Map<string, SessionFingerprint> {
+  const sessionIds = [...new Set(observations.map((observation) => observation.sessionId))];
+  const fingerprints = new Map<string, SessionFingerprint>();
+  const sessionQuery = db.prepare(
+    `SELECT s.updated_at as updatedAt, COUNT(o.id) as observationCount
+     FROM sessions s
+     LEFT JOIN observations o ON o.session_id = s.id
+     WHERE s.id = ?`
+  );
+  const checkpointQuery = db.prepare("SELECT checkpoint FROM organize_checkpoints WHERE session_id = ?");
+  for (const sessionId of sessionIds) {
+    const session = sessionQuery.get(sessionId) as { updatedAt?: string; observationCount: number } | undefined;
+    const previous = checkpointQuery.get(sessionId) as { checkpoint: string } | undefined;
+    const latestObservation = observations
+      .filter((observation) => observation.sessionId === sessionId)
+      .reduce((latest, observation) => observation.createdAt > latest ? observation.createdAt : latest, "");
+    const updatedAt = session?.updatedAt || latestObservation;
+    fingerprints.set(sessionId, {
+      checkpoint: `${updatedAt}:${session?.observationCount ?? observations.filter((observation) => observation.sessionId === sessionId).length}`,
+      previousCheckpoint: previous?.checkpoint
+    });
+  }
+  return fingerprints;
 }
 
 export function scopeObservations(
@@ -378,7 +443,7 @@ function addTruncationDetail(
 }
 
 function hasOrganizeDetails(details: OrganizeDetails): boolean {
-  return !!details.scope || !!details.truncations?.length || !!details.batchFailures?.length;
+  return !!details.scope || !!details.skippedSessions || !!details.truncations?.length || !!details.batchFailures?.length;
 }
 
 function writeExtractedLlmTodos(
@@ -411,7 +476,7 @@ function writeExtractedLlmTodos(
     const candidate = item.candidate;
     const observation = byId.get(candidate.sourceObservationId);
     if (!observation) continue;
-    const todoId = stableId(candidate.dedupeKey);
+    const todoId = item.todoId;
     const now = new Date().toISOString();
     const metadata = normalizeTodoMetadata(candidate.metadata, candidate.sourceObservationId, candidate.confidence);
     const metadataJson = JSON.stringify(metadata);
@@ -538,12 +603,13 @@ async function writeBatchedLlmTodos(
   for (let index = 0; index < batches.length; index += concurrency) {
     const extracted = await Promise.all(batches.slice(index, index + concurrency).map(async (batch) => ({
       batch,
-      result: await extractor(batch)
+      result: await extractor(batch, { existingCards: existingCardsForBatch(db, batch) })
     })));
     for (const item of extracted) {
       const warningsBefore = new Set(warnings);
       const result = writeExtractedLlmTodos(db, item.batch, item.result, warnings, details);
       if (hasBatchFailureWarning(warnings, warningsBefore)) warnings.add("llm_batch_failed");
+      if (item.result.ok) writeOrganizeCheckpoints(db, item.batch);
       totalCreated += result.created;
       totalUpdated += result.updated;
     }
@@ -551,6 +617,33 @@ async function writeBatchedLlmTodos(
 
   if (batches.length === 0) warnings.add("llm_no_valid_candidates");
   return { created: totalCreated, updated: totalUpdated, engine: "llm" };
+}
+
+function existingCardsForBatch(db: Database, observations: ObservationForOrganize[]): ExistingCardForLlm[] {
+  const sessionIds = [...new Set(observations.map((observation) => observation.sessionId))];
+  if (sessionIds.length === 0) return [];
+  const rows = db.prepare(
+    `SELECT DISTINCT t.id, t.title, t.description, t.metadata_json as metadataJson
+     FROM todos t
+     JOIN evidence e ON e.todo_id = t.id
+     JOIN observations o ON o.id = e.observation_id
+     WHERE t.status = 'todo' AND o.session_id = ?`
+  );
+  return sessionIds.flatMap((sessionId) => (rows.all(sessionId) as Array<{ id: string; title: string; description: string; metadataJson?: string }>).map((row) => ({
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    metadata: parseTodoMetadata(row.metadataJson)
+  })));
+}
+
+function writeOrganizeCheckpoints(db: Database, observations: ObservationForOrganize[]): void {
+  const now = new Date().toISOString();
+  for (const [sessionId, fingerprint] of sessionFingerprints(db, observations)) {
+    db.prepare(
+      "INSERT OR REPLACE INTO organize_checkpoints (session_id, checkpoint, updated_at) VALUES (?, ?, ?)"
+    ).run(sessionId, fingerprint.checkpoint, now);
+  }
 }
 
 function addBatchFailureDetail(
@@ -696,17 +789,13 @@ function candidatePassesValueGate(item: ChainCandidate): boolean {
   return explicitlyNeedsUserInput(actionText);
 }
 
-function dedupeLlmCandidates<T extends { candidate: LlmTodoCandidate }>(candidates: T[], existingTodos: ExistingTodoForDedupe[]): T[] {
-  const accepted: T[] = [];
-  const keys = new Set(existingTodos.map((todo) => candidateIdentityKey(todo)));
+function dedupeLlmCandidates<T extends ChainCandidate>(candidates: T[], existingTodos: ExistingTodoForDedupe[]): Array<ResolvedCandidate<T>> {
+  const accepted: Array<ResolvedCandidate<T>> = [];
   for (const item of candidates) {
     const candidate = item.candidate;
-    const todoId = stableId(candidate.dedupeKey);
-    const key = candidateIdentityKey(candidate);
-    if (existingTodos.some((todo) => todo.id !== todoId && nearDuplicateTodo(todo, candidate))) continue;
-    if (accepted.some((acceptedItem) => nearDuplicateTodo(acceptedItem.candidate, candidate))) continue;
-    keys.add(key);
-    accepted.push(item);
+    const todoId = resolveTodoId(candidate, existingTodos);
+    if (accepted.some((acceptedItem) => acceptedItem.todoId === todoId || nearDuplicateTodo(acceptedItem.candidate, candidate))) continue;
+    accepted.push({ ...item, todoId });
   }
   return accepted;
 }
@@ -719,6 +808,12 @@ interface ExistingTodoForDedupe {
 
 function existingActiveTodos(db: Database): ExistingTodoForDedupe[] {
   return db.prepare("SELECT id, title, description FROM todos WHERE status = 'todo'").all() as unknown as ExistingTodoForDedupe[];
+}
+
+function resolveTodoId(candidate: LlmTodoCandidate, existingTodos: ExistingTodoForDedupe[]): string {
+  const candidateId = stableId(candidate.dedupeKey);
+  if (existingTodos.some((todo) => todo.id === candidateId)) return candidateId;
+  return existingTodos.find((todo) => nearDuplicateTodo(todo, candidate))?.id ?? candidateId;
 }
 
 function candidateIdentityKey(candidate: Pick<LlmTodoCandidate, "title" | "description">): string {
@@ -1019,7 +1114,7 @@ function cleanMetadataText(value: unknown, maxLength = 120): string {
   return Array.from(text).slice(0, maxLength).join("");
 }
 
-export function updateTodoStatus(db: Database, id: string, status: "done" | "ignored"): boolean {
+export function updateTodoStatus(db: Database, id: string, status: TodoStatus): boolean {
   const result = db.prepare(
     "UPDATE todos SET status = ?, updated_at = ? WHERE id = ?"
   ).run(status, new Date().toISOString(), id);

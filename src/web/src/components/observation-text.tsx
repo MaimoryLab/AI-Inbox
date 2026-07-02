@@ -1,5 +1,5 @@
 import ReactMarkdown from "react-markdown";
-import { displayAgentContextText, isAgentContextText } from "../../../agent-context.js";
+import { displayAgentContextText, displayTurnAbortedText, isAgentContextText } from "../../../agent-context.js";
 import { attachmentMarkdownText } from "../../../attachments.js";
 import type { ObservationRecord } from "../types.js";
 
@@ -41,5 +41,5 @@ export function MarkdownText({ text, markdown, observationId }: { text: string; 
 }
 
 export function sourceDisplayText(text: string): string {
-  return displayAgentContextText(text);
+  return displayTurnAbortedText(displayAgentContextText(text));
 }

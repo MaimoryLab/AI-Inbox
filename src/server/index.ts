@@ -24,6 +24,11 @@ export type StartupScanStatus = {
   warnings: string[];
 };
 
+type OrganizeStatus = {
+  running: boolean;
+  startedAt?: string;
+};
+
 export function createStartupScanner(db: Database, paths: AppPaths): { status: StartupScanStatus; start: () => void } {
   const status: StartupScanStatus = { status: "idle", sources: [], discovery: [], warnings: [] };
   let running = false;
@@ -60,6 +65,7 @@ export function createAppServer(options: {
   startupScan?: StartupScanStatus;
 } = {}) {
   const paths = options.paths ?? getAppPaths();
+  const organizeStatus: OrganizeStatus = { running: false };
   return createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
     const path = url.pathname;
@@ -81,6 +87,11 @@ export function createAppServer(options: {
 
     if (req.method === "GET" && path === "/startup/scan") {
       writeJson(res, 200, options.startupScan ?? { status: "idle", sources: [], discovery: [], warnings: [] });
+      return;
+    }
+
+    if (req.method === "GET" && path === "/todos/organize/status") {
+      writeJson(res, 200, organizeStatus);
       return;
     }
 
@@ -173,6 +184,12 @@ export function createAppServer(options: {
     if (req.method === "POST" && path === "/todos/organize") {
       const db = requireDb(res, options.db);
       if (!db) return;
+      if (organizeStatus.running) {
+        writeJson(res, 409, { error: "organize_in_progress" });
+        return;
+      }
+      organizeStatus.running = true;
+      organizeStatus.startedAt = new Date().toISOString();
       try {
         writeJson(res, 200, await organizeConfiguredTodos(db, paths, options.organizeOptions));
       } catch (error) {
@@ -181,6 +198,9 @@ export function createAppServer(options: {
           warnings: ["organize_failed"],
           message: (error as Error).message
         });
+      } finally {
+        organizeStatus.running = false;
+        delete organizeStatus.startedAt;
       }
       return;
     }
@@ -218,7 +238,7 @@ export function createAppServer(options: {
       if (!db) return;
       const body = await readJson(req, res);
       if (!body) return;
-      if (body.status !== "done" && body.status !== "ignored") {
+      if (body.status !== "todo" && body.status !== "done" && body.status !== "ignored") {
         writeJson(res, 400, { error: "invalid_status" });
         return;
       }

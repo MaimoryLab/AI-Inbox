@@ -5,7 +5,7 @@ import { SettingsWorkspace } from "./components/settings-workspace.js";
 import { SourcesWorkspace } from "./components/sources-workspace.js";
 import { TodoBoard } from "./components/todo-board.js";
 import { readLocale, textFor, writeLocale, type Locale } from "./i18n.js";
-import type { ObservationRecord, OrganizeResult, PublicAppConfig, SessionRecord, SourceSummary, StartupScanStatus, TodoCard, TodoEvidence } from "./types.js";
+import type { ObservationRecord, OrganizeResult, OrganizeStatus, PublicAppConfig, SessionRecord, SourceSummary, StartupScanStatus, TodoCard, TodoEvidence } from "./types.js";
 import type { SourceFilter, View } from "./view-model.js";
 
 const SESSION_PAGE_SIZE = 50;
@@ -34,6 +34,7 @@ export function App() {
   const [highlightedObservationId, setHighlightedObservationId] = useState<string>("");
   const [status, setStatus] = useState<string>(() => textFor(readLocale()).ready);
   const [organizeHistory, setOrganizeHistory] = useState<OrganizeHistoryItem[]>([]);
+  const [organizeRunning, setOrganizeRunning] = useState(false);
   const [busy, setBusy] = useState(false);
   const [startupNoticeShown, setStartupNoticeShown] = useState(false);
   const text = textFor(locale);
@@ -83,17 +84,32 @@ export function App() {
     }
   }, [locale, startup, startupNoticeShown]);
 
+  useEffect(() => {
+    if (!organizeRunning) return;
+    const timer = window.setTimeout(async () => {
+      const nextStatus = await api<OrganizeStatus>("/todos/organize/status");
+      setOrganizeRunning(nextStatus.running);
+      if (nextStatus.running) return;
+      await refresh();
+      setStatus(text.ready);
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [locale, organizeRunning]);
+
   async function refresh() {
-    const [nextTodos, nextSources, nextSettings, nextStartup] = await Promise.all([
+    const [nextTodos, nextSources, nextSettings, nextStartup, nextOrganizeStatus] = await Promise.all([
       api<TodoCard[]>("/todos"),
       api<SourceSummary[]>("/sources"),
       api<PublicAppConfig>("/settings"),
-      api<StartupScanStatus>("/startup/scan")
+      api<StartupScanStatus>("/startup/scan"),
+      api<OrganizeStatus>("/todos/organize/status")
     ]);
     setTodos(nextTodos);
     setSourceSummaries(nextSources);
     setSettings(nextSettings);
     setStartup(nextStartup);
+    setOrganizeRunning(nextOrganizeStatus.running);
+    if (nextOrganizeStatus.running) setStatus(text.organizing);
     await loadSessions(sourceFilter, 0);
   }
 
@@ -127,18 +143,32 @@ export function App() {
   }
 
   async function organize() {
+    if (organizeRunning) return;
     setBusy(true);
+    setOrganizeRunning(true);
     setStatus(text.organizing);
     try {
       const result = await api<OrganizeResult>("/todos/organize", { method: "POST", body: {} });
       await refresh();
       setStatus(organizeStatus(result, locale));
       rememberOrganizeResult(result);
-    } catch {
+    } catch (error) {
+      const message = (error as Error).message;
+      if (message === localizedUserFacingError("organize_in_progress", locale)) {
+        setOrganizeRunning(true);
+        setStatus(message);
+        return;
+      }
       const result: OrganizeResult = { created: 0, updated: 0, warnings: ["organize_failed"], durationMs: 0 };
       setStatus(localizedUserFacingError("organize_failed", locale));
       rememberOrganizeResult(result);
     } finally {
+      try {
+        const nextStatus = await api<OrganizeStatus>("/todos/organize/status");
+        setOrganizeRunning(nextStatus.running);
+      } catch {
+        setOrganizeRunning(false);
+      }
       setBusy(false);
     }
   }
@@ -148,7 +178,7 @@ export function App() {
     setOrganizeHistory((current) => [item, ...current].slice(0, ORGANIZE_HISTORY_LIMIT));
   }
 
-  async function updateTodo(id: string, status: "done" | "ignored") {
+  async function updateTodo(id: string, status: TodoCard["status"]) {
     await api<TodoCard>(`/todos/${encodeURIComponent(id)}`, { method: "PATCH", body: { status } });
     await refresh();
   }
@@ -217,7 +247,7 @@ export function App() {
       text={text}
       view={view}
       status={status}
-      busy={busy}
+      busy={busy || organizeRunning}
       onView={setView}
       onRefresh={() => void refreshSources()}
       onOrganize={() => void organize()}
@@ -229,12 +259,13 @@ export function App() {
           closedTodos={closedTodos}
           onComplete={(id) => void updateTodo(id, "done")}
           onIgnore={(id) => void updateTodo(id, "ignored")}
+          onRestore={(id) => void updateTodo(id, "todo")}
           onSources={(todo, target) => void openTodoSources(todo, target)}
           evidenceByTodo={evidenceByTodo}
           evidenceErrorsByTodo={evidenceErrorsByTodo}
           onSelectTodo={(todo) => void loadTodoEvidence(todo.id)}
           onOrganize={() => void organize()}
-          busy={busy}
+          busy={busy || organizeRunning}
           locale={locale}
         />
       )}

@@ -40,12 +40,12 @@ export function listMcpTools(): McpTool[] {
     },
     {
       name: "todo_update",
-      description: "Mark a todo as done or ignored.",
+      description: "Update a todo status.",
       inputSchema: {
         type: "object",
         properties: {
           id: { type: "string" },
-          status: { type: "string", enum: ["done", "ignored"] }
+          status: { type: "string", enum: ["todo", "done", "ignored"] }
         },
         required: ["id", "status"]
       }
@@ -83,7 +83,7 @@ export async function callMcpTool(
 
   if (name === "todo_update") {
     if (typeof input.id !== "string" || !input.id) throw new Error("missing todo id");
-    if (input.status !== "done" && input.status !== "ignored") throw new Error("invalid status");
+    if (input.status !== "todo" && input.status !== "done" && input.status !== "ignored") throw new Error("invalid status");
     if (!updateTodoStatus(db, input.id, input.status)) throw new Error("todo not found");
     return listTodos(db).find((todo) => todo.id === input.id);
   }

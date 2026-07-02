@@ -1,6 +1,6 @@
 import { ChevronDown, FolderOpen, MessageSquareText, Search } from "lucide-react";
-import { useEffect, useState } from "react";
-import { isAgentContextText } from "../../../agent-context.js";
+import { useEffect, useMemo, useState } from "react";
+import { isAgentContextText, isTurnAbortedText } from "../../../agent-context.js";
 import { sourceLabel, textFor, type Locale } from "../i18n.js";
 import { cn } from "../lib/utils.js";
 import type { ObservationRecord, SessionRecord, SourceSummary } from "../types.js";
@@ -27,6 +27,9 @@ export function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sess
 }) {
   const text = textFor(locale);
   const [query, setQuery] = useState("");
+  const [projectFilter, setProjectFilter] = useState("all");
+  const [projectMenuOpen, setProjectMenuOpen] = useState(false);
+  const [projectQuery, setProjectQuery] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [showAllMessages, setShowAllMessages] = useState(false);
   const selected = sessions.find((session) => session.id === selectedSessionId) ?? (selectedSessionId ? undefined : sessions[0]);
@@ -36,7 +39,10 @@ export function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sess
     ? sourceSummaries.reduce((sum, source) => sum + source.sessions, 0)
     : sourceSummaries.find((source) => source.source === sourceFilter)?.sessions ?? 0;
   const filters: SourceFilter[] = ["all", "codex", "claude-code", "browser"];
-  const filteredSessions = sessions.filter((session) => matchesSessionQuery(session, query, locale));
+  const projectOptions = useMemo(() => sessionProjectOptions(sessions, locale), [sessions, locale]);
+  const selectedProject = projectFilter === "all" ? undefined : projectOptions.find((project) => project.key === projectFilter);
+  const projectMenuOptions = useMemo(() => filterProjects(projectOptions, projectQuery), [projectOptions, projectQuery]);
+  const filteredSessions = sessions.filter((session) => matchesSessionQuery(session, query, locale) && matchesSessionProject(session, projectFilter, locale));
   const groups = sessionGroups(filteredSessions, locale);
 
   useEffect(() => {
@@ -54,6 +60,10 @@ export function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sess
     if (group && !expandedGroups[group.key]) setExpandedGroups((current) => ({ ...current, [group.key]: true }));
   }, [selected?.id, groups, expandedGroups]);
 
+  useEffect(() => {
+    if (projectFilter !== "all" && !projectOptions.some((project) => project.key === projectFilter)) setProjectFilter("all");
+  }, [projectFilter, projectOptions]);
+
   return (
     <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
       <Card className="min-w-0 overflow-hidden">
@@ -66,22 +76,69 @@ export function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sess
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--app-subtle)]" aria-hidden="true" />
             <Input aria-label={text.searchSources} placeholder={text.searchSources} value={query} onChange={(event) => setQuery(event.target.value)} className="pl-9" />
           </label>
-          <SegmentedFilter className="mt-3" aria-label={text.sourceFilter}>
-            {filters.map((filter) => (
+          <div className="mt-3 grid gap-2">
+            <SegmentedFilter aria-label={text.sourceFilter}>
+              {filters.map((filter) => (
+                <button
+                  key={filter}
+                  type="button"
+                  className={cn(
+                    "inline-flex min-h-7 shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition active:translate-y-px",
+                    sourceFilter === filter ? "bg-[var(--app-ink)] text-white" : "text-[var(--app-muted)] hover:bg-[var(--app-surface)] hover:text-[var(--app-ink)]"
+                  )}
+                  onClick={() => onFilter(filter)}
+                >
+                  {filter === "all" ? text.all : sourceLabel(filter, locale)}
+                  <span>{sourceCount(sourceSummaries, filter)}</span>
+                </button>
+              ))}
+            </SegmentedFilter>
+            <div className="relative min-w-0" onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) setProjectMenuOpen(false);
+            }}>
               <button
-                key={filter}
                 type="button"
                 className={cn(
-                  "inline-flex min-h-7 shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition active:translate-y-px",
-                  sourceFilter === filter ? "bg-[var(--app-ink)] text-white" : "text-[var(--app-muted)] hover:bg-[var(--app-surface)] hover:text-[var(--app-ink)]"
+                  "inline-flex min-h-9 w-full min-w-0 items-center justify-between gap-2 rounded-md border bg-white px-3 text-left text-sm font-medium transition active:translate-y-px",
+                  projectMenuOpen ? "border-[var(--app-accent)] text-[var(--app-accent)]" : "border-[var(--app-border)] text-[var(--app-muted)] hover:text-[var(--app-ink)]"
                 )}
-                onClick={() => onFilter(filter)}
+                aria-haspopup="menu"
+                aria-expanded={projectMenuOpen}
+                aria-label={text.projectFilter}
+                title={selectedProject?.label ?? text.allProjects}
+                onClick={() => {
+                  setProjectMenuOpen((open) => !open);
+                  setProjectQuery("");
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") setProjectMenuOpen(false);
+                }}
               >
-                {filter === "all" ? text.all : sourceLabel(filter, locale)}
-                <span>{sourceCount(sourceSummaries, filter)}</span>
+                <span className="min-w-0 truncate">{text.projectPrefix(selectedProject?.label ?? text.allProjects)}</span>
+                <span className="inline-flex shrink-0 items-center gap-2">
+                  <Badge className="bg-white">{selectedProject?.sessions.length ?? sessions.length}</Badge>
+                  <ChevronDown className={cn("h-4 w-4 text-[var(--app-subtle)] transition", projectMenuOpen && "rotate-180")} aria-hidden="true" />
+                </span>
               </button>
-            ))}
-          </SegmentedFilter>
+              {projectMenuOpen && (
+                <div className="absolute right-0 z-20 mt-2 w-full min-w-[18rem] rounded-lg border border-[var(--app-border)] bg-white p-2 shadow-lg" role="menu">
+                  <Input aria-label={text.searchProjects} placeholder={text.searchProjects} value={projectQuery} onChange={(event) => setProjectQuery(event.target.value)} />
+                  <div className="app-scroll mt-2 max-h-72 overflow-y-auto">
+                    <ProjectMenuItem label={text.allProjects} count={sessions.length} active={projectFilter === "all"} onClick={() => {
+                      setProjectFilter("all");
+                      setProjectMenuOpen(false);
+                    }} />
+                    {projectMenuOptions.map((project) => (
+                      <ProjectMenuItem key={project.key} label={project.label} count={project.sessions.length} summary={sessionSourceSummary(project.sessions, locale)} active={projectFilter === project.key} onClick={() => {
+                        setProjectFilter(project.key);
+                        setProjectMenuOpen(false);
+                      }} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
         <div className="app-scroll max-h-[34rem] space-y-2 overflow-y-auto p-3 xl:max-h-[calc(100vh-220px)]">
           {sessions.length === 0 && <div className="rounded-md bg-[var(--app-surface-muted)] p-4 text-sm text-[var(--app-muted)]">{text.connectSource}</div>}
@@ -95,6 +152,7 @@ export function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sess
                 <button
                   type="button"
                   aria-expanded={expanded}
+                  aria-label={expanded ? text.collapseProject(group.label) : text.expandProject(group.label)}
                   className="flex w-full items-center justify-between gap-3 border-b border-[var(--app-border)] bg-[var(--app-surface-muted)] px-3 py-2 text-left transition hover:bg-white"
                   onClick={() => setExpandedGroups((current) => ({ ...current, [group.key]: !expanded }))}
                 >
@@ -105,7 +163,9 @@ export function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sess
                       <span className="block text-xs text-[var(--app-subtle)]">{text.sessionCount(group.sessions.length)}</span>
                     </span>
                   </span>
-                  <ChevronDown className={cn("h-4 w-4 text-[var(--app-subtle)] transition", expanded && "rotate-180")} aria-hidden="true" />
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--app-border)] bg-white">
+                    <ChevronDown className={cn("h-4 w-4 text-[var(--app-subtle)] transition", expanded && "rotate-180")} aria-hidden="true" />
+                  </span>
                 </button>
                 <div className="divide-y divide-[var(--app-border)]">
                   {visibleSessions.map((session) => (
@@ -195,12 +255,63 @@ function sessionGroups(sessions: SessionRecord[], locale: Locale): Array<{ key: 
   const groups = new Map<string, { key: string; label: string; sessions: SessionRecord[] }>();
   for (const session of sessions) {
     const label = sessionProjectLabel(session, locale);
-    const key = `${session.source}:${label}`;
+    const key = sessionProjectKey(session, locale);
     const group = groups.get(key) ?? { key, label, sessions: [] };
     group.sessions.push(session);
     groups.set(key, group);
   }
   return [...groups.values()];
+}
+
+function sessionProjectOptions(sessions: SessionRecord[], locale: Locale): Array<{ key: string; label: string; sessions: SessionRecord[] }> {
+  return sessionGroups(sessions, locale).sort((first, second) => latestSessionTime(second.sessions) - latestSessionTime(first.sessions));
+}
+
+function ProjectMenuItem({ active, label, count, summary, onClick }: {
+  active: boolean;
+  label: string;
+  count: number;
+  summary?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      className={cn("flex w-full min-w-0 items-center justify-between gap-3 rounded-md px-3 py-2 text-left transition", active ? "bg-[var(--app-surface-selected)] text-[var(--app-accent)]" : "text-[var(--app-ink)] hover:bg-[var(--app-surface-muted)]")}
+      onClick={onClick}
+      title={label}
+    >
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-medium">{label}</span>
+        {summary && <span className="block truncate text-xs text-[var(--app-subtle)]">{summary}</span>}
+      </span>
+      <Badge className="bg-white">{count}</Badge>
+    </button>
+  );
+}
+
+function filterProjects<T extends { label: string }>(projects: T[], query: string): T[] {
+  const term = query.trim().toLowerCase();
+  if (!term) return projects;
+  return projects.filter((project) => project.label.toLowerCase().includes(term));
+}
+
+function matchesSessionProject(session: SessionRecord, projectFilter: string, locale: Locale): boolean {
+  return projectFilter === "all" || sessionProjectKey(session, locale) === projectFilter;
+}
+
+function sessionProjectKey(session: SessionRecord, locale: Locale): string {
+  return `${session.source}:${session.projectPath || sessionProjectLabel(session, locale)}`;
+}
+
+function sessionSourceSummary(sessions: SessionRecord[], locale: Locale): string {
+  const sources = [...new Set(sessions.map((session) => session.source))];
+  return sources.map((source) => sourceLabel(source, locale)).join(" / ");
+}
+
+function latestSessionTime(sessions: SessionRecord[]): number {
+  return Math.max(...sessions.map((session) => Date.parse(session.updatedAt)));
 }
 
 function matchesSessionQuery(session: SessionRecord, query: string, locale: Locale): boolean {
@@ -211,18 +322,24 @@ function matchesSessionQuery(session: SessionRecord, query: string, locale: Loca
 }
 
 function sourceMessageTone(observation: ObservationRecord): string {
+  if (isTurnAborted(observation)) return "mx-auto max-w-xl border-[var(--app-border)] bg-[var(--app-surface-muted)] opacity-80";
   if (isAgentContext(observation)) return "border-[var(--app-border)] bg-[var(--app-surface-muted)] opacity-80";
-  if (observation.role === "user") return "border-[var(--app-border-strong)] bg-white shadow-[inset_3px_0_0_var(--app-accent)]";
-  if (observation.role === "assistant") return "ml-auto border-[var(--app-border)] bg-white";
+  if (observation.role === "user") return "ml-auto border-[var(--app-border-strong)] bg-white shadow-[inset_3px_0_0_var(--app-accent)]";
+  if (observation.role === "assistant") return "border-[var(--app-border)] bg-white";
   return "border-[var(--app-border)] bg-white";
 }
 
 function sourceRoleLabel(observation: ObservationRecord, locale: Locale): string {
   const text = textFor(locale);
+  if (isTurnAborted(observation)) return text.turnInterrupted;
   if (isAgentContext(observation)) return text.agentContext;
   return observation.role === "unknown" ? text.message : observation.role;
 }
 
 function isAgentContext(observation: ObservationRecord): boolean {
   return isAgentContextText(observation.text);
+}
+
+function isTurnAborted(observation: ObservationRecord): boolean {
+  return isTurnAbortedText(observation.text);
 }

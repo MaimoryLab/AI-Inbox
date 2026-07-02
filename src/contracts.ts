@@ -6,6 +6,7 @@ export const CLI_COMMANDS = [
   "ai-todo list",
   "ai-todo done <id>",
   "ai-todo ignore <id>",
+  "ai-todo restore <id>",
   "ai-todo open",
   "ai-todo doctor",
   "ai-todo connect codex",
@@ -134,6 +135,7 @@ export interface OrganizeResult {
       sessionsDropped: number;
       observationsDropped: number;
     };
+    skippedSessions?: number;
     truncations?: Array<{
       sessionId: string;
       source: SourceKind;

@@ -42,6 +42,7 @@ test("LLM runner sends OpenAI-compatible request and parses grounded todos", asy
     assert.equal(userPayload.progressBlocks[0].sourceObservationId, "obs-2");
     assert.equal(userPayload.taskChains[0].latestAgentProgress, assistantObservation.text);
     assert.equal(userPayload.taskChains[0].completionState, "in_progress");
+    assert.deepEqual(userPayload.existingCards, []);
     return jsonResponse({
       choices: [{
         message: {
@@ -91,6 +92,7 @@ test("LLM runner sends task chain instructions and parses structured task chains
     assert.match(systemMessage.content, /completedNodes/);
     assert.match(systemMessage.content, /user-recognizable goal/);
     assert.match(systemMessage.content, /Agent can complete on its own/);
+    assert.match(systemMessage.content, /existingCards/);
     return jsonResponse({
       choices: [{
         message: {
@@ -142,6 +144,49 @@ test("LLM runner sends task chain instructions and parses structured task chains
     assert.equal(result.ok && result.taskChains?.[0].currentNode?.nodeTitle, "Wire settings save action");
     assert.equal(result.ok && result.taskChains?.[0].currentNode?.owner, "agent");
     assert.equal(result.ok && result.taskChains?.[0].currentNode?.nextStep, "Agent should wire the save action.");
+  } finally {
+    await server.close();
+  }
+});
+
+test("LLM runner includes existing cards for same-session updates", async () => {
+  const server = await startMockProvider(async (request) => {
+    const payload = await readJson(request);
+    const systemMessage = payload.messages.find((message: any) => message.role === "system");
+    assert.match(systemMessage.content, /matches an existingCards item/);
+    const userMessage = payload.messages.find((message: any) => message.role === "user");
+    const userPayload = JSON.parse(userMessage.content);
+    assert.deepEqual(userPayload.existingCards, [{
+      id: "todo-1",
+      title: "Add LLM settings UI",
+      description: "The settings card already exists.",
+      completionState: "in_progress",
+      completionSummary: "Save wiring remains.",
+      nextStep: "Wire save action."
+    }]);
+    return jsonResponse({ todos: [] });
+  });
+
+  try {
+    const runner = createLlmRunner(
+      { ...defaultConfig().llm, model: "test/model", endpoint: server.url("/v1") },
+      { llmApiKey: "dummy-llm-key-value" }
+    );
+    const result = await runner([observation, assistantObservation], {
+      existingCards: [{
+        id: "todo-1",
+        title: "Add LLM settings UI",
+        description: "The settings card already exists.",
+        metadata: {
+          completionState: "in_progress",
+          completionSummary: "Save wiring remains.",
+          nextStep: "Wire save action.",
+          sourceObservationId: "obs-2",
+          confidence: 0.91
+        }
+      }]
+    });
+    assert.equal(result.ok, true);
   } finally {
     await server.close();
   }

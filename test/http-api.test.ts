@@ -90,13 +90,16 @@ test("HTTP API scans sources, lists sessions, observations, runs, and updates to
     const patch = await patchJson(server.url(`/todos/${todo.id}`), { status: "done" });
     assert.equal(patch.status, 200);
     assert.equal((await patch.json()).status, "done");
+    const restore = await patchJson(server.url(`/todos/${todo.id}`), { status: "todo" });
+    assert.equal(restore.status, 200);
+    assert.equal((await restore.json()).status, "todo");
 
     const evidence = await getJson(server.url(`/todos/${todo.id}/evidence`));
     assert.equal(evidence.status, 200);
     assert.equal((await evidence.json())[0].text, "Please add HTTP API routes");
 
     const updated = await getJson(server.url("/todos"));
-    assert.equal((await updated.json())[0].status, "done");
+    assert.equal((await updated.json())[0].status, "todo");
   } finally {
     await server.close();
     db.close();
@@ -203,6 +206,40 @@ test("HTTP API clears todo cards without deleting source observations", async ()
   }
 });
 
+test("HTTP organize rejects duplicate requests while one is running", async () => {
+  const fixture = createFixture();
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  let calls = 0;
+  let release: (() => void) | undefined;
+  const server = await startServer(db, paths, {
+    llmExtractor: async () => {
+      calls++;
+      await new Promise<void>((resolve) => { release = resolve; });
+      return { ok: true, todos: [] };
+    }
+  });
+
+  try {
+    await postJson(server.url("/sources/scan"), { source: "codex", path: fixture.codex });
+    const first = postJson(server.url("/todos/organize"), {});
+    await waitFor(async () => {
+      const status = await (await getJson(server.url("/todos/organize/status"))).json() as { running: boolean };
+      return status.running;
+    });
+    const duplicate = await postJson(server.url("/todos/organize"), {});
+    assert.equal(duplicate.status, 409);
+    assert.equal((await duplicate.json()).error, "organize_in_progress");
+    assert.equal(calls, 1);
+    release?.();
+    await first;
+  } finally {
+    await server.close();
+    db.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test("HTTP attachments only serve files referenced by an observation", async () => {
   const fixture = createFixture();
   const paths = getAppPaths(join(fixture.root, "home"));
@@ -251,7 +288,7 @@ test("HTTP API returns small explicit errors", async () => {
     assert.equal((await postJson(server.url("/sources/scan"), { source: "codex", path: join(fixture.root, "missing") })).status, 400);
     assert.equal((await getJson(server.url("/sessions/missing/observations"))).status, 404);
     assert.equal((await patchJson(server.url("/todos/missing"), { status: "done" })).status, 404);
-    assert.equal((await patchJson(server.url("/todos/missing"), { status: "todo" })).status, 400);
+    assert.equal((await patchJson(server.url("/todos/missing"), { status: "open" })).status, 400);
     assert.equal((await getJson(server.url("/todos/missing/evidence"))).status, 404);
     assert.equal((await getJson(server.url("/organize-runs/missing"))).status, 404);
   } finally {
