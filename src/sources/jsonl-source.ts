@@ -51,7 +51,7 @@ export function scanJsonlSource(db: Database, source: SourceKind, root: string):
     const parentSessionId = subagentParents.get(path);
     const targetSessionId = parentSessionId ?? sessionId;
     const isSubagent = Boolean(parentSessionId);
-    const projectPath = isSubagent ? null : projectPathFromRecords(source, records);
+    const projectPath = isSubagent ? null : projectPathFromRecords(source, records, path);
     const updatedAt = new Date(stat.mtimeMs).toISOString();
     const cleanObservations = observationsFromRecords(source, targetSessionId, path, records, isSubagent);
     if (cleanObservations.length === 0) {
@@ -91,11 +91,11 @@ export function scanJsonlSource(db: Database, source: SourceKind, root: string):
 }
 
 function backfillProjectPath(db: Database, source: SourceKind, path: string): void {
-  if (source !== "codex") return;
+  if (source !== "codex" && source !== "claude-code") return;
   const session = db.prepare("SELECT id, project_path as projectPath FROM sessions WHERE source = ? AND path = ?")
     .get(source, path) as { id: string; projectPath?: string | null } | undefined;
   if (!session || session.projectPath) return;
-  const projectPath = projectPathFromRecords(source, readJsonlFile(path));
+  const projectPath = projectPathFromRecords(source, readJsonlFile(path), path);
   if (!projectPath) return;
   db.prepare("UPDATE sessions SET project_path = ? WHERE id = ?").run(projectPath, session.id);
 }
@@ -218,7 +218,8 @@ function sessionIdFromRecords(source: SourceKind, path: string, records: JsonlRe
   return idFor(source, path);
 }
 
-function projectPathFromRecords(source: SourceKind, records: JsonlRecord[]): string | null {
+function projectPathFromRecords(source: SourceKind, records: JsonlRecord[], path: string): string | null {
+  if (source === "claude-code") return claudeProjectPathFromRecords(records) ?? claudeProjectPathFromPath(path);
   if (source !== "codex") return null;
   for (const record of records) {
     const meta = record.value.type === "session_meta" ? objectValue(record.value.payload) : null;
@@ -226,6 +227,25 @@ function projectPathFromRecords(source: SourceKind, records: JsonlRecord[]): str
     if (cwd) return cwd;
   }
   return null;
+}
+
+function claudeProjectPathFromRecords(records: JsonlRecord[]): string | null {
+  for (const record of records) {
+    const message = objectValue(record.value.message);
+    const cwd = stringValue(record.value.cwd) ?? stringValue(message?.cwd);
+    if (cwd) return cwd;
+  }
+  return null;
+}
+
+function claudeProjectPathFromPath(path: string): string | null {
+  const encoded = path.split(/[\\/]/).find((segment) => segment.startsWith("-Users-") || segment.startsWith("-home-"));
+  if (!encoded) return null;
+  const homePrefix = encoded.startsWith("-Users-") ? "/Users" : "/home";
+  const rest = encoded.replace(/^-(Users|home)-/u, "");
+  const parts = rest.split("-").filter(Boolean);
+  if (parts.length < 2) return null;
+  return `${homePrefix}/${parts.join("/")}`;
 }
 
 function codexObservationFromRecord(value: Record<string, unknown>): { role: string; text: string; createdAt: string; channel: string } | null {

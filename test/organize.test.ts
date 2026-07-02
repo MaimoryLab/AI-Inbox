@@ -754,7 +754,8 @@ test("llm organize batches by session instead of mixing sessions", async () => {
     db.close();
 
     assert.equal(result.created, 2);
-    assert.deepEqual(calls, [["browser-1"], ["browser-2"]]);
+    assert.deepEqual(calls.map((call) => call.length), [1, 1]);
+    assert.deepEqual(calls.flat().sort(), ["browser-1", "browser-2"]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -1526,6 +1527,56 @@ test("organize scope filters old observations and keeps recent interactions per 
     scopeObservations(observations, { sinceDays: 7, maxInteractionsPerSession: 2 }).map((item) => item.id),
     ["u2", "a2", "u3"]
   );
+});
+
+test("organize with maxSessions selects the newest session across sources", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-organize-newest-source-"));
+  try {
+    const db = openDatabase(getAppPaths(dir));
+    const now = Date.now();
+    insertObservation(db, "codex-old-user", "codex-old", "codex", "user", "Please handle old Codex work", new Date(now - 3000).toISOString());
+    insertObservation(db, "browser-mid-user", "browser-mid", "browser", "user", "Please handle browser work", new Date(now - 2000).toISOString());
+    insertObservation(db, "claude-new-user", "claude-new", "claude-code", "user", "Please handle new Claude work", new Date(now - 1000).toISOString());
+    const seenSessionIds: string[] = [];
+
+    await organizeTodos(db, {
+      scope: { sinceDays: 30, maxSessions: 1, maxInteractionsPerSession: 5 },
+      llmExtractor: async (observations) => {
+        seenSessionIds.push(...observations.map((item) => item.sessionId));
+        return { ok: true, todos: [] };
+      }
+    });
+    db.close();
+
+    assert.deepEqual([...new Set(seenSessionIds)], ["claude-new"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("organize batches sessions newest first instead of insertion order", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-organize-newest-batch-"));
+  try {
+    const db = openDatabase(getAppPaths(dir));
+    const now = Date.now();
+    insertObservation(db, "old-user", "old-session", "claude-code", "user", "Please handle older work", new Date(now - 3000).toISOString());
+    insertObservation(db, "new-user", "new-session", "claude-code", "user", "Please handle newer work", new Date(now - 1000).toISOString());
+    const firstObservationIds: string[] = [];
+
+    await organizeTodos(db, {
+      scope: { sinceDays: 30, maxSessions: 2, maxInteractionsPerSession: 5 },
+      llmExtractor: async (observations) => {
+        firstObservationIds.push(observations[0]?.id ?? "");
+        return { ok: true, todos: [] };
+      },
+      limits: { llmBatchSize: 1 }
+    });
+    db.close();
+
+    assert.deepEqual(firstObservationIds, ["new-user", "old-user"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 function observation(id: string, sessionId: string, role: string, text: string, createdAt: string) {

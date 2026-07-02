@@ -111,6 +111,80 @@ test("codex scanner backfills project path when checkpoint is unchanged", () => 
   }
 });
 
+test("claude scanner stores project path from cwd fields", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-claude-project-cwd-"));
+  const db = openDatabase(getAppPaths(join(dir, "home")));
+  try {
+    const claudeDir = join(dir, "claude");
+    mkdirSync(claudeDir);
+    writeFileSync(join(claudeDir, "session.jsonl"), [
+      JSON.stringify({
+        type: "user",
+        cwd: "/Users/demo/Projects/ClaudeApp",
+        message: {
+          role: "user",
+          content: [{ type: "text", text: "Please fix Claude project grouping" }]
+        }
+      })
+    ].join("\n"));
+
+    assert.equal(scanClaudeCodeSessions(db, claudeDir).observations, 1);
+    const row = db.prepare("SELECT project_path as projectPath FROM sessions WHERE source = 'claude-code'").get() as { projectPath: string | null };
+    assert.equal(row.projectPath, "/Users/demo/Projects/ClaudeApp");
+  } finally {
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("claude scanner decodes encoded project directories when cwd is missing", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-claude-project-encoded-"));
+  const db = openDatabase(getAppPaths(join(dir, "home")));
+  try {
+    const claudeDir = join(dir, "claude");
+    const usersProject = join(claudeDir, "-Users-demo-Projects-SampleApp");
+    const homeProject = join(claudeDir, "-home-demo-workspace-ServiceApp");
+    mkdirSync(usersProject, { recursive: true });
+    mkdirSync(homeProject, { recursive: true });
+    const message = {
+      type: "user",
+      message: { role: "user", content: [{ type: "text", text: "Please keep project path from the Claude directory" }] }
+    };
+    writeFileSync(join(usersProject, "users.jsonl"), JSON.stringify(message));
+    writeFileSync(join(homeProject, "home.jsonl"), JSON.stringify(message));
+
+    assert.equal(scanClaudeCodeSessions(db, claudeDir).observations, 2);
+    const rows = db.prepare("SELECT project_path as projectPath FROM sessions WHERE source = 'claude-code' ORDER BY project_path").all() as Array<{ projectPath: string | null }>;
+    assert.deepEqual(rows.map((row) => row.projectPath), [
+      "/Users/demo/Projects/SampleApp",
+      "/home/demo/workspace/ServiceApp"
+    ]);
+  } finally {
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("claude scanner leaves project path null when cwd and encoded directory are unavailable", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-claude-no-project-"));
+  const db = openDatabase(getAppPaths(join(dir, "home")));
+  try {
+    const claudeDir = join(dir, "claude");
+    mkdirSync(claudeDir);
+    writeFileSync(join(claudeDir, "session.jsonl"), JSON.stringify({
+      type: "user",
+      message: { role: "user", content: [{ type: "text", text: "Please still scan this Claude session" }] }
+    }));
+
+    assert.equal(scanClaudeCodeSessions(db, claudeDir).observations, 1);
+    const row = db.prepare("SELECT project_path as projectPath FROM sessions WHERE source = 'claude-code'").get() as { projectPath: string | null };
+    assert.equal(row.projectPath, null);
+  } finally {
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("codex scanner tolerates missing project path metadata", () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-todo-codex-no-project-"));
   const db = openDatabase(getAppPaths(join(dir, "home")));

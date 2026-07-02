@@ -700,7 +700,8 @@ function chunkObservationsBySession(
     sessions.set(observation.sessionId, group);
   }
   const chunks: ObservationForOrganize[][] = [];
-  for (const group of sessions.values()) {
+  const groups = [...sessions.values()].sort((a, b) => latestTimestamp(b).localeCompare(latestTimestamp(a)));
+  for (const group of groups) {
     chunks.push(...chunkObservations(group, batchSize, maxBatchPayloadChars));
   }
   return chunks.map((chunk) => chunk.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)));
