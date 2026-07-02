@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
@@ -216,7 +217,8 @@ async function openUi(argv: string[] = [], command = "start"): Promise<number> {
   const paths = getAppPaths();
   const db = openDatabase(paths);
   const startupScanner = createStartupScanner(db, paths);
-  const server = createAppServer({ db, paths, startupScan: startupScanner.status });
+  const localToken = randomBytes(24).toString("base64url");
+  const server = createAppServer({ db, paths, startupScan: startupScanner.status, localToken });
   try {
     await listen(server, port);
   } catch (error) {
@@ -231,7 +233,7 @@ async function openUi(argv: string[] = [], command = "start"): Promise<number> {
   startupScanner.start();
   const address = server.address();
   if (!address || typeof address === "string") return 1;
-  console.log(`AI-Todo UI: http://127.0.0.1:${address.port}/`);
+  console.log(`AI-Todo UI: http://127.0.0.1:${address.port}/#token=${localToken}`);
   console.log("Press Ctrl+C to stop.");
   await new Promise<void>((resolve) => {
     const stop = () => {

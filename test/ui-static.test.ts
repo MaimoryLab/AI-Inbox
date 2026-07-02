@@ -150,6 +150,8 @@ test("React UI keeps task-first Sources wording and accessible icon controls", (
   assert.match(observationText, /displayAgentContextText/);
   assert.match(observationText, /displayTurnAbortedText/);
   assert.match(observationText, /attachmentMarkdownText/);
+  assert.match(observationText, /withAttachmentToken/);
+  assert.match(observationText, /sessionStorage\.getItem\("ai-todo-token"\)/);
   assert.match(observationText, /sourceDisplayText\(observation\.text\)/);
   assert.doesNotMatch(observationText, /dangerouslySetInnerHTML/);
   assert.doesNotMatch(observationText, /rehype-raw/);
@@ -182,6 +184,9 @@ test("React UI keeps task-first Sources wording and accessible icon controls", (
   assert.match(i18n, /advancedDiagnostics: "高级诊断"/);
   assert.match(settingsWorkspace, /max=\{200\}/);
   assert.match(app, /organizeStatus\(result, locale\)/);
+  assert.match(client, /x-ai-todo-token/);
+  assert.match(client, /sessionStorage\.setItem\("ai-todo-token", token\)/);
+  assert.match(client, /history\.replaceState/);
   assert.match(client, /userErrorText\(error, readLocale\(\)\)/);
   assert.match(client, /localizedUserFacingError/);
   assert.match(i18n, /llm_config_missing: "抽取需要先完成配置。"/);

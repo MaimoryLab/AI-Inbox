@@ -63,6 +63,7 @@ export function createAppServer(options: {
   paths?: AppPaths;
   organizeOptions?: OrganizeOptions;
   startupScan?: StartupScanStatus;
+  localToken?: string;
 } = {}) {
   const paths = options.paths ?? getAppPaths();
   const organizeStatus: OrganizeStatus = { running: false };
@@ -96,6 +97,7 @@ export function createAppServer(options: {
     }
 
     if (req.method === "GET" && path === "/attachments") {
+      if (!authorizeLocalRequest(req, res, options.localToken, url.searchParams)) return;
       const db = requireDb(res, options.db);
       if (!db) return;
       serveAttachment(req, res, db, url.searchParams);
@@ -112,6 +114,7 @@ export function createAppServer(options: {
     }
 
     if (req.method === "PUT" && path === "/settings") {
+      if (!authorizeLocalRequest(req, res, options.localToken)) return;
       const body = await readJson(req, res);
       if (!body) return;
       try {
@@ -133,6 +136,7 @@ export function createAppServer(options: {
     }
 
     if (req.method === "POST" && path === "/sources/scan") {
+      if (!authorizeLocalRequest(req, res, options.localToken)) return;
       const db = requireDb(res, options.db);
       if (!db) return;
       const body = await readJson(req, res);
@@ -168,6 +172,7 @@ export function createAppServer(options: {
     }
 
     if (req.method === "POST" && path === "/browser/sessions") {
+      if (!authorizeLocalRequest(req, res, options.localToken)) return;
       const db = requireDb(res, options.db);
       if (!db) return;
       const body = await readJson(req, res);
@@ -182,6 +187,7 @@ export function createAppServer(options: {
     }
 
     if (req.method === "POST" && path === "/todos/organize") {
+      if (!authorizeLocalRequest(req, res, options.localToken)) return;
       const db = requireDb(res, options.db);
       if (!db) return;
       if (organizeStatus.running) {
@@ -206,6 +212,7 @@ export function createAppServer(options: {
     }
 
     if (req.method === "POST" && path === "/todos/clear") {
+      if (!authorizeLocalRequest(req, res, options.localToken)) return;
       const db = requireDb(res, options.db);
       if (!db) return;
       writeJson(res, 200, clearTodoData(db));
@@ -234,6 +241,7 @@ export function createAppServer(options: {
 
     const todoMatch = path.match(/^\/todos\/([^/]+)$/);
     if (req.method === "PATCH" && todoMatch) {
+      if (!authorizeLocalRequest(req, res, options.localToken)) return;
       const db = requireDb(res, options.db);
       if (!db) return;
       const body = await readJson(req, res);
@@ -330,6 +338,14 @@ function contentType(file: string): string {
   if (extname(file) === ".webp") return "image/webp";
   if (extname(file) === ".avif") return "image/avif";
   return "text/html; charset=utf-8";
+}
+
+function authorizeLocalRequest(req: IncomingMessage, res: ServerResponse<IncomingMessage>, token: string | undefined, params?: URLSearchParams): boolean {
+  if (!token) return true;
+  if (req.headers["x-ai-todo-token"] === token) return true;
+  if (params?.get("token") === token) return true;
+  writeJson(res, 403, { error: "forbidden" });
+  return false;
 }
 
 function parseSessionOptions(params: URLSearchParams): { ok: true; options: ListSessionsOptions } | { ok: false } {

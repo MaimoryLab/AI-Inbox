@@ -17,8 +17,8 @@ test("sourceDisplayText keeps attachment lines available for rendering", () => {
     "File: notes.md (~/Downloads/notes.md)"
   );
   assert.equal(
-    sourceDisplayText("Image: screenshot (C:\\Users\\ppio\\AppData\\Local\\Temp\\screenshot.png)"),
-    "Image: screenshot (C:\\Users\\ppio\\AppData\\Local\\Temp\\screenshot.png)"
+    sourceDisplayText("Image: screenshot (C:\\Users\\example\\AppData\\Local\\Temp\\screenshot.png)"),
+    "Image: screenshot (C:\\Users\\example\\AppData\\Local\\Temp\\screenshot.png)"
   );
 });
 

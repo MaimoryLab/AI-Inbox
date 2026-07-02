@@ -277,6 +277,49 @@ test("HTTP attachments only serve files referenced by an observation", async () 
   }
 });
 
+test("HTTP local token protects writes and attachment reads", async () => {
+  const fixture = createFixture();
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const attachment = join(fixture.root, "image.png");
+  writeFileSync(attachment, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES (?, ?, ?, ?)").run(
+    "protected-session",
+    "browser",
+    "browser",
+    "2026-01-01T00:00:00.000Z"
+  );
+  db.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
+    "protected-observation",
+    "protected-session",
+    "browser",
+    "user",
+    `Please review this.\nImage: Screenshot (${attachment})`,
+    "2026-01-01T00:00:00.000Z"
+  );
+  const server = await startServer(db, paths, {}, "local-token");
+
+  try {
+    assert.equal((await getJson(server.url("/todos"))).status, 200);
+    assert.equal((await postJson(server.url("/todos/clear"), {})).status, 403);
+    assert.equal((await getJson(server.url("/attachments?observationId=protected-observation&index=0"))).status, 403);
+    const cleared = await fetch(server.url("/todos/clear"), {
+      method: "POST",
+      headers: { "x-ai-todo-token": "local-token" },
+      body: JSON.stringify({})
+    });
+    assert.equal(cleared.status, 200);
+    const okAttachment = await fetch(server.url("/attachments?observationId=protected-observation&index=0"), {
+      headers: { "x-ai-todo-token": "local-token" }
+    });
+    assert.equal(okAttachment.status, 200);
+  } finally {
+    await server.close();
+    db.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test("HTTP API returns small explicit errors", async () => {
   const fixture = createFixture();
   const paths = getAppPaths(join(fixture.root, "home"));
@@ -738,7 +781,7 @@ test("GET /todos shortens encoded local project paths in origin titles", async (
   const paths = getAppPaths(join(fixture.root, "home"));
   const db = openDatabase(paths);
   const server = await startServer(db, paths);
-  const encodedPath = join(fixture.root, "-Users-ppio-Documents-AI-TodoProject-ExampleApp", "session.jsonl");
+  const encodedPath = join(fixture.root, "-Users-example-Documents-AI-TodoProject-ExampleApp", "session.jsonl");
   db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES (?, ?, ?, ?)").run(
     "encoded-session",
     "codex",
@@ -932,8 +975,8 @@ function createFixture() {
   return { root, codex, codexFile };
 }
 
-async function startServer(db: Database, paths = getAppPaths(), organizeOptions = {}) {
-  const server = createAppServer({ db, paths, organizeOptions });
+async function startServer(db: Database, paths = getAppPaths(), organizeOptions = {}, localToken?: string) {
+  const server = createAppServer({ db, paths, organizeOptions, localToken });
   await new Promise<void>((resolve) => server.listen(0, resolve));
   const address = server.address();
   assert.ok(address && typeof address !== "string");
