@@ -27,6 +27,7 @@ export function migrate(db: Database): void {
       id TEXT PRIMARY KEY,
       source TEXT NOT NULL,
       path TEXT NOT NULL,
+      title TEXT,
       project_path TEXT,
       updated_at TEXT NOT NULL
     );
@@ -104,6 +105,7 @@ export function migrate(db: Database): void {
     );
   `);
   migrateSessionProjectPath(db);
+  migrateSessionTitle(db);
   migrateTodoMetadata(db);
   migrateTodoChainNode(db);
   migrateCleanTranscript(db);
@@ -113,6 +115,12 @@ function migrateSessionProjectPath(db: Database): void {
   const columns = db.prepare("PRAGMA table_info(sessions)").all() as Array<{ name: string }>;
   if (columns.some((column) => column.name === "project_path")) return;
   db.exec("ALTER TABLE sessions ADD COLUMN project_path TEXT");
+}
+
+function migrateSessionTitle(db: Database): void {
+  const columns = db.prepare("PRAGMA table_info(sessions)").all() as Array<{ name: string }>;
+  if (columns.some((column) => column.name === "title")) return;
+  db.exec("ALTER TABLE sessions ADD COLUMN title TEXT");
 }
 
 function migrateTodoMetadata(db: Database): void {

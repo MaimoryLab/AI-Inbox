@@ -163,7 +163,9 @@ test("React UI keeps task-first Sources wording and accessible icon controls", (
   assert.match(observationText, /displayTurnAbortedText/);
   assert.match(observationText, /attachmentMarkdownText/);
   assert.match(observationText, /withAttachmentToken/);
-  assert.match(observationText, /sessionStorage\.getItem\("ai-todo-token"\)/);
+  assert.match(observationText, /localToken\(\)/);
+  assert.match(client, /sessionStorage\.getItem\("ai-todo-token"\)/);
+  assert.match(client, /new URLSearchParams\(location\.hash\.replace/);
   assert.match(observationText, /sourceDisplayText\(observation\.text\)/);
   assert.doesNotMatch(observationText, /dangerouslySetInnerHTML/);
   assert.doesNotMatch(observationText, /rehype-raw/);

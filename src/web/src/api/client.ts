@@ -26,7 +26,7 @@ export function localizedUserFacingError(error: string, locale: Locale): string 
   return userErrorText(error, locale);
 }
 
-function localToken(): string {
+export function localToken(): string {
   const existing = sessionStorage.getItem("ai-todo-token");
   if (existing) return existing;
   const token = new URLSearchParams(location.hash.replace(/^#/, "")).get("token") ?? "";

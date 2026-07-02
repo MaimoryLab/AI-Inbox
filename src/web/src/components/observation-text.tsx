@@ -1,6 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import { displayAgentContextText, displayTurnAbortedText, isAgentContextText } from "../../../agent-context.js";
 import { attachmentMarkdownText } from "../../../attachments.js";
+import { localToken } from "../api/client.js";
 import type { ObservationRecord } from "../types.js";
 
 export function ObservationText({ observation, markdown }: { observation: ObservationRecord; markdown?: boolean }) {
@@ -45,7 +46,7 @@ export function sourceDisplayText(text: string): string {
 }
 
 function withAttachmentToken(text: string): string {
-  const token = sessionStorage.getItem("ai-todo-token");
+  const token = localToken();
   if (!token) return text;
   return text.replaceAll(/\/attachments\?([^)\s]+)/g, `/attachments?$1&token=${encodeURIComponent(token)}`);
 }

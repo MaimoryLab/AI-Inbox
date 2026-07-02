@@ -40,7 +40,7 @@ export function scanJsonlSource(db: Database, source: SourceKind, root: string):
           ).run(observation.id, subagentParents.get(path)!, source, observation.role, observation.text, observation.createdAt);
         }
       } else {
-        backfillProjectPath(db, source, path);
+        backfillSessionMetadata(db, source, path);
       }
       skipped++;
       continue;
@@ -52,6 +52,7 @@ export function scanJsonlSource(db: Database, source: SourceKind, root: string):
     const targetSessionId = parentSessionId ?? sessionId;
     const isSubagent = Boolean(parentSessionId);
     const projectPath = isSubagent ? null : projectPathFromRecords(source, records, path);
+    const title = isSubagent ? null : sessionTitleFromRecords(source, records);
     const updatedAt = new Date(stat.mtimeMs).toISOString();
     const cleanObservations = observationsFromRecords(source, targetSessionId, path, records, isSubagent);
     if (cleanObservations.length === 0) {
@@ -69,8 +70,8 @@ export function scanJsonlSource(db: Database, source: SourceKind, root: string):
       db.prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
     } else {
       db.prepare(
-        "INSERT OR REPLACE INTO sessions (id, source, path, project_path, updated_at) VALUES (?, ?, ?, ?, ?)"
-      ).run(sessionId, source, path, projectPath, updatedAt);
+        "INSERT OR REPLACE INTO sessions (id, source, path, title, project_path, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
+      ).run(sessionId, source, path, title, projectPath, updatedAt);
       deleteObservations(db, cleanObservations.map((observation) => observation.id));
     }
 
@@ -90,14 +91,15 @@ export function scanJsonlSource(db: Database, source: SourceKind, root: string):
   return { source, scanned, observations, skipped };
 }
 
-function backfillProjectPath(db: Database, source: SourceKind, path: string): void {
+function backfillSessionMetadata(db: Database, source: SourceKind, path: string): void {
   if (source !== "codex" && source !== "claude-code") return;
-  const session = db.prepare("SELECT id, project_path as projectPath FROM sessions WHERE source = ? AND path = ?")
-    .get(source, path) as { id: string; projectPath?: string | null } | undefined;
-  if (!session || session.projectPath) return;
-  const projectPath = projectPathFromRecords(source, readJsonlFile(path), path);
-  if (!projectPath) return;
-  db.prepare("UPDATE sessions SET project_path = ? WHERE id = ?").run(projectPath, session.id);
+  const session = db.prepare("SELECT id, title, project_path as projectPath FROM sessions WHERE source = ? AND path = ?")
+    .get(source, path) as { id: string; title?: string | null; projectPath?: string | null } | undefined;
+  if (!session || (session.title && session.projectPath)) return;
+  const records = readJsonlFile(path);
+  const projectPath = session.projectPath ?? projectPathFromRecords(source, records, path);
+  const title = session.title ?? sessionTitleFromRecords(source, records);
+  db.prepare("UPDATE sessions SET title = ?, project_path = ? WHERE id = ?").run(title, projectPath, session.id);
 }
 
 function deleteObservations(db: Database, ids: string[]): void {
@@ -227,6 +229,30 @@ function projectPathFromRecords(source: SourceKind, records: JsonlRecord[], path
     if (cwd) return cwd;
   }
   return null;
+}
+
+function sessionTitleFromRecords(source: SourceKind, records: JsonlRecord[]): string | null {
+  if (source === "claude-code") {
+    for (const record of records) {
+      if (record.value.type !== "ai-title") continue;
+      const title = stringValue(record.value.aiTitle);
+      if (title) return title;
+    }
+  }
+  for (const record of records) {
+    const observation = observationFromRecord(source, "title", "title", record);
+    const title = observation ? titleFromObservationText(observation.text) : null;
+    if (title) return title;
+  }
+  return null;
+}
+
+function titleFromObservationText(text: string): string | null {
+  const line = text.split(/\r?\n/u)
+    .map((item) => item.trim())
+    .find((item) => item && !/^(Image|File|Files mentioned):\s/i.test(item));
+  if (!line) return null;
+  return line.length > 120 ? `${line.slice(0, 117).trimEnd()}...` : line;
 }
 
 function claudeProjectPathFromRecords(records: JsonlRecord[]): string | null {

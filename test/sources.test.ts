@@ -137,6 +137,30 @@ test("claude scanner stores project path from cwd fields", () => {
   }
 });
 
+test("claude scanner stores ai title as session title", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-todo-claude-session-title-"));
+  const db = openDatabase(getAppPaths(join(dir, "home")));
+  try {
+    const claudeDir = join(dir, "claude");
+    mkdirSync(claudeDir);
+    writeFileSync(join(claudeDir, "session.jsonl"), [
+      JSON.stringify({ type: "ai-title", aiTitle: "模型思考深度变化对缓存命中的影响" }),
+      JSON.stringify({
+        type: "user",
+        cwd: "/Users/demo/Projects/ClaudeApp",
+        message: { role: "user", content: [{ type: "text", text: "Image: Image #1 (/tmp/noisy.png)\n请分析模型缓存。" }] }
+      })
+    ].join("\n"));
+
+    assert.equal(scanClaudeCodeSessions(db, claudeDir).observations, 1);
+    const row = db.prepare("SELECT title FROM sessions WHERE source = 'claude-code'").get() as { title: string | null };
+    assert.equal(row.title, "模型思考深度变化对缓存命中的影响");
+  } finally {
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("claude scanner decodes encoded project directories when cwd is missing", () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-todo-claude-project-encoded-"));
   const db = openDatabase(getAppPaths(join(dir, "home")));
