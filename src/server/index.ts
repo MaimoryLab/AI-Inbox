@@ -342,7 +342,7 @@ function contentType(file: string): string {
 
 function authorizeLocalRequest(req: IncomingMessage, res: ServerResponse<IncomingMessage>, token: string | undefined, params?: URLSearchParams): boolean {
   if (!token) return true;
-  if (req.headers["x-ai-todo-token"] === token) return true;
+  if (req.headers["x-ai-inbox-token"] === token) return true;
   if (params?.get("token") === token) return true;
   writeJson(res, 403, { error: "forbidden" });
   return false;

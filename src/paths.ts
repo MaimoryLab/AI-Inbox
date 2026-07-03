@@ -10,7 +10,7 @@ export interface AppPaths {
   dbPath: string;
 }
 
-export function getAppPaths(baseDir = process.env.AI_TODO_HOME ?? join(homedir(), ".ai-todo")): AppPaths {
+export function getAppPaths(baseDir = process.env.AI_INBOX_HOME ?? join(homedir(), ".ai-inbox")): AppPaths {
   const dataDir = join(baseDir, "data");
   return {
     configDir: baseDir,
@@ -18,6 +18,6 @@ export function getAppPaths(baseDir = process.env.AI_TODO_HOME ?? join(homedir()
     configPath: join(baseDir, "config.json"),
     secretsPath: join(baseDir, "secrets.json"),
     dataDir,
-    dbPath: join(dataDir, "ai-todo.sqlite")
+    dbPath: join(dataDir, "ai-inbox.sqlite")
   };
 }

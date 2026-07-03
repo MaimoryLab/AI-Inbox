@@ -1,23 +1,23 @@
-# AI-Todo
+# AI-Inbox
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-AI-Todo is a local-first action inbox for AI sessions. It scans Codex, Claude Code, and browser sessions, uses your configured OpenAI-compatible LLM to extract unfinished work, and keeps source evidence available for review.
+AI-Inbox is a local-first action inbox for AI sessions. It scans Codex, Claude Code, and browser sessions, uses your configured OpenAI-compatible LLM to extract unfinished work, and keeps source evidence available for review.
 
 ### Requirements
 
 - Node.js 24 or newer
 - An OpenAI-compatible Chat Completions API key
 
-Without LLM configuration, AI-Todo can still open the UI and scan sources, but it cannot organize sessions into todo cards.
+Without LLM configuration, AI-Inbox can still open the UI and scan sources, but it cannot organize sessions into inbox cards.
 
 ### Recommended: Web Workspace
 
 From a fresh clone:
 
 ```bash
-git clone https://github.com/MaimoryLab/AI-Todo.git
-cd AI-Todo
+git clone https://github.com/MaimoryLab/AI-Inbox.git
+cd AI-Inbox
 ./scripts/start-local.sh
 ```
 
@@ -44,12 +44,12 @@ If you prefer the terminal, you can use only the CLI:
 ```bash
 npm install
 npm run build
-AI_TODO_HOME=.local/ai-todo node dist/cli.js init --api-key <your-key>
-AI_TODO_HOME=.local/ai-todo node dist/cli.js doctor
-AI_TODO_HOME=.local/ai-todo node dist/cli.js scan codex
-AI_TODO_HOME=.local/ai-todo node dist/cli.js scan claude-code
-AI_TODO_HOME=.local/ai-todo node dist/cli.js organize
-AI_TODO_HOME=.local/ai-todo node dist/cli.js list
+AI_INBOX_HOME=.local/ai-inbox node dist/cli.js init --api-key <your-key>
+AI_INBOX_HOME=.local/ai-inbox node dist/cli.js doctor
+AI_INBOX_HOME=.local/ai-inbox node dist/cli.js scan codex
+AI_INBOX_HOME=.local/ai-inbox node dist/cli.js scan claude-code
+AI_INBOX_HOME=.local/ai-inbox node dist/cli.js organize
+AI_INBOX_HOME=.local/ai-inbox node dist/cli.js list
 ```
 
 | Command | Purpose |
@@ -58,7 +58,7 @@ AI_TODO_HOME=.local/ai-todo node dist/cli.js list
 | `doctor` | Check config, data directory, and database |
 | `start [--port <n>]` / `open [--port <n>]` | Start the web workspace |
 | `scan <codex\|claude-code> [path]` | Scan a source |
-| `extract` / `organize` | Ask the LLM to extract todo cards |
+| `extract` / `organize` | Ask the LLM to extract inbox cards |
 | `list` / `ls` | Print current todos |
 | `done <id>` / `complete <id>` | Mark a card complete |
 | `ignore <id>` / `dismiss <id>` | Ignore a card |
@@ -66,22 +66,22 @@ AI_TODO_HOME=.local/ai-todo node dist/cli.js list
 
 ### Configuration
 
-The default config directory is `~/.ai-todo`. Set `AI_TODO_HOME` to use another location:
+The default config directory is `~/.ai-inbox`. Set `AI_INBOX_HOME` to use another location:
 
 ```bash
-AI_TODO_HOME=.local/ai-todo npm start
+AI_INBOX_HOME=.local/ai-inbox npm start
 ```
 
 The web `Settings` page and CLI read and write the same `.env` config. Common fields:
 
 ```bash
-AI_TODO_CODEX_HOME=~/.codex
-AI_TODO_CLAUDE_HOME=~/.claude/projects
-AI_TODO_LLM_ENDPOINT=https://api.novita.ai/openai/v1
-AI_TODO_LLM_MODEL=deepseek/deepseek-v4-flash
-AI_TODO_LLM_API_KEY=<your-key>
-AI_TODO_ORGANIZE_SINCE_DAYS=7
-AI_TODO_ORGANIZE_MAX_SESSIONS=16
+AI_INBOX_CODEX_HOME=~/.codex
+AI_INBOX_CLAUDE_HOME=~/.claude/projects
+AI_INBOX_LLM_ENDPOINT=https://api.novita.ai/openai/v1
+AI_INBOX_LLM_MODEL=deepseek/deepseek-v4-flash
+AI_INBOX_LLM_API_KEY=<your-key>
+AI_INBOX_ORGANIZE_SINCE_DAYS=7
+AI_INBOX_ORGANIZE_MAX_SESSIONS=16
 ```
 
 Copy `.env.example` only into your local config directory, not the repo root, when you want a starting point for file-based config.
@@ -94,7 +94,7 @@ The UI language preference is saved in browser local storage, not in `.env`.
 - Claude Code: scans `~/.claude/projects` by default.
 - Browser: while the web server is running, browser sessions can be posted to `POST /browser/sessions`.
 
-AI-Todo stores its database, config, and source records locally by default. During `organize`, relevant session snippets are sent to your configured LLM endpoint. Scanning imports session text and readable attachment references; it does not copy attachment files. Do not commit `.env`, `data/`, `.local/`, or real session records.
+AI-Inbox stores its database, config, and source records locally by default. During `organize`, relevant session snippets are sent to your configured LLM endpoint. Scanning imports session text and readable attachment references; it does not copy attachment files. Do not commit `.env`, `data/`, `.local/`, or real session records.
 
 ### Contributing
 

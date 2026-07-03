@@ -1,16 +1,16 @@
 export const CLI_COMMANDS = [
-  "ai-todo",
-  "ai-todo scan",
-  "ai-todo organize",
-  "ai-todo regenerate --yes",
-  "ai-todo list",
-  "ai-todo done <id>",
-  "ai-todo ignore <id>",
-  "ai-todo restore <id>",
-  "ai-todo open",
-  "ai-todo doctor",
-  "ai-todo connect codex",
-  "ai-todo mcp"
+  "ai-inbox",
+  "ai-inbox scan",
+  "ai-inbox organize",
+  "ai-inbox regenerate --yes",
+  "ai-inbox list",
+  "ai-inbox done <id>",
+  "ai-inbox ignore <id>",
+  "ai-inbox restore <id>",
+  "ai-inbox open",
+  "ai-inbox doctor",
+  "ai-inbox connect codex",
+  "ai-inbox mcp"
 ] as const;
 
 export const HTTP_ROUTES = [

@@ -10,15 +10,15 @@ import { createAppServer } from "../src/server/index.js";
 import { listTodos } from "../src/todos/service.js";
 
 test("doctor creates config, data, and database paths", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-"));
-  const previous = process.env.AI_TODO_HOME;
-  process.env.AI_TODO_HOME = dir;
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-"));
+  const previous = process.env.AI_INBOX_HOME;
+  process.env.AI_INBOX_HOME = dir;
 
   try {
     const doctor = await capture(() => main(["doctor"]));
     assert.equal(doctor.code, 0);
     assert.match(doctor.stdout, /llm enabled: true/);
-    assert.match(doctor.stdout, /env status: missing; run ai-todo init/);
+    assert.match(doctor.stdout, /env status: missing; run ai-inbox init/);
     assert.match(doctor.stdout, /llm key: missing/);
     assert.match(doctor.stdout, /llm model: deepseek\/deepseek-v4-flash/);
     assert.match(doctor.stdout, /llm endpoint: https:\/\/api\.novita\.ai\/openai\/v1/);
@@ -28,7 +28,7 @@ test("doctor creates config, data, and database paths", async () => {
     db.close();
     assert.ok(rows.some((row) => row.name === "sessions"));
   } finally {
-    process.env.AI_TODO_HOME = previous;
+    process.env.AI_INBOX_HOME = previous;
     rmSync(dir, { recursive: true, force: true });
   }
 });
@@ -36,7 +36,7 @@ test("doctor creates config, data, and database paths", async () => {
 test("help prints CLI usage", async () => {
   const help = await capture(() => main(["--help"]));
   assert.equal(help.code, 0);
-  assert.match(help.stdout, /Usage: ai-todo/);
+  assert.match(help.stdout, /Usage: ai-inbox/);
   assert.match(help.stdout, /start\|open \[--port <port>\]/);
 });
 
@@ -67,12 +67,12 @@ test("healthz returns ok", async () => {
 });
 
 test("sessions endpoint omits zero-observation sessions and returns preview metadata", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-session-list-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-session-list-"));
   const db = openDatabase(getAppPaths(dir));
   const server = createAppServer({ db });
 
   db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES ('empty', 'claude-code', 'empty.jsonl', '2026-01-01T00:00:00.000Z')").run();
-  db.prepare("INSERT INTO sessions (id, source, path, title, project_path, updated_at) VALUES ('visible', 'codex', 'visible.jsonl', 'Session title', '/Users/demo/AI-Todo', '2026-01-02T00:00:00.000Z')").run();
+  db.prepare("INSERT INTO sessions (id, source, path, title, project_path, updated_at) VALUES ('visible', 'codex', 'visible.jsonl', 'Session title', '/Users/demo/AI-Inbox', '2026-01-02T00:00:00.000Z')").run();
   db.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES ('obs1', 'visible', 'codex', 'user', 'Please show this preview', '2026-01-02T00:00:00.000Z')").run();
 
   await new Promise<void>((resolve) => server.listen(0, resolve));
@@ -85,7 +85,7 @@ test("sessions endpoint omits zero-observation sessions and returns preview meta
     assert.equal(sessions.length, 1);
     assert.equal(sessions[0].id, "visible");
     assert.equal(sessions[0].title, "Session title");
-    assert.equal(sessions[0].projectPath, "/Users/demo/AI-Todo");
+    assert.equal(sessions[0].projectPath, "/Users/demo/AI-Inbox");
     assert.equal(sessions[0].observationCount, 1);
     assert.equal(sessions[0].preview, "Please show this preview");
   } finally {
@@ -98,7 +98,7 @@ test("sessions endpoint omits zero-observation sessions and returns preview meta
 });
 
 test("sessions endpoint supports source filtering and pagination", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-session-query-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-session-query-"));
   const db = openDatabase(getAppPaths(dir));
   const server = createAppServer({ db });
 
@@ -139,7 +139,7 @@ test("sessions endpoint supports source filtering and pagination", async () => {
 });
 
 test("database migration clears noisy pre-clean transcript data once", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-clean-migration-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-clean-migration-"));
   const paths = getAppPaths(dir);
   try {
     let db = openDatabase(paths);
@@ -178,7 +178,7 @@ test("database migration clears noisy pre-clean transcript data once", () => {
 });
 
 test("database migration adds todo metadata for existing installs", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-metadata-migration-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-metadata-migration-"));
   const paths = getAppPaths(dir);
   try {
     let db = openDatabase(paths);

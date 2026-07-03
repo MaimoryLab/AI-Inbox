@@ -41,7 +41,7 @@ export async function handleJsonRpcLine(db: Database, line: string, paths = getA
       return successResponse(request.id, {
         protocolVersion: "2024-11-05",
         capabilities: { tools: {} },
-        serverInfo: { name: "ai-todo", version: "0.1.0" }
+        serverInfo: { name: "ai-inbox", version: "0.1.0" }
       });
     }
 

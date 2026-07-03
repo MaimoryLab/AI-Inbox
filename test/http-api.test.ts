@@ -167,7 +167,7 @@ test("HTTP API returns optional task chain data for structured todos", async () 
   }
 });
 
-test("HTTP API clears todo cards without deleting source observations", async () => {
+test("HTTP API clears inbox cards without deleting source observations", async () => {
   const fixture = createFixture();
   const paths = getAppPaths(join(fixture.root, "home"));
   const db = openDatabase(paths);
@@ -178,7 +178,7 @@ test("HTTP API clears todo cards without deleting source observations", async ()
       return {
         ok: true,
         todos: [{
-          title: "Clear HTTP todo cards",
+          title: "Clear HTTP inbox cards",
           description: "Create a card that can be cleared through the HTTP API.",
           confidence: 0.9,
           sourceObservationId: observation.id,
@@ -305,12 +305,12 @@ test("HTTP local token protects writes and attachment reads", async () => {
     assert.equal((await getJson(server.url("/attachments?observationId=protected-observation&index=0"))).status, 403);
     const cleared = await fetch(server.url("/todos/clear"), {
       method: "POST",
-      headers: { "x-ai-todo-token": "local-token" },
+      headers: { "x-ai-inbox-token": "local-token" },
       body: JSON.stringify({})
     });
     assert.equal(cleared.status, 200);
     const okAttachment = await fetch(server.url("/attachments?observationId=protected-observation&index=0"), {
-      headers: { "x-ai-todo-token": "local-token" }
+      headers: { "x-ai-inbox-token": "local-token" }
     });
     assert.equal(okAttachment.status, 200);
   } finally {
@@ -377,10 +377,10 @@ test("HTTP API reports invalid JSON", async () => {
 
 test("HTTP startup scan status exposes automatic scan results", async () => {
   const fixture = createFixture();
-  const previousCodex = process.env.AI_TODO_CODEX_HOME;
-  const previousClaude = process.env.AI_TODO_CLAUDE_HOME;
-  process.env.AI_TODO_CODEX_HOME = fixture.codex;
-  process.env.AI_TODO_CLAUDE_HOME = join(fixture.root, "missing-claude");
+  const previousCodex = process.env.AI_INBOX_CODEX_HOME;
+  const previousClaude = process.env.AI_INBOX_CLAUDE_HOME;
+  process.env.AI_INBOX_CODEX_HOME = fixture.codex;
+  process.env.AI_INBOX_CLAUDE_HOME = join(fixture.root, "missing-claude");
   const paths = getAppPaths(join(fixture.root, "home"));
   const db = openDatabase(paths);
   const scanner = createStartupScanner(db, paths);
@@ -400,10 +400,10 @@ test("HTTP startup scan status exposes automatic scan results", async () => {
     assert.equal(body.sources.find((source: any) => source.source === "codex").result.scanned, 1);
     assert.ok(body.warnings.includes("claude-code_path_not_found"));
   } finally {
-    if (previousCodex === undefined) delete process.env.AI_TODO_CODEX_HOME;
-    else process.env.AI_TODO_CODEX_HOME = previousCodex;
-    if (previousClaude === undefined) delete process.env.AI_TODO_CLAUDE_HOME;
-    else process.env.AI_TODO_CLAUDE_HOME = previousClaude;
+    if (previousCodex === undefined) delete process.env.AI_INBOX_CODEX_HOME;
+    else process.env.AI_INBOX_CODEX_HOME = previousCodex;
+    if (previousClaude === undefined) delete process.env.AI_INBOX_CLAUDE_HOME;
+    else process.env.AI_INBOX_CLAUDE_HOME = previousClaude;
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     db.close();
     rmSync(fixture.root, { recursive: true, force: true });
@@ -413,10 +413,10 @@ test("HTTP startup scan status exposes automatic scan results", async () => {
 test("HTTP startup scanner discovers source paths before scanning", async () => {
   const fixture = createFixture();
   const previousHome = process.env.HOME;
-  const previousCodex = process.env.AI_TODO_CODEX_HOME;
-  const previousClaude = process.env.AI_TODO_CLAUDE_HOME;
-  delete process.env.AI_TODO_CODEX_HOME;
-  delete process.env.AI_TODO_CLAUDE_HOME;
+  const previousCodex = process.env.AI_INBOX_CODEX_HOME;
+  const previousClaude = process.env.AI_INBOX_CLAUDE_HOME;
+  delete process.env.AI_INBOX_CODEX_HOME;
+  delete process.env.AI_INBOX_CLAUDE_HOME;
 
   try {
     process.env.HOME = fixture.root;
@@ -448,18 +448,18 @@ test("HTTP startup scanner discovers source paths before scanning", async () => 
   } finally {
     if (previousHome === undefined) delete process.env.HOME;
     else process.env.HOME = previousHome;
-    if (previousCodex === undefined) delete process.env.AI_TODO_CODEX_HOME;
-    else process.env.AI_TODO_CODEX_HOME = previousCodex;
-    if (previousClaude === undefined) delete process.env.AI_TODO_CLAUDE_HOME;
-    else process.env.AI_TODO_CLAUDE_HOME = previousClaude;
+    if (previousCodex === undefined) delete process.env.AI_INBOX_CODEX_HOME;
+    else process.env.AI_INBOX_CODEX_HOME = previousCodex;
+    if (previousClaude === undefined) delete process.env.AI_INBOX_CLAUDE_HOME;
+    else process.env.AI_INBOX_CLAUDE_HOME = previousClaude;
     rmSync(fixture.root, { recursive: true, force: true });
   }
 });
 
 test("HTTP source scan uses default paths with environment overrides", async () => {
   const fixture = createFixture();
-  const previousCodex = process.env.AI_TODO_CODEX_HOME;
-  process.env.AI_TODO_CODEX_HOME = fixture.codex;
+  const previousCodex = process.env.AI_INBOX_CODEX_HOME;
+  process.env.AI_INBOX_CODEX_HOME = fixture.codex;
   const paths = getAppPaths(join(fixture.root, "home"));
   const db = openDatabase(paths);
   const server = await startServer(db, paths);
@@ -470,9 +470,9 @@ test("HTTP source scan uses default paths with environment overrides", async () 
     assert.equal((await response.json()).scanned, 1);
   } finally {
     if (previousCodex === undefined) {
-      delete process.env.AI_TODO_CODEX_HOME;
+      delete process.env.AI_INBOX_CODEX_HOME;
     } else {
-      process.env.AI_TODO_CODEX_HOME = previousCodex;
+      process.env.AI_INBOX_CODEX_HOME = previousCodex;
     }
     await server.close();
     db.close();
@@ -501,7 +501,7 @@ test("HTTP source scan reports existing paths with no sessions", async () => {
 
 test("HTTP settings persist source paths and scan uses config path", async () => {
   const fixture = createFixture();
-  const missingClaudePath = join(tmpdir(), `ai-todo-missing-claude-${Date.now()}`);
+  const missingClaudePath = join(tmpdir(), `ai-inbox-missing-claude-${Date.now()}`);
   const paths = getAppPaths(join(fixture.root, "home"));
   const db = openDatabase(paths);
   const server = await startServer(db, paths);
@@ -544,8 +544,8 @@ test("HTTP settings persist source paths and scan uses config path", async () =>
     assert.equal(savedBody.llm.apiKey, undefined);
     assert.equal(savedBody.organize.sinceDays, 30);
     assert.equal(savedBody.organize.maxSessions, 200);
-    assert.match(readFileSync(paths.envPath, "utf8"), /AI_TODO_LLM_API_KEY=dummy-llm-key-value/);
-    assert.match(readFileSync(paths.envPath, "utf8"), /AI_TODO_ORGANIZE_MAX_SESSIONS=200/);
+    assert.match(readFileSync(paths.envPath, "utf8"), /AI_INBOX_LLM_API_KEY=dummy-llm-key-value/);
+    assert.match(readFileSync(paths.envPath, "utf8"), /AI_INBOX_ORGANIZE_MAX_SESSIONS=200/);
 
     const scan = await postJson(server.url("/sources/scan"), { source: "codex" });
     assert.equal(scan.status, 200);
@@ -781,7 +781,7 @@ test("GET /todos shortens encoded local project paths in origin titles", async (
   const paths = getAppPaths(join(fixture.root, "home"));
   const db = openDatabase(paths);
   const server = await startServer(db, paths);
-  const encodedPath = join(fixture.root, "-Users-example-Documents-AI-TodoProject-ExampleApp", "session.jsonl");
+  const encodedPath = join(fixture.root, "-Users-example-Documents-AI-InboxProject-ExampleApp", "session.jsonl");
   db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES (?, ?, ?, ?)").run(
     "encoded-session",
     "codex",
@@ -950,7 +950,7 @@ test("HTTP server serves the React UI assets", async () => {
     const index = await getJson(server.url("/"));
     assert.equal(index.status, 200);
     const html = await index.text();
-    assert.match(html, /AI Todo/);
+    assert.match(html, /AI Inbox/);
     const asset = html.match(/src="([^"]+\.js)"/)?.[1];
     assert.ok(asset);
 
@@ -965,7 +965,7 @@ test("HTTP server serves the React UI assets", async () => {
 });
 
 function createFixture() {
-  const root = mkdtempSync(join(tmpdir(), "ai-todo-http-"));
+  const root = mkdtempSync(join(tmpdir(), "ai-inbox-http-"));
   const codex = join(root, "codex");
   mkdirSync(codex);
   const codexFile = join(codex, "session.jsonl");

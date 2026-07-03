@@ -63,8 +63,8 @@ function discoveredPath(source: SessionSource): string | undefined {
   return existsSync(claudeHome) ? claudeHome : undefined;
 }
 
-function envKey(source: SessionSource): "AI_TODO_CODEX_HOME" | "AI_TODO_CLAUDE_HOME" {
-  return source === "codex" ? "AI_TODO_CODEX_HOME" : "AI_TODO_CLAUDE_HOME";
+function envKey(source: SessionSource): "AI_INBOX_CODEX_HOME" | "AI_INBOX_CLAUDE_HOME" {
+  return source === "codex" ? "AI_INBOX_CODEX_HOME" : "AI_INBOX_CLAUDE_HOME";
 }
 
 function cleanPath(value: string | undefined): string | undefined {

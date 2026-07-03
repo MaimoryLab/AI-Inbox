@@ -164,7 +164,7 @@ test("React UI keeps task-first Sources wording and accessible icon controls", (
   assert.match(observationText, /attachmentMarkdownText/);
   assert.match(observationText, /withAttachmentToken/);
   assert.match(observationText, /localToken\(\)/);
-  assert.match(client, /sessionStorage\.getItem\("ai-todo-token"\)/);
+  assert.match(client, /sessionStorage\.getItem\("ai-inbox-token"\)/);
   assert.match(client, /new URLSearchParams\(location\.hash\.replace/);
   assert.match(observationText, /sourceDisplayText\(observation\.text\)/);
   assert.doesNotMatch(observationText, /dangerouslySetInnerHTML/);
@@ -198,8 +198,8 @@ test("React UI keeps task-first Sources wording and accessible icon controls", (
   assert.match(i18n, /advancedDiagnostics: "高级诊断"/);
   assert.match(settingsWorkspace, /max=\{200\}/);
   assert.match(app, /organizeStatus\(result, locale\)/);
-  assert.match(client, /x-ai-todo-token/);
-  assert.match(client, /sessionStorage\.setItem\("ai-todo-token", token\)/);
+  assert.match(client, /x-ai-inbox-token/);
+  assert.match(client, /sessionStorage\.setItem\("ai-inbox-token", token\)/);
   assert.match(client, /history\.replaceState/);
   assert.match(client, /userErrorText\(error, readLocale\(\)\)/);
   assert.match(client, /localizedUserFacingError/);

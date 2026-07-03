@@ -4,7 +4,7 @@ export async function api<T>(path: string, options: { method?: string; body?: un
   const token = localToken();
   const headers: Record<string, string> = {};
   if (options.body !== undefined) headers["content-type"] = "application/json";
-  if (token) headers["x-ai-todo-token"] = token;
+  if (token) headers["x-ai-inbox-token"] = token;
   const response = await fetch(path, {
     method: options.method ?? "GET",
     headers: Object.keys(headers).length > 0 ? headers : undefined,
@@ -27,11 +27,11 @@ export function localizedUserFacingError(error: string, locale: Locale): string 
 }
 
 export function localToken(): string {
-  const existing = sessionStorage.getItem("ai-todo-token");
+  const existing = sessionStorage.getItem("ai-inbox-token");
   if (existing) return existing;
   const token = new URLSearchParams(location.hash.replace(/^#/, "")).get("token") ?? "";
   if (token) {
-    sessionStorage.setItem("ai-todo-token", token);
+    sessionStorage.setItem("ai-inbox-token", token);
     history.replaceState(null, "", location.pathname + location.search);
   }
   return token;

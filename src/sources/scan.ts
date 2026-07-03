@@ -85,8 +85,8 @@ function envPath(value: string | undefined): string | undefined {
 
 function configuredSourcePath(source: SessionSource, paths: AppPaths): string | undefined {
   const config = loadConfig(paths);
-  if (source === "codex") return envPath(process.env.AI_TODO_CODEX_HOME) ?? config.sources.codex.path;
-  return envPath(process.env.AI_TODO_CLAUDE_HOME) ?? config.sources["claude-code"].path;
+  if (source === "codex") return envPath(process.env.AI_INBOX_CODEX_HOME) ?? config.sources.codex.path;
+  return envPath(process.env.AI_INBOX_CLAUDE_HOME) ?? config.sources["claude-code"].path;
 }
 
 function defaultSourcePath(source: SessionSource): string {

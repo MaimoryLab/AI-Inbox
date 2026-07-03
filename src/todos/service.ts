@@ -1054,7 +1054,7 @@ function projectTitleFromPath(path: string): string | undefined {
 }
 
 function readableProjectTitle(title: string): string | undefined {
-  const marker = "AI-TodoProject";
+  const marker = "AI-InboxProject";
   const markerIndex = title.indexOf(marker);
   if (markerIndex >= 0) {
     const suffix = title.slice(markerIndex + marker.length).replace(/^-+/u, "");

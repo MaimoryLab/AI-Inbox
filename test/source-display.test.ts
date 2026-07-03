@@ -88,6 +88,6 @@ test("localToken can seed attachment image URLs before the first API call", () =
   });
 
   assert.equal(localToken(), "local-secret");
-  assert.equal(store.get("ai-todo-token"), "local-secret");
+  assert.equal(store.get("ai-inbox-token"), "local-secret");
   assert.equal(replaced, "/sources");
 });

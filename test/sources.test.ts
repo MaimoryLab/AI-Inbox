@@ -18,7 +18,7 @@ test("parseJsonl reads non-empty JSON object lines", () => {
 });
 
 test("codex and claude scanners write clean visible transcript and skip unchanged files", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-source-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-"));
   try {
     mkdirSync(join(dir, "codex"));
     mkdirSync(join(dir, "claude"));
@@ -84,7 +84,7 @@ test("codex and claude scanners write clean visible transcript and skip unchange
 });
 
 test("codex scanner backfills project path when checkpoint is unchanged", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-codex-project-backfill-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-codex-project-backfill-"));
   const db = openDatabase(getAppPaths(join(dir, "home")));
   try {
     const codexDir = join(dir, "codex");
@@ -112,7 +112,7 @@ test("codex scanner backfills project path when checkpoint is unchanged", () => 
 });
 
 test("claude scanner stores project path from cwd fields", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-claude-project-cwd-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-claude-project-cwd-"));
   const db = openDatabase(getAppPaths(join(dir, "home")));
   try {
     const claudeDir = join(dir, "claude");
@@ -138,7 +138,7 @@ test("claude scanner stores project path from cwd fields", () => {
 });
 
 test("claude scanner stores ai title as session title", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-claude-session-title-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-claude-session-title-"));
   const db = openDatabase(getAppPaths(join(dir, "home")));
   try {
     const claudeDir = join(dir, "claude");
@@ -162,7 +162,7 @@ test("claude scanner stores ai title as session title", () => {
 });
 
 test("claude scanner decodes encoded project directories when cwd is missing", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-claude-project-encoded-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-claude-project-encoded-"));
   const db = openDatabase(getAppPaths(join(dir, "home")));
   try {
     const claudeDir = join(dir, "claude");
@@ -190,7 +190,7 @@ test("claude scanner decodes encoded project directories when cwd is missing", (
 });
 
 test("claude scanner leaves project path null when cwd and encoded directory are unavailable", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-claude-no-project-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-claude-no-project-"));
   const db = openDatabase(getAppPaths(join(dir, "home")));
   try {
     const claudeDir = join(dir, "claude");
@@ -210,7 +210,7 @@ test("claude scanner leaves project path null when cwd and encoded directory are
 });
 
 test("codex scanner tolerates missing project path metadata", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-codex-no-project-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-codex-no-project-"));
   const db = openDatabase(getAppPaths(join(dir, "home")));
   try {
     const codexDir = join(dir, "codex");
@@ -230,7 +230,7 @@ test("codex scanner tolerates missing project path metadata", () => {
 });
 
 test("codex scanner dedupes mirrored event and response messages", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-source-dedupe-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-dedupe-"));
   try {
     mkdirSync(join(dir, "codex"));
     writeFileSync(join(dir, "codex", "session.jsonl"), [
@@ -253,7 +253,7 @@ test("codex scanner dedupes mirrored event and response messages", () => {
 });
 
 test("codex scanner stores readable file and image references", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-source-attachments-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-attachments-"));
   try {
     mkdirSync(join(dir, "codex"));
     const imagePath = "/var/folders/demo/codex-clipboard-a1ec.png";
@@ -299,7 +299,7 @@ test("codex scanner stores readable file and image references", () => {
 });
 
 test("codex scanner stores structured local image references without inline image tags", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-source-local-images-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-local-images-"));
   try {
     mkdirSync(join(dir, "codex"));
     writeFileSync(join(dir, "codex", "session.jsonl"), [
@@ -346,7 +346,7 @@ test("clean transcript preserves meaningful newlines and does not drop user JSON
 });
 
 test("codex scanner removes injected instruction noise before storing observations", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-source-noise-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-noise-"));
   try {
     mkdirSync(join(dir, "codex"));
     writeFileSync(join(dir, "codex", "session.jsonl"), [
@@ -378,7 +378,7 @@ test("codex scanner removes injected instruction noise before storing observatio
 });
 
 test("codex scanner removes subagent notifications from user observations", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-source-subagent-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-subagent-"));
   try {
     mkdirSync(join(dir, "codex"));
     const subagent = [
@@ -403,7 +403,7 @@ test("codex scanner removes subagent notifications from user observations", () =
 });
 
 test("codex scanner merges linked subagent sessions into the parent session", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-source-subagent-merge-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-subagent-merge-"));
   try {
     const root = join(dir, "codex");
     const agentDir = join(root, "agents", "agent-1");
@@ -448,7 +448,7 @@ function testId(...parts: string[]): string {
 }
 
 test("scanner checkpoints but does not store sessions with no visible observations", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-source-empty-session-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-empty-session-"));
   try {
     mkdirSync(join(dir, "claude"));
     writeFileSync(join(dir, "claude", "session.jsonl"), [
@@ -487,7 +487,7 @@ test("scanner checkpoints but does not store sessions with no visible observatio
 });
 
 test("claude scanner keeps visible user and assistant text after filtering metadata", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-source-claude-visible-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-claude-visible-"));
   try {
     mkdirSync(join(dir, "claude"));
     writeFileSync(join(dir, "claude", "session.jsonl"), [
@@ -509,7 +509,7 @@ test("claude scanner keeps visible user and assistant text after filtering metad
 });
 
 test("claude scanner removes subagent notifications from visible text", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-source-claude-subagent-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-claude-subagent-"));
   try {
     mkdirSync(join(dir, "claude"));
     writeFileSync(join(dir, "claude", "session.jsonl"), [
@@ -542,7 +542,7 @@ test("claude scanner removes subagent notifications from visible text", () => {
 });
 
 test("claude scanner stores readable attachment references", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-source-claude-attachments-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-claude-attachments-"));
   try {
     mkdirSync(join(dir, "claude"));
     writeFileSync(join(dir, "claude", "session.jsonl"), [
@@ -576,7 +576,7 @@ test("claude scanner stores readable attachment references", () => {
 });
 
 test("checkpoint rescans when jsonl file mtime and size change", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-checkpoint-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-checkpoint-"));
   try {
     mkdirSync(join(dir, "codex"));
     const file = join(dir, "codex", "session.jsonl");
@@ -599,7 +599,7 @@ test("checkpoint rescans when jsonl file mtime and size change", () => {
 });
 
 test("browser sessions endpoint ingests observations", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-todo-browser-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-browser-"));
   const db = openDatabase(getAppPaths(dir));
   const server = createAppServer({ db });
 

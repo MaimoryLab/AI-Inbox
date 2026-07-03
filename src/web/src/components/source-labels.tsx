@@ -90,7 +90,7 @@ function readableProjectPath(value: string | undefined): string | undefined {
 function readablePathSegment(value: string | undefined): string | undefined {
   if (!value) return undefined;
   const segment = value.replace(/\.jsonl$/u, "").replace(/^-+|-+$/gu, "");
-  const marker = "AI-TodoProject";
+  const marker = "AI-InboxProject";
   const markerIndex = segment.indexOf(marker);
   if (markerIndex >= 0) {
     const suffix = segment.slice(markerIndex + marker.length).replace(/^-+/u, "");

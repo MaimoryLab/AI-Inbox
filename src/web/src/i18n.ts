@@ -2,7 +2,7 @@ import type { SourceKind } from "./types.js";
 
 export type Locale = "zh-CN" | "en-US";
 
-const storageKey = "ai-todo.locale";
+const storageKey = "ai-inbox.locale";
 const defaultLocale: Locale = "zh-CN";
 
 export function readLocale(): Locale {
@@ -17,7 +17,7 @@ export function writeLocale(locale: Locale): void {
 
 export const appText = {
   "zh-CN": {
-    appName: "AI Todo",
+    appName: "AI Inbox",
     ready: "就绪",
     actionInbox: "任务面板",
     appSubtitle: "从最近 AI 会话中提取可继续处理的事项，并保留来源上下文。",
@@ -114,7 +114,7 @@ export const appText = {
     chinese: "中文",
     english: "English",
     sourceSettings: "来源",
-    sourceSettingsDescription: "选择 AI-Todo 扫描本地 Agent 会话的位置。",
+    sourceSettingsDescription: "选择 AI-Inbox 扫描本地 Agent 会话的位置。",
     codexSource: "Codex 来源",
     claudeSource: "Claude 来源",
     discovery: "路径发现",
@@ -160,7 +160,7 @@ export const appText = {
     organized: (created: number, updated: number) => `已整理 ${created} 张新卡片，更新 ${updated} 张卡片。`
   },
   "en-US": {
-    appName: "AI Todo",
+    appName: "AI Inbox",
     ready: "Ready",
     actionInbox: "Task panel",
     appSubtitle: "Extract follow-up items from recent AI sessions while keeping source context.",
@@ -257,7 +257,7 @@ export const appText = {
     chinese: "中文",
     english: "English",
     sourceSettings: "Sources",
-    sourceSettingsDescription: "Choose where AI-Todo scans local agent sessions.",
+    sourceSettingsDescription: "Choose where AI-Inbox scans local agent sessions.",
     codexSource: "Codex source",
     claudeSource: "Claude source",
     discovery: "Path discovery",
@@ -276,7 +276,7 @@ export const appText = {
     settingsSaved: "Settings saved.",
     dangerZone: "Danger zone",
     clearTodoCards: "Clear card database",
-    clearTodoCardsDescription: "Delete all Todo cards, evidence, task chains, and organize history. Source sessions stay intact.",
+    clearTodoCardsDescription: "Delete all Inbox cards, evidence, task chains, and organize history. Source sessions stay intact.",
     clearTodoCardsConfirmTitle: "Clear the card database?",
     clearTodoCardsConfirmDescription: "This deletes every card and evidence record in the current database. Source sessions stay available so cards can be organized again.",
     confirmClearTodoCards: "Clear cards",
