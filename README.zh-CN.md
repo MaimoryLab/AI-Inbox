@@ -7,24 +7,34 @@
 
 **本地优先的 AI / Agent 会话卡片复查工作台。**
 
-AI-Inbox 会扫描 Codex 和 Claude Code 会话记录，调用你配置的 OpenAI-compatible LLM 抽取 Inbox cards，并把每张卡片都关联回原始证据。浏览器插件和浏览器会话提取功能尚未实现，我们会尽快补齐。
+AI-Inbox 会扫描 Codex 和 Claude Code 会话记录，调用你配置的 OpenAI-compatible LLM 抽取 Inbox cards，并把每张卡片都关联回原始证据。
 
 - 把分散在 AI 会话里的后续事项收进一个可复查的卡片队列。
 - 在完成、忽略或恢复卡片前，先查看对应的来源片段。
 - 配置和数据默认留在本机 `~/.ai-inbox`。
 
+从 [Releases](https://github.com/MaimoryLab/AI-Inbox/releases) 下载 zip，然后启动：
+
 ```bash
-npm install -g @maimorylab/ai-inbox
-ai-inbox open
+# macOS Apple Silicon
+unzip ai-inbox-macos-arm64.zip
+cd ai-inbox-macos-arm64
+./ai-inbox open
 ```
 
-打开命令输出的本地 URL，在设置页配置来源和 LLM key，然后点击 **Organize / 整理**。
+```powershell
+Expand-Archive .\ai-inbox-windows-x64.zip -DestinationPath .
+cd .\ai-inbox-windows-x64
+.\ai-inbox.exe open
+```
+
+打开命令输出的本地 URL，在设置页配置来源和 LLM key，然后点击 **Organize / 整理**，卡片整理效果如下。
 
 ![AI-Inbox 卡片视图](docs/assets/readme/ai-inbox-cards.png)
 
 ## 为什么需要 AI-Inbox
 
-AI 助手能推进很多事情，但后续事项经常埋在很长的聊天和 agent 日志里。AI-Inbox 给这些散落的线索加了一层复查工作台：抽成简洁的 Inbox cards，保留原始证据，再由你决定哪些真正需要处理。
+各种 AI 助手能推进很多事情，但后续事项经常埋在很长的聊天和 agent 日志里。AI-Inbox 给这些散落的线索加了一层复查工作台：抽成简洁的 Inbox cards，保留原始证据，再由你决定哪些真正需要处理。
 
 它不是项目管理系统，而是一个本地优先的 AI 会话卡片复查入口。
 
@@ -41,15 +51,19 @@ AI 助手能推进很多事情，但后续事项经常埋在很长的聊天和 a
 ## 快速开始
 
 ```bash
-npm install -g @maimorylab/ai-inbox
-ai-inbox open
+# macOS Apple Silicon
+unzip ai-inbox-macos-arm64.zip
+cd ai-inbox-macos-arm64
+./ai-inbox open
 ```
 
-一次性运行：
-
-```bash
-npx @maimorylab/ai-inbox open
+```powershell
+Expand-Archive .\ai-inbox-windows-x64.zip -DestinationPath .
+cd .\ai-inbox-windows-x64
+.\ai-inbox.exe open
 ```
+
+npm 包尚未发布；当前请使用 release zip 或源码启动。
 
 然后：
 
@@ -60,7 +74,7 @@ npx @maimorylab/ai-inbox open
 
 没有 LLM 配置时，AI-Inbox 仍可以打开界面和扫描来源；只有配置好 LLM endpoint 和 key 后，才会生成 Inbox cards。
 
-## 截图
+## 界面
 
 以下截图全部使用合成会话文本、合成路径和空 API key 字段。
 
@@ -80,31 +94,38 @@ npx @maimorylab/ai-inbox open
 
 ### 环境要求
 
-- Node.js `>=22.16.0`
+- Release zip：不需要安装 Node.js
+- 源码启动或未来 npm 包：Node.js `>=22.16.0`
 - 用于卡片抽取的 OpenAI-compatible Chat Completions API key
-
-### npm
-
-```bash
-npm install -g @maimorylab/ai-inbox
-ai-inbox open
-```
-
-如果你在 npm 包发布前测试，请使用下面的源码启动或 release zip 方式。
 
 ### Release Zip
 
-下载对应平台的 release zip，解压后在该目录运行：
+从 [Releases](https://github.com/MaimoryLab/AI-Inbox/releases) 下载对应平台的 release zip，解压后在该目录运行：
 
 ```bash
-# macOS / Linux
+# macOS Apple Silicon
+unzip ai-inbox-macos-arm64.zip
+cd ai-inbox-macos-arm64
 ./ai-inbox open
+```
 
-# Windows PowerShell
+```powershell
+Expand-Archive .\ai-inbox-windows-x64.zip -DestinationPath .
+cd .\ai-inbox-windows-x64
 .\ai-inbox.exe open
 ```
 
 配置和数据仍保存在 `~/.ai-inbox`，不会写进 release 目录。当前 release 二进制未签名，macOS Gatekeeper 或 Windows Defender 可能会在首次运行时要求确认。
+
+### npm
+
+npm 包尚未发布。发布到公开 registry 后，这会是最短安装路径：
+
+```bash
+npm install -g @maimorylab/ai-inbox
+ai-inbox open
+npx @maimorylab/ai-inbox open
+```
 
 ### 源码启动
 
@@ -137,7 +158,7 @@ npm start -- --port 3112
 4. 用 **Cards / 卡片** 整理近期会话，查看证据，完成卡片，忽略噪音，或恢复卡片。
 5. 不要提交本地 `.env`、数据库或真实会话记录。
 
-## CLI
+## CLI 常用命令
 
 ```bash
 ai-inbox init --api-key <your-key>

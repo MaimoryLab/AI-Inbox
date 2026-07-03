@@ -7,15 +7,25 @@
 
 **Local-first review workspace for follow-up cards extracted from AI and agent sessions.**
 
-AI-Inbox scans Codex and Claude Code session records, asks your configured OpenAI-compatible LLM to extract Inbox cards, and keeps every card linked to its source evidence. Browser plugin support and browser session extraction are not implemented yet; we plan to ship them as soon as possible.
+AI-Inbox scans Codex and Claude Code session records, asks your configured OpenAI-compatible LLM to extract Inbox cards, and keeps every card linked to its source evidence.
 
 - Turn scattered AI-session loose ends into one reviewable card queue.
 - Review source snippets before you complete, ignore, or restore a card.
 - Keep config and data local by default under `~/.ai-inbox`.
 
+Download a zip from [Releases](https://github.com/MaimoryLab/AI-Inbox/releases), then start it:
+
 ```bash
-npm install -g @maimorylab/ai-inbox
-ai-inbox open
+# macOS Apple Silicon
+unzip ai-inbox-macos-arm64.zip
+cd ai-inbox-macos-arm64
+./ai-inbox open
+```
+
+```powershell
+Expand-Archive .\ai-inbox-windows-x64.zip -DestinationPath .
+cd .\ai-inbox-windows-x64
+.\ai-inbox.exe open
 ```
 
 Open the local URL printed by the command, configure sources and your LLM key in Settings, then click **Organize**.
@@ -41,15 +51,19 @@ Scanning imports session text and readable attachment references. It does not co
 ## Quick Start
 
 ```bash
-npm install -g @maimorylab/ai-inbox
-ai-inbox open
+# macOS Apple Silicon
+unzip ai-inbox-macos-arm64.zip
+cd ai-inbox-macos-arm64
+./ai-inbox open
 ```
 
-For a one-time run:
-
-```bash
-npx @maimorylab/ai-inbox open
+```powershell
+Expand-Archive .\ai-inbox-windows-x64.zip -DestinationPath .
+cd .\ai-inbox-windows-x64
+.\ai-inbox.exe open
 ```
+
+The npm package is not published yet; use the release zip or source checkout today.
 
 Then:
 
@@ -80,31 +94,38 @@ Screenshots below use synthetic session text, synthetic paths, and an empty API 
 
 ### Requirements
 
-- Node.js `>=22.16.0`
+- Release zip: no Node.js install required
+- Source checkout or future npm package: Node.js `>=22.16.0`
 - An OpenAI-compatible Chat Completions API key for card extraction
-
-### npm
-
-```bash
-npm install -g @maimorylab/ai-inbox
-ai-inbox open
-```
-
-If you are testing before the npm package is available in the public registry, use the source checkout or release zip flow below.
 
 ### Release Zip
 
-Download the release zip for your platform, unzip it, and run the binary from that folder:
+Download the release zip for your platform from [Releases](https://github.com/MaimoryLab/AI-Inbox/releases), unzip it, and run the binary from that folder:
 
 ```bash
-# macOS / Linux
+# macOS Apple Silicon
+unzip ai-inbox-macos-arm64.zip
+cd ai-inbox-macos-arm64
 ./ai-inbox open
+```
 
-# Windows PowerShell
+```powershell
+Expand-Archive .\ai-inbox-windows-x64.zip -DestinationPath .
+cd .\ai-inbox-windows-x64
 .\ai-inbox.exe open
 ```
 
 Config and data still live in `~/.ai-inbox`; they are not stored inside the release folder. Current release binaries are unsigned, so macOS Gatekeeper or Windows Defender may ask for confirmation before first run.
+
+### npm
+
+The npm package is not published yet. Once it is available in the public registry, this will be the shortest install path:
+
+```bash
+npm install -g @maimorylab/ai-inbox
+ai-inbox open
+npx @maimorylab/ai-inbox open
+```
 
 ### Source Checkout
 
