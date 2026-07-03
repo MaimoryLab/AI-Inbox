@@ -6,14 +6,36 @@ AI-Inbox 是一个本地优先的 AI 会话行动收件箱。它扫描 Codex、C
 
 ### 需要准备
 
-- Node.js 24 或更高版本
+- Node.js 22.16 或更高版本
 - 一个 OpenAI-compatible Chat Completions API key
 
-没有 LLM 配置时，AI-Inbox 仍然可以打开界面和扫描来源，但不能整理出待办卡片。
+没有 LLM 配置时，AI-Inbox 仍然可以打开界面和扫描来源，但不能整理出收件箱卡片。
+
+### 安装
+
+全局安装或一次性启动：
+
+```bash
+npm install -g @maimorylab/ai-inbox
+ai-inbox open
+npx @maimorylab/ai-inbox open
+```
+
+非研发用户可以下载对应平台的 release zip，解压后在该目录运行：
+
+```bash
+# macOS / Linux
+./ai-inbox open
+
+# Windows PowerShell
+.\ai-inbox.exe open
+```
+
+默认数据库和配置仍保存在 `~/.ai-inbox`，不会写入 release 目录。当前 release 二进制未签名，macOS Gatekeeper 或 Windows Defender 可能会在首次运行时提示确认。
 
 ### 推荐用法：前端工作台
 
-从全新 clone 开始：
+macOS 或 Linux 从全新 clone 开始：
 
 ```bash
 git clone https://github.com/MaimoryLab/AI-Inbox.git
@@ -21,9 +43,19 @@ cd AI-Inbox
 ./scripts/start-local.sh
 ```
 
+Windows PowerShell：
+
+```powershell
+git clone https://github.com/MaimoryLab/AI-Inbox.git
+cd AI-Inbox
+npm install
+npm run build
+npm start
+```
+
 打开后访问 [http://127.0.0.1:3111/](http://127.0.0.1:3111/)。
 
-这个脚本会运行 `npm install`、`npm run build` 和 `npm start`。如果依赖已经安装并构建完成，可以直接运行 `npm start`。
+这个 shell 脚本会运行 `npm install`、`npm run build` 和 `npm start`。如果依赖已经安装并构建完成，可以直接运行 `npm start`。
 
 `start` 会在启动时自动发现 Codex 和 Claude Code 的默认路径，并写入缺失的来源配置；它不会覆盖你已经配置过的路径。默认端口固定为 `3111`，如果端口被占用，请显式指定：
 
@@ -35,7 +67,7 @@ npm start -- --port 3112
 
 1. 在 `设置` 中选择中文或 English，检查 Codex/Claude Code 路径发现结果，填写 API key，按需调整回看天数和最大会话数，然后保存。
 2. 在 `来源` 中查看已扫描的会话和原始证据。
-3. 在 `待办` 中点击整理，审查生成的卡片，确认来源后标记完成或忽略。
+3. 在 `卡片` 中点击整理，审查生成的收件箱卡片，确认来源后标记完成或忽略。
 
 ### 命令行用法
 
@@ -58,8 +90,8 @@ AI_INBOX_HOME=.local/ai-inbox node dist/cli.js list
 | `doctor` | 检查配置、数据目录和数据库 |
 | `start [--port <n>]` / `open [--port <n>]` | 启动前端工作台 |
 | `scan <codex\|claude-code> [path]` | 扫描指定来源 |
-| `extract` / `organize` | 调用 LLM 抽取待办卡片 |
-| `list` / `ls` | 列出当前待办 |
+| `extract` / `organize` | 调用 LLM 抽取收件箱卡片 |
+| `list` / `ls` | 列出当前卡片 |
 | `done <id>` / `complete <id>` | 标记卡片完成 |
 | `ignore <id>` / `dismiss <id>` | 忽略卡片 |
 | `mcp` | 启动 MCP stdio server |
@@ -70,6 +102,13 @@ AI_INBOX_HOME=.local/ai-inbox node dist/cli.js list
 
 ```bash
 AI_INBOX_HOME=.local/ai-inbox npm start
+```
+
+Windows PowerShell 中先设置环境变量再启动：
+
+```powershell
+$env:AI_INBOX_HOME = ".local\ai-inbox"
+npm start
 ```
 
 前端 `设置` 和 CLI 都读写同一个 `.env` 配置。常见字段：

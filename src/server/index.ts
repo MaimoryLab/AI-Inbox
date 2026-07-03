@@ -13,7 +13,7 @@ import { listSessionObservations, listSessions, listSources, type ListSessionsOp
 import { organizeConfiguredTodos } from "../todos/configured.js";
 import { clearTodoData, getOrganizeRun, listTodoEvidence, listTodos, type OrganizeOptions, updateTodoStatus } from "../todos/service.js";
 
-const PUBLIC_DIR = fileURLToPath(new URL("../../public/", import.meta.url));
+const PUBLIC_DIR = process.env.AI_INBOX_PUBLIC_DIR ?? fileURLToPath(new URL("../../public/", import.meta.url));
 
 export type StartupScanStatus = {
   status: "idle" | "indexing" | "ready" | "failed";
@@ -61,18 +61,20 @@ export function createStartupScanner(db: Database, paths: AppPaths): { status: S
 export function createAppServer(options: {
   db?: Database;
   paths?: AppPaths;
+  publicDir?: string;
   organizeOptions?: OrganizeOptions;
   startupScan?: StartupScanStatus;
   localToken?: string;
 } = {}) {
   const paths = options.paths ?? getAppPaths();
+  const publicDir = options.publicDir ?? PUBLIC_DIR;
   const organizeStatus: OrganizeStatus = { running: false };
   return createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
     const path = url.pathname;
 
     if (req.method === "GET" && isStaticRequest(path)) {
-      if (serveStatic(res, path)) return;
+      if (serveStatic(res, path, publicDir)) return;
     }
 
     if (req.method === "GET" && path === "/favicon.ico") {
@@ -276,10 +278,10 @@ export function createAppServer(options: {
   });
 }
 
-function serveStatic(res: ServerResponse<IncomingMessage>, path: string): boolean {
+function serveStatic(res: ServerResponse<IncomingMessage>, path: string, publicDir: string): boolean {
   const filename = path === "/" ? "index.html" : path.replace(/^\/+/, "");
   if (filename.includes("..")) return false;
-  const file = join(PUBLIC_DIR, filename);
+  const file = join(publicDir, filename);
   if (!existsSync(file)) return false;
   res.writeHead(200, { "content-type": contentType(file), "content-length": statSync(file).size });
   createReadStream(file).pipe(res);

@@ -19,22 +19,27 @@
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc && vite build",
     "prepack": "npm run build",
     "test": "npm run build && node --test \"dist/test/*.test.js\"",
-    "start": "node dist/cli.js start",
-    "doctor": "node dist/cli.js doctor"
+    "start": "node dist/cli.js open",
+    "doctor": "node dist/cli.js doctor",
+    "release": "npm run release:zip",
+    "release:zip": "npm run build && node scripts/build-release.mjs"
   },
   "engines": {
-    "node": ">=24.0.0"
+    "node": ">=22.16.0"
   },
   "allowScripts": {
+    "esbuild@0.28.1": true,
     "fsevents@2.3.3": true
   },
   "devDependencies": {
-    "@types/node": "^26.0.1",
+    "@types/node": "^22.16.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "autoprefixer": "^10.5.2",
+    "esbuild": "^0.28.1",
     "postcss": "^8.5.16",
+    "postject": "^1.0.0-alpha.6",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.9.3",
     "vite": "^8.1.0"

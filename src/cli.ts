@@ -306,5 +306,10 @@ function printOrganizeResult(result: Awaited<ReturnType<typeof organizeConfigure
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  process.exitCode = await main();
+  main().then((code) => {
+    process.exitCode = code;
+  }).catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
 }
