@@ -233,7 +233,7 @@ test("default env generation writes necessary values without empty api key", () 
     assert.match(text, /AI_INBOX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION=40/);
     assert.doesNotMatch(text, /AI_INBOX_LLM_API_KEY/);
     assert.equal((readFileSync(paths.envPath).byteLength > 0), true);
-    assert.equal(statSync(paths.envPath).mode & 0o777, 0o600);
+    if (process.platform !== "win32") assert.equal(statSync(paths.envPath).mode & 0o777, 0o600);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -242,11 +242,13 @@ test("default env generation writes necessary values without empty api key", () 
 test("partial source init keeps unconfigured sources out of env but startup scan checks missing defaults", () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-env-partial-source-"));
   const previousHome = process.env.HOME;
+  const previousUserProfile = process.env.USERPROFILE;
   const previousClaude = process.env.AI_INBOX_CLAUDE_HOME;
   delete process.env.AI_INBOX_CLAUDE_HOME;
 
   try {
     process.env.HOME = dir;
+    process.env.USERPROFILE = dir;
     const paths = getAppPaths(dir);
     const codexHome = join(dir, ".codex");
     mkdirSync(join(codexHome, "sessions"), { recursive: true });
@@ -269,6 +271,8 @@ test("partial source init keeps unconfigured sources out of env but startup scan
   } finally {
     if (previousHome === undefined) delete process.env.HOME;
     else process.env.HOME = previousHome;
+    if (previousUserProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = previousUserProfile;
     if (previousClaude === undefined) delete process.env.AI_INBOX_CLAUDE_HOME;
     else process.env.AI_INBOX_CLAUDE_HOME = previousClaude;
     rmSync(dir, { recursive: true, force: true });
@@ -301,6 +305,7 @@ test("configured scan counts Windows-style session paths under configured roots"
 test("source discovery writes missing agent paths without overwriting configured env", () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-discovery-"));
   const previousHome = process.env.HOME;
+  const previousUserProfile = process.env.USERPROFILE;
   const previousCodex = process.env.AI_INBOX_CODEX_HOME;
   const previousClaude = process.env.AI_INBOX_CLAUDE_HOME;
   delete process.env.AI_INBOX_CODEX_HOME;
@@ -308,6 +313,7 @@ test("source discovery writes missing agent paths without overwriting configured
 
   try {
     process.env.HOME = dir;
+    process.env.USERPROFILE = dir;
     const paths = getAppPaths(join(dir, "home"));
     mkdirSync(join(dir, ".codex", "sessions"), { recursive: true });
     mkdirSync(join(dir, ".claude", "projects"), { recursive: true });
@@ -329,6 +335,8 @@ test("source discovery writes missing agent paths without overwriting configured
   } finally {
     if (previousHome === undefined) delete process.env.HOME;
     else process.env.HOME = previousHome;
+    if (previousUserProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = previousUserProfile;
     if (previousCodex === undefined) delete process.env.AI_INBOX_CODEX_HOME;
     else process.env.AI_INBOX_CODEX_HOME = previousCodex;
     if (previousClaude === undefined) delete process.env.AI_INBOX_CLAUDE_HOME;
@@ -340,6 +348,7 @@ test("source discovery writes missing agent paths without overwriting configured
 test("source discovery leaves env empty when agent paths are missing", () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-discovery-missing-"));
   const previousHome = process.env.HOME;
+  const previousUserProfile = process.env.USERPROFILE;
   const previousCodex = process.env.AI_INBOX_CODEX_HOME;
   const previousClaude = process.env.AI_INBOX_CLAUDE_HOME;
   delete process.env.AI_INBOX_CODEX_HOME;
@@ -347,6 +356,7 @@ test("source discovery leaves env empty when agent paths are missing", () => {
 
   try {
     process.env.HOME = dir;
+    process.env.USERPROFILE = dir;
     const paths = getAppPaths(join(dir, "home"));
     const discovery = ensureDiscoveredSourceEnv(paths);
     assert.deepEqual(discovery.map((source) => [source.source, source.status]), [
@@ -357,6 +367,8 @@ test("source discovery leaves env empty when agent paths are missing", () => {
   } finally {
     if (previousHome === undefined) delete process.env.HOME;
     else process.env.HOME = previousHome;
+    if (previousUserProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = previousUserProfile;
     if (previousCodex === undefined) delete process.env.AI_INBOX_CODEX_HOME;
     else process.env.AI_INBOX_CODEX_HOME = previousCodex;
     if (previousClaude === undefined) delete process.env.AI_INBOX_CLAUDE_HOME;

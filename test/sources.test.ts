@@ -410,7 +410,7 @@ test("codex scanner merges linked subagent sessions into the parent session", ()
     mkdirSync(agentDir, { recursive: true });
     const subagent = [
       "<subagent_notification>",
-      JSON.stringify({ agent_path: agentDir, status: { completed: "hidden report" } }),
+      JSON.stringify({ agent_path: agentDir.replace(/\//gu, "\\"), status: { completed: "hidden report" } }),
       "</subagent_notification>"
     ].join("\n");
     writeFileSync(join(root, "parent.jsonl"), [

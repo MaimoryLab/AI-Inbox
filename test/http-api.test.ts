@@ -413,6 +413,7 @@ test("HTTP startup scan status exposes automatic scan results", async () => {
 test("HTTP startup scanner discovers source paths before scanning", async () => {
   const fixture = createFixture();
   const previousHome = process.env.HOME;
+  const previousUserProfile = process.env.USERPROFILE;
   const previousCodex = process.env.AI_INBOX_CODEX_HOME;
   const previousClaude = process.env.AI_INBOX_CLAUDE_HOME;
   delete process.env.AI_INBOX_CODEX_HOME;
@@ -420,6 +421,7 @@ test("HTTP startup scanner discovers source paths before scanning", async () => 
 
   try {
     process.env.HOME = fixture.root;
+    process.env.USERPROFILE = fixture.root;
     mkdirSync(join(fixture.root, ".codex", "sessions"), { recursive: true });
     writeFileSync(join(fixture.root, ".codex", "sessions", "session.jsonl"), [
       JSON.stringify({ role: "user", text: "Please auto-discover Codex", timestamp: new Date().toISOString() })
@@ -448,6 +450,8 @@ test("HTTP startup scanner discovers source paths before scanning", async () => 
   } finally {
     if (previousHome === undefined) delete process.env.HOME;
     else process.env.HOME = previousHome;
+    if (previousUserProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = previousUserProfile;
     if (previousCodex === undefined) delete process.env.AI_INBOX_CODEX_HOME;
     else process.env.AI_INBOX_CODEX_HOME = previousCodex;
     if (previousClaude === undefined) delete process.env.AI_INBOX_CLAUDE_HOME;

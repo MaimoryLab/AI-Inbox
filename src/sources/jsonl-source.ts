@@ -201,7 +201,7 @@ function subagentPathsFromText(text: string): string[] {
 }
 
 function normalizePathKey(path: string): string {
-  return path.replace(/\/+$/u, "");
+  return path.replace(/\\/gu, "/").replace(/\/+$/u, "");
 }
 
 function stringLeaves(value: unknown): string[] {
