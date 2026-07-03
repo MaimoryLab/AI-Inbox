@@ -5,9 +5,9 @@
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 ![Node >=22.16.0](https://img.shields.io/badge/node-%3E%3D22.16.0-339933.svg)
 
-**Local-first review workspace for follow-up cards extracted from AI, browser, and agent sessions.**
+**Local-first review workspace for follow-up cards extracted from AI and agent sessions.**
 
-AI-Inbox scans Codex, Claude Code, and browser session records, asks your configured OpenAI-compatible LLM to extract Inbox cards, and keeps every card linked to its source evidence.
+AI-Inbox scans Codex and Claude Code session records, asks your configured OpenAI-compatible LLM to extract Inbox cards, and keeps every card linked to its source evidence. Browser plugin support and browser session extraction are not implemented yet; we plan to ship them as soon as possible.
 
 - Turn scattered AI-session loose ends into one reviewable card queue.
 - Review source snippets before you complete, ignore, or restore a card.
@@ -24,7 +24,7 @@ Open the local URL printed by the command, configure sources and your LLM key in
 
 ## Why AI-Inbox
 
-AI assistants are good at producing progress, but follow-up work often gets buried inside long chats, browser notes, and agent logs. AI-Inbox gives those loose ends a review layer: it extracts concise Inbox cards, keeps the original evidence beside them, and lets you decide what is actually worth doing.
+AI assistants are good at producing progress, but follow-up work often gets buried inside long chats and agent logs. AI-Inbox gives those loose ends a review layer: it extracts concise Inbox cards, keeps the original evidence beside them, and lets you decide what is actually worth doing.
 
 It is not a project management system. It is a local-first triage workspace for the work your AI tools already discussed.
 
@@ -34,7 +34,7 @@ It is not a project management system. It is a local-first triage workspace for 
 | --- | --- | --- |
 | Codex | `~/.codex` | Sessions and archived sessions |
 | Claude Code | `~/.claude/projects` | Project conversation records |
-| Browser | `POST /browser/sessions` | Browser review sessions posted while the local server is running |
+| Browser | Planned | Browser plugin support and browser session extraction are not implemented yet. We plan to add them as soon as possible. |
 
 Scanning imports session text and readable attachment references. It does not copy attachment files.
 
@@ -215,6 +215,7 @@ The UI language preference is saved in the current browser, not in `.env`.
 
 - AI-Inbox is local-first: config, database, and scanned records stay under `~/.ai-inbox` unless you override `AI_INBOX_HOME`.
 - Session text remains local during scanning and review.
+- Browser plugin support is not implemented yet, so AI-Inbox does not collect browser sessions by itself today.
 - During `organize`, relevant snippets are sent to your configured LLM endpoint for extraction.
 - API keys are stored in local config only and must never be committed.
 - README screenshots and fixtures should use synthetic or heavily anonymized content only.
