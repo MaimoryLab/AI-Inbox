@@ -33,6 +33,8 @@ test("release packaging has cross-platform CI and no legacy ai-todo command", ()
   assert.match(workflow, /npm run release:zip/);
   assert.match(script, /--build-sea|--experimental-sea-config/);
   assert.match(script, /postject/);
+  assert.match(script, /execFileSync\(process\.execPath, \[postjectCli\(\), \.\.\.args\]/);
+  assert.doesNotMatch(script, /postject\.cmd/);
   assert.doesNotMatch(`${workflow}\n${script}`, /ai-todo/);
 });
 

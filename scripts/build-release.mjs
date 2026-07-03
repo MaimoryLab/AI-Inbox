@@ -89,12 +89,16 @@ async function buildSeaExecutable(main, output) {
     "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2"
   ];
   if (process.platform === "darwin") postjectArgs.push("--macho-segment-name", "NODE_SEA");
-  execFileSync(postjectBin(), postjectArgs, { stdio: "inherit" });
+  runPostject(postjectArgs);
   if (process.platform === "darwin") runOptional("codesign", ["--sign", "-", output]);
 }
 
-function postjectBin() {
-  return join(root, "node_modules", ".bin", process.platform === "win32" ? "postject.cmd" : "postject");
+function runPostject(args) {
+  execFileSync(process.execPath, [postjectCli(), ...args], { stdio: "inherit" });
+}
+
+function postjectCli() {
+  return join(root, "node_modules", "postject", "dist", "cli.js");
 }
 
 function seaCapableNode() {
