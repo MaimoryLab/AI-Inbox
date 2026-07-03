@@ -89,7 +89,7 @@ export async function callMcpTool(
   }
 
   if (name === "todo_open") {
-    return { opened: false, message: "run ai-inbox open to start the local UI" };
+    return { opened: false, message: "run ai-inbox start to start the local UI" };
   }
 
   throw new Error(`unknown tool: ${name}`);

@@ -43,7 +43,7 @@ test("MCP tools scan, organize, list, update, and open", async () => {
 
     const open = await callMcpTool(db, "todo_open", {}, paths);
     db.close();
-    assert.deepEqual(open, { opened: false, message: "run ai-inbox open to start the local UI" });
+    assert.deepEqual(open, { opened: false, message: "run ai-inbox start to start the local UI" });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

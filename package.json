@@ -19,10 +19,10 @@
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc && vite build",
     "prepack": "npm run build",
     "test": "npm run build && node --test \"dist/test/*.test.js\"",
-    "start": "node dist/cli.js open",
+    "start": "node dist/cli.js start",
     "doctor": "node dist/cli.js doctor",
-    "release": "npm run release:zip",
-    "release:zip": "npm run build && node scripts/build-release.mjs"
+    "release": "npm run release:installer",
+    "release:installer": "npm run build && node scripts/build-release.mjs"
   },
   "engines": {
     "node": ">=22.16.0"

@@ -13,22 +13,12 @@ AI-Inbox scans Codex and Claude Code session records, asks your configured OpenA
 - Review source snippets before you complete, ignore, or restore a card.
 - Keep config and data local by default under `~/.ai-inbox`.
 
-Download a zip from [Releases](https://github.com/MaimoryLab/AI-Inbox/releases), then start it:
+Download the installer from [Releases](https://github.com/MaimoryLab/AI-Inbox/releases), then start it:
 
-```bash
-# macOS Apple Silicon
-unzip ai-inbox-macos-arm64.zip
-cd ai-inbox-macos-arm64
-./ai-inbox open
-```
+- macOS Apple Silicon: open `ai-inbox-macos-arm64.dmg`, then open `AI-Inbox.app`.
+- Windows x64: run `ai-inbox-windows-x64.msi`, then open **AI-Inbox** from the Start menu.
 
-```powershell
-Expand-Archive .\ai-inbox-windows-x64.zip -DestinationPath .
-cd .\ai-inbox-windows-x64
-.\ai-inbox.exe open
-```
-
-Open the local URL printed by the command, configure sources and your LLM key in Settings, then click **Organize**.
+AI-Inbox opens a local browser workspace. Configure sources and your LLM key in Settings, then click **Organize**.
 
 ![AI-Inbox Cards view](docs/assets/readme/ai-inbox-cards.png)
 
@@ -50,20 +40,10 @@ Scanning imports session text and readable attachment references. It does not co
 
 ## Quick Start
 
-```bash
-# macOS Apple Silicon
-unzip ai-inbox-macos-arm64.zip
-cd ai-inbox-macos-arm64
-./ai-inbox open
-```
+- macOS Apple Silicon: open `ai-inbox-macos-arm64.dmg`, then open `AI-Inbox.app`.
+- Windows x64: run `ai-inbox-windows-x64.msi`, then open **AI-Inbox** from the Start menu.
 
-```powershell
-Expand-Archive .\ai-inbox-windows-x64.zip -DestinationPath .
-cd .\ai-inbox-windows-x64
-.\ai-inbox.exe open
-```
-
-The npm package is not published yet; use the release zip or source checkout today.
+The npm package is not published yet; use the installer or source checkout today.
 
 Then:
 
@@ -94,28 +74,18 @@ Screenshots below use synthetic session text, synthetic paths, and an empty API 
 
 ### Requirements
 
-- Release zip: no Node.js install required
+- Installer: no Node.js install required
 - Source checkout or future npm package: Node.js `>=22.16.0`
 - An OpenAI-compatible Chat Completions API key for card extraction
 
-### Release Zip
+### Installer
 
-Download the release zip for your platform from [Releases](https://github.com/MaimoryLab/AI-Inbox/releases), unzip it, and run the binary from that folder:
+Download the installer for your platform from [Releases](https://github.com/MaimoryLab/AI-Inbox/releases):
 
-```bash
-# macOS Apple Silicon
-unzip ai-inbox-macos-arm64.zip
-cd ai-inbox-macos-arm64
-./ai-inbox open
-```
+- macOS Apple Silicon: `ai-inbox-macos-arm64.dmg`
+- Windows x64: `ai-inbox-windows-x64.msi`
 
-```powershell
-Expand-Archive .\ai-inbox-windows-x64.zip -DestinationPath .
-cd .\ai-inbox-windows-x64
-.\ai-inbox.exe open
-```
-
-Config and data still live in `~/.ai-inbox`; they are not stored inside the release folder. Current release binaries are unsigned, so macOS Gatekeeper or Windows Defender may ask for confirmation before first run.
+Config and data still live in `~/.ai-inbox`; they are not stored inside the app or installer directory. Current release installers are unsigned, so macOS Gatekeeper or Windows Defender may ask for confirmation before first run.
 
 ### npm
 
@@ -123,8 +93,8 @@ The npm package is not published yet. Once it is available in the public registr
 
 ```bash
 npm install -g @maimorylab/ai-inbox
-ai-inbox open
-npx @maimorylab/ai-inbox open
+ai-inbox start
+npx @maimorylab/ai-inbox start
 ```
 
 ### Source Checkout
@@ -143,16 +113,16 @@ On macOS or Linux, the helper script runs the same local startup path:
 ./scripts/start-local.sh
 ```
 
-`ai-inbox open` and `npm start` default to `127.0.0.1:3111`. If that port is occupied, choose one explicitly:
+`ai-inbox start` and `npm start` default to `127.0.0.1:3111`. If that port is occupied, choose one explicitly:
 
 ```bash
-ai-inbox open --port 3112
+ai-inbox start --port 3112
 npm start -- --port 3112
 ```
 
 ## Daily Workflow
 
-1. Start the workspace with `ai-inbox open`.
+1. Start the workspace with `ai-inbox start`.
 2. Check **Settings** when source paths, look-back days, max sessions, or LLM config need adjustment.
 3. Use **Sources** to confirm what was scanned and inspect raw context.
 4. Use **Cards** to organize recent sessions, inspect evidence, complete cards, ignore noise, or restore a card later.
@@ -180,7 +150,7 @@ ai-inbox list
 | `done <card-id>` / `complete <card-id>` | Mark a card complete |
 | `ignore <card-id>` / `dismiss <card-id>` | Ignore a card |
 | `restore <card-id>` / `reopen <card-id>` | Restore a card to open |
-| `start [--port <n>]` / `open [--port <n>]` | Start the local web workspace |
+| `start [--port <n>]` | Start the local web workspace |
 | `mcp` | Start the MCP stdio server |
 
 For isolated testing:
@@ -204,14 +174,14 @@ The default config directory is `~/.ai-inbox`.
 Set `AI_INBOX_HOME` to use another location:
 
 ```bash
-AI_INBOX_HOME=.local/ai-inbox ai-inbox open
+AI_INBOX_HOME=.local/ai-inbox ai-inbox start
 ```
 
 Windows PowerShell:
 
 ```powershell
 $env:AI_INBOX_HOME = ".local\ai-inbox"
-ai-inbox open
+ai-inbox start
 ```
 
 The web Settings page and CLI read and write the same `.env` config. Common fields:
@@ -245,11 +215,11 @@ The UI language preference is saved in the current browser, not in `.env`.
 
 | Problem | What to do |
 | --- | --- |
-| `3111 is already in use` | Run `ai-inbox open --port 3112` or choose another explicit port. |
+| `3111 is already in use` | Run `ai-inbox start --port 3112` or choose another explicit port. |
 | No cards are created | Run `ai-inbox doctor`, confirm the API key and endpoint, then run `ai-inbox organize` again. |
 | Sources look empty | Check `AI_INBOX_CODEX_HOME`, `AI_INBOX_CLAUDE_HOME`, or run `ai-inbox scan <source> [path]`. |
 | Cannot find `~/.ai-inbox` in Finder | Dot folders are hidden on macOS. Use Finder **Go to Folder** and enter `~/.ai-inbox`. |
-| npm cannot find the package | Use the source checkout or release zip until the package is published to the public registry. |
+| npm cannot find the package | Use the source checkout or installer until the package is published to the public registry. |
 | Release binary is blocked | Approve the unsigned binary in your OS security prompt, or run from source with Node.js. |
 
 ## Contributing

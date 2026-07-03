@@ -176,7 +176,7 @@ test("CLI scan uses default source paths with environment overrides", async () =
   }
 });
 
-test("CLI open reports the fixed default port when it is occupied", async () => {
+test("CLI open alias points users to start when the fixed default port is occupied", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-cli-open-"));
   const previousHome = process.env.AI_INBOX_HOME;
   process.env.AI_INBOX_HOME = join(dir, "home");
@@ -186,7 +186,7 @@ test("CLI open reports the fixed default port when it is occupied", async () => 
     const opened = await capture(() => main(["open"]));
     assert.equal(opened.code, 1);
     assert.match(opened.stderr, /3111 is already in use/);
-    assert.match(opened.stderr, /ai-inbox open --port <port>/);
+    assert.match(opened.stderr, /ai-inbox start --port <port>/);
   } finally {
     process.env.AI_INBOX_HOME = previousHome;
     if (blocker) {

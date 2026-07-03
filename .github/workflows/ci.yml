@@ -23,8 +23,12 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: git diff --check
-      - run: npm run release:zip
+      - if: matrix.node-version == '22.x' && matrix.os != 'ubuntu-latest'
+        run: npm run release:installer
       - uses: actions/upload-artifact@v4
+        if: matrix.node-version == '22.x' && matrix.os != 'ubuntu-latest'
         with:
           name: ai-inbox-${{ matrix.os }}-node-${{ matrix.node-version }}
-          path: artifacts/release/*.zip
+          path: |
+            artifacts/release/*.dmg
+            artifacts/release/*.msi

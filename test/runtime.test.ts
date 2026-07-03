@@ -37,12 +37,13 @@ test("help prints CLI usage", async () => {
   const help = await capture(() => main(["--help"]));
   assert.equal(help.code, 0);
   assert.match(help.stdout, /Usage: ai-inbox/);
-  assert.match(help.stdout, /start\|open \[--port <port>\]/);
+  assert.match(help.stdout, /start \[--port <port>\]/);
+  assert.doesNotMatch(help.stdout, /start\|open/);
 });
 
 test("npm start launches the web workspace command", () => {
   const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> };
-  assert.equal(pkg.scripts.start, "node dist/cli.js open");
+  assert.equal(pkg.scripts.start, "node dist/cli.js start");
   assert.doesNotMatch(pkg.scripts.build, /rm -rf/);
   assert.match(pkg.scripts.build, /node:fs/);
   assert.match(pkg.scripts.build, /rmSync/);

@@ -16,36 +16,43 @@ test("package exposes only the ai-inbox CLI on supported Node LTS", () => {
 
   assert.deepEqual(pkg.bin, { "ai-inbox": "dist/cli.js" });
   assert.equal(pkg.engines.node, ">=22.16.0");
-  assert.equal(pkg.scripts.start, "node dist/cli.js open");
-  assert.equal(pkg.scripts.release, "npm run release:zip");
-  assert.equal(pkg.scripts["release:zip"], "npm run build && node scripts/build-release.mjs");
+  assert.equal(pkg.scripts.start, "node dist/cli.js start");
+  assert.equal(pkg.scripts.release, "npm run release:installer");
+  assert.equal(pkg.scripts["release:installer"], "npm run build && node scripts/build-release.mjs");
   assert.ok(pkg.files.includes("dist/public"));
   assert.ok(pkg.files.includes("dist/src"));
   assert.ok(pkg.devDependencies.postject);
 });
 
-test("release packaging has cross-platform CI and no legacy ai-todo command", () => {
+test("release packaging builds platform installers and no legacy ai-todo command", () => {
   const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
   const script = readFileSync("scripts/build-release.mjs", "utf8");
 
   assert.match(workflow, /os: \[ubuntu-latest, macos-latest, windows-latest\]/);
   assert.match(workflow, /node-version: \[22\.x, 24\.x\]/);
-  assert.match(workflow, /npm run release:zip/);
+  assert.match(workflow, /npm run release:installer/);
+  assert.match(workflow, /artifacts\/release\/\*\.dmg/);
+  assert.match(workflow, /artifacts\/release\/\*\.msi/);
   assert.match(script, /--build-sea|--experimental-sea-config/);
   assert.match(script, /postject/);
+  assert.match(script, /args\.length === 0\) args\.push\("start"\)/);
+  assert.match(script, /hdiutil/);
+  assert.match(script, /AI-Inbox\.app/);
+  assert.match(script, /wix/);
+  assert.match(script, /\.msi/);
   assert.match(script, /execFileSync\(process\.execPath, \[postjectCli\(\), \.\.\.args\]/);
   assert.doesNotMatch(script, /postject\.cmd/);
   assert.doesNotMatch(`${workflow}\n${script}`, /ai-todo/);
 });
 
-test("README documents npm and zip release usage", () => {
+test("README documents installer-first release usage", () => {
   const readme = readFileSync("README.md", "utf8");
 
-  assert.match(readme, /npm install -g @maimorylab\/ai-inbox/);
-  assert.match(readme, /npx @maimorylab\/ai-inbox open/);
-  assert.match(readme, /release zip/);
-  assert.match(readme, /\.\/ai-inbox open/);
-  assert.match(readme, /\.\\ai-inbox\.exe open/);
+  assert.match(readme, /ai-inbox-macos-arm64\.dmg/);
+  assert.match(readme, /AI-Inbox\.app/);
+  assert.match(readme, /ai-inbox-windows-x64\.msi/);
+  assert.match(readme, /Start menu/);
+  assert.match(readme, /npm package is not published yet/);
   assert.match(readme, /\$env:AI_INBOX_HOME = ".local\\ai-inbox"/);
 });
 

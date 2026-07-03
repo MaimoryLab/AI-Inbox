@@ -13,22 +13,12 @@ AI-Inbox 会扫描 Codex 和 Claude Code 会话记录，调用你配置的 OpenA
 - 在完成、忽略或恢复卡片前，先查看对应的来源片段。
 - 配置和数据默认留在本机 `~/.ai-inbox`。
 
-从 [Releases](https://github.com/MaimoryLab/AI-Inbox/releases) 下载 zip，然后启动：
+从 [Releases](https://github.com/MaimoryLab/AI-Inbox/releases) 下载安装器，然后启动：
 
-```bash
-# macOS Apple Silicon
-unzip ai-inbox-macos-arm64.zip
-cd ai-inbox-macos-arm64
-./ai-inbox open
-```
+- macOS Apple Silicon：打开 `ai-inbox-macos-arm64.dmg`，再打开 `AI-Inbox.app`。
+- Windows x64：运行 `ai-inbox-windows-x64.msi`，再从开始菜单打开 **AI-Inbox**。
 
-```powershell
-Expand-Archive .\ai-inbox-windows-x64.zip -DestinationPath .
-cd .\ai-inbox-windows-x64
-.\ai-inbox.exe open
-```
-
-打开命令输出的本地 URL，在设置页配置来源和 LLM key，然后点击 **Organize / 整理**，卡片整理效果如下。
+AI-Inbox 会打开本地浏览器工作台。在设置页配置来源和 LLM key，然后点击 **Organize / 整理**，卡片整理效果如下。
 
 ![AI-Inbox 卡片视图](docs/assets/readme/ai-inbox-cards.png)
 
@@ -50,20 +40,10 @@ cd .\ai-inbox-windows-x64
 
 ## 快速开始
 
-```bash
-# macOS Apple Silicon
-unzip ai-inbox-macos-arm64.zip
-cd ai-inbox-macos-arm64
-./ai-inbox open
-```
+- macOS Apple Silicon：打开 `ai-inbox-macos-arm64.dmg`，再打开 `AI-Inbox.app`。
+- Windows x64：运行 `ai-inbox-windows-x64.msi`，再从开始菜单打开 **AI-Inbox**。
 
-```powershell
-Expand-Archive .\ai-inbox-windows-x64.zip -DestinationPath .
-cd .\ai-inbox-windows-x64
-.\ai-inbox.exe open
-```
-
-npm 包尚未发布；当前请使用 release zip 或源码启动。
+npm 包尚未发布；当前请使用安装器或源码启动。
 
 然后：
 
@@ -94,28 +74,18 @@ npm 包尚未发布；当前请使用 release zip 或源码启动。
 
 ### 环境要求
 
-- Release zip：不需要安装 Node.js
+- 安装器：不需要安装 Node.js
 - 源码启动或未来 npm 包：Node.js `>=22.16.0`
 - 用于卡片抽取的 OpenAI-compatible Chat Completions API key
 
-### Release Zip
+### 安装器
 
-从 [Releases](https://github.com/MaimoryLab/AI-Inbox/releases) 下载对应平台的 release zip，解压后在该目录运行：
+从 [Releases](https://github.com/MaimoryLab/AI-Inbox/releases) 下载对应平台的安装器：
 
-```bash
-# macOS Apple Silicon
-unzip ai-inbox-macos-arm64.zip
-cd ai-inbox-macos-arm64
-./ai-inbox open
-```
+- macOS Apple Silicon：`ai-inbox-macos-arm64.dmg`
+- Windows x64：`ai-inbox-windows-x64.msi`
 
-```powershell
-Expand-Archive .\ai-inbox-windows-x64.zip -DestinationPath .
-cd .\ai-inbox-windows-x64
-.\ai-inbox.exe open
-```
-
-配置和数据仍保存在 `~/.ai-inbox`，不会写进 release 目录。当前 release 二进制未签名，macOS Gatekeeper 或 Windows Defender 可能会在首次运行时要求确认。
+配置和数据仍保存在 `~/.ai-inbox`，不会写进应用或安装目录。当前 release 安装器未签名，macOS Gatekeeper 或 Windows Defender 可能会在首次运行时要求确认。
 
 ### npm
 
@@ -123,8 +93,8 @@ npm 包尚未发布。发布到公开 registry 后，这会是最短安装路径
 
 ```bash
 npm install -g @maimorylab/ai-inbox
-ai-inbox open
-npx @maimorylab/ai-inbox open
+ai-inbox start
+npx @maimorylab/ai-inbox start
 ```
 
 ### 源码启动
@@ -143,16 +113,16 @@ macOS 或 Linux 也可以使用本地启动脚本：
 ./scripts/start-local.sh
 ```
 
-`ai-inbox open` 和 `npm start` 默认使用 `127.0.0.1:3111`。如果端口被占用，请显式指定：
+`ai-inbox start` 和 `npm start` 默认使用 `127.0.0.1:3111`。如果端口被占用，请显式指定：
 
 ```bash
-ai-inbox open --port 3112
+ai-inbox start --port 3112
 npm start -- --port 3112
 ```
 
 ## 日常流程
 
-1. 用 `ai-inbox open` 启动工作台。
+1. 用 `ai-inbox start` 启动工作台。
 2. 需要调整来源路径、回看天数、最大会话数或 LLM 配置时，进入 **Settings / 设置**。
 3. 用 **Sources / 来源** 确认扫描结果并查看原始上下文。
 4. 用 **Cards / 卡片** 整理近期会话，查看证据，完成卡片，忽略噪音，或恢复卡片。
@@ -180,7 +150,7 @@ ai-inbox list
 | `done <card-id>` / `complete <card-id>` | 标记卡片完成 |
 | `ignore <card-id>` / `dismiss <card-id>` | 忽略卡片 |
 | `restore <card-id>` / `reopen <card-id>` | 把卡片恢复为打开状态 |
-| `start [--port <n>]` / `open [--port <n>]` | 启动本地 Web 工作台 |
+| `start [--port <n>]` | 启动本地 Web 工作台 |
 | `mcp` | 启动 MCP stdio server |
 
 隔离测试可以指定 `AI_INBOX_HOME`：
@@ -204,14 +174,14 @@ AI_INBOX_HOME=.local/ai-inbox node dist/cli.js doctor
 设置 `AI_INBOX_HOME` 可以改到其他位置：
 
 ```bash
-AI_INBOX_HOME=.local/ai-inbox ai-inbox open
+AI_INBOX_HOME=.local/ai-inbox ai-inbox start
 ```
 
 Windows PowerShell：
 
 ```powershell
 $env:AI_INBOX_HOME = ".local\ai-inbox"
-ai-inbox open
+ai-inbox start
 ```
 
 Web 设置页和 CLI 读写同一个 `.env` 配置。常见字段：
@@ -245,11 +215,11 @@ AI_INBOX_ORGANIZE_MAX_SESSIONS=16
 
 | 问题 | 处理方式 |
 | --- | --- |
-| `3111 is already in use` | 运行 `ai-inbox open --port 3112`，或指定另一个明确端口。 |
+| `3111 is already in use` | 运行 `ai-inbox start --port 3112`，或指定另一个明确端口。 |
 | 没有生成卡片 | 运行 `ai-inbox doctor`，确认 API key 和 endpoint，再重新执行 `ai-inbox organize`。 |
 | 来源为空 | 检查 `AI_INBOX_CODEX_HOME`、`AI_INBOX_CLAUDE_HOME`，或运行 `ai-inbox scan <source> [path]`。 |
 | Finder 里找不到 `~/.ai-inbox` | macOS 默认隐藏点目录。使用 Finder 的 **前往文件夹**，输入 `~/.ai-inbox`。 |
-| npm 找不到包 | 在公开 npm 包可用前，使用源码启动或 release zip。 |
+| npm 找不到包 | 在公开 npm 包可用前，使用源码启动或安装器。 |
 | Release 二进制被系统拦截 | 在系统安全提示中确认未签名二进制，或使用 Node.js 从源码运行。 |
 
 ## 开源贡献

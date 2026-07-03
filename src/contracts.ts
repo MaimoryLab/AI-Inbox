@@ -7,7 +7,7 @@ export const CLI_COMMANDS = [
   "ai-inbox done <id>",
   "ai-inbox ignore <id>",
   "ai-inbox restore <id>",
-  "ai-inbox open",
+  "ai-inbox start",
   "ai-inbox doctor",
   "ai-inbox connect codex",
   "ai-inbox mcp"

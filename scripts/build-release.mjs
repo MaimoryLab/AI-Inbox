@@ -1,20 +1,27 @@
 #!/usr/bin/env node
+import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, copyFileSync, cpSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, copyFileSync, cpSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { chmod } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+const appVersion = packageJson.version;
 const artifactsDir = join(root, "artifacts", "release");
 const workDir = join(root, "artifacts", "sea-build");
-const platformName = { darwin: "macos", linux: "linux", win32: "windows" }[process.platform] ?? process.platform;
-const releaseName = `ai-inbox-${platformName}-${process.arch}`;
-const packageDir = join(artifactsDir, releaseName);
+const platformName = { darwin: "macos", win32: "windows" }[process.platform];
+const releaseName = platformName ? `ai-inbox-${platformName}-${process.arch}` : null;
+const packageDir = releaseName ? join(artifactsDir, releaseName) : null;
 const binaryName = process.platform === "win32" ? "ai-inbox.exe" : "ai-inbox";
-const binaryPath = join(packageDir, binaryName);
+const binaryPath = packageDir ? join(packageDir, binaryName) : "";
 const seaNodePath = join(workDir, "node-runtime", binaryName);
+
+if (!platformName || !packageDir) {
+  throw new Error(`Installer packaging is supported on macOS and Windows only, not ${process.platform}.`);
+}
 
 if (!existsSync(join(root, "dist", "public", "index.html"))) {
   throw new Error("dist/public is missing; run npm run build first.");
@@ -22,6 +29,7 @@ if (!existsSync(join(root, "dist", "public", "index.html"))) {
 
 rmSync(workDir, { recursive: true, force: true });
 rmSync(packageDir, { recursive: true, force: true });
+rmSync(join(artifactsDir, `${releaseName}.zip`), { force: true });
 mkdirSync(workDir, { recursive: true });
 mkdirSync(packageDir, { recursive: true });
 
@@ -37,8 +45,11 @@ if (!process.env.AI_INBOX_PUBLIC_DIR && existsSync(releasePublicDir)) {
   process.env.AI_INBOX_PUBLIC_DIR = releasePublicDir;
 }
 
+const args = process.argv.slice(2);
+if (args.length === 0) args.push("start");
+
 void import("${cliImport.startsWith(".") ? cliImport : `./${cliImport}`}").then(async ({ main }) => {
-  process.exitCode = await main();
+  process.exitCode = await main(args);
 }).catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
@@ -62,10 +73,17 @@ copyFileSync(join(root, "README.md"), join(packageDir, "README.md"));
 copyFileSync(join(root, "LICENSE"), join(packageDir, "LICENSE"));
 await chmod(binaryPath, 0o755);
 
-const zipPath = join(artifactsDir, `${releaseName}.zip`);
-rmSync(zipPath, { force: true });
-zipRelease(zipPath);
-console.log(`release zip: ${zipPath}`);
+if (process.platform === "darwin") {
+  const dmgPath = join(artifactsDir, `${releaseName}.dmg`);
+  rmSync(dmgPath, { force: true });
+  await buildMacDmg(dmgPath);
+  console.log(`release dmg: ${dmgPath}`);
+} else {
+  const msiPath = join(artifactsDir, `${releaseName}.msi`);
+  rmSync(msiPath, { force: true });
+  buildWindowsMsi(msiPath);
+  console.log(`release msi: ${msiPath}`);
+}
 
 async function buildSeaExecutable(main, output) {
   const seaConfig = join(workDir, "sea-config.json");
@@ -116,7 +134,7 @@ function hasSeaSentinel(file) {
 }
 
 function downloadOfficialNode() {
-  const platform = { darwin: "darwin", linux: "linux", win32: "win" }[process.platform];
+  const platform = { darwin: "darwin", win32: "win" }[process.platform];
   if (!platform) throw new Error(`Unsupported release platform: ${process.platform}`);
   const ext = process.platform === "win32" ? "zip" : "tar.gz";
   const archive = `node-${process.version}-${platform}-${process.arch}.${ext}`;
@@ -137,16 +155,228 @@ function downloadOfficialNode() {
   return node;
 }
 
-function zipRelease(zipPath) {
-  if (process.platform === "win32") {
-    execFileSync("powershell", [
-      "-NoProfile",
-      "-Command",
-      `Compress-Archive -Path ${JSON.stringify(packageDir)} -DestinationPath ${JSON.stringify(zipPath)} -Force`
-    ], { stdio: "inherit" });
-    return;
+async function buildMacDmg(dmgPath) {
+  const appDir = join(artifactsDir, "AI-Inbox.app");
+  const appRoot = join(appDir, "Contents");
+  const macosDir = join(appRoot, "MacOS");
+  const resourcesDir = join(appRoot, "Resources");
+  const dmgRoot = join(workDir, "dmg-root");
+  rmSync(appDir, { recursive: true, force: true });
+  rmSync(dmgRoot, { recursive: true, force: true });
+  mkdirSync(macosDir, { recursive: true });
+  mkdirSync(resourcesDir, { recursive: true });
+
+  copyFileSync(binaryPath, join(resourcesDir, "ai-inbox"));
+  await chmod(join(resourcesDir, "ai-inbox"), 0o755);
+  cpSync(join(packageDir, "public"), join(resourcesDir, "public"), { recursive: true });
+  copyFileSync(join(packageDir, "README.md"), join(resourcesDir, "README.md"));
+  copyFileSync(join(packageDir, "LICENSE"), join(resourcesDir, "LICENSE"));
+  writeFileSync(join(appRoot, "Info.plist"), macInfoPlist());
+
+  const launcher = join(macosDir, "AI-Inbox");
+  writeFileSync(launcher, `#!/bin/sh
+APP_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+exec "$APP_ROOT/Resources/ai-inbox" start "$@"
+`);
+  await chmod(launcher, 0o755);
+
+  runOptional("codesign", ["--force", "--deep", "--sign", "-", appDir]);
+  mkdirSync(dmgRoot, { recursive: true });
+  cpSync(appDir, join(dmgRoot, "AI-Inbox.app"), { recursive: true });
+  copyFileSync(join(packageDir, "README.md"), join(dmgRoot, "README.md"));
+  const sizeMb = Math.ceil(directorySizeBytes(dmgRoot) / 1024 / 1024) + 80;
+  execFileSync("hdiutil", [
+    "create",
+    "-volname", `AI-Inbox ${appVersion}`,
+    "-srcfolder", dmgRoot,
+    "-ov",
+    "-format", "UDZO",
+    "-fs", "HFS+",
+    "-size", `${sizeMb}m`,
+    dmgPath
+  ], { stdio: "inherit" });
+}
+
+function macInfoPlist() {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleDisplayName</key>
+  <string>AI-Inbox</string>
+  <key>CFBundleExecutable</key>
+  <string>AI-Inbox</string>
+  <key>CFBundleIdentifier</key>
+  <string>lab.maimory.ai-inbox</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleName</key>
+  <string>AI-Inbox</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>${xmlText(appVersion)}</string>
+  <key>CFBundleVersion</key>
+  <string>${xmlText(appVersion)}</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>12.0</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+</dict>
+</plist>
+`;
+}
+
+function buildWindowsMsi(msiPath) {
+  const wxs = join(workDir, "ai-inbox.wxs");
+  writeFileSync(wxs, windowsInstallerXml());
+  execFileSync(wixBin(), ["build", wxs, "-arch", wixArch(), "-o", msiPath], { stdio: "inherit" });
+}
+
+function wixBin() {
+  const wixDir = join(workDir, "wix");
+  const wix = join(wixDir, process.platform === "win32" ? "wix.exe" : "wix");
+  if (!existsSync(wix)) {
+    mkdirSync(wixDir, { recursive: true });
+    execFileSync("dotnet", ["tool", "install", "--tool-path", wixDir, "wix", "--version", process.env.AI_INBOX_WIX_VERSION ?? "5.0.2"], { stdio: "inherit" });
   }
-  execFileSync("zip", ["-qr", zipPath, releaseName], { cwd: artifactsDir, stdio: "inherit" });
+  return wix;
+}
+
+function wixArch() {
+  return process.arch === "arm64" ? "arm64" : "x64";
+}
+
+function windowsInstallerXml() {
+  const files = collectFiles(packageDir);
+  const tree = directoryTree(files);
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="AI-Inbox" Manufacturer="MaimoryLab" Version="${xmlAttr(msiVersion(appVersion))}" UpgradeCode="${stableGuid("ai-inbox-upgrade-code")}" Scope="perUser">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of AI-Inbox is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ManufacturerFolder" Name="MaimoryLab">
+        <Directory Id="INSTALLFOLDER" Name="AI-Inbox">
+${renderDirectoryTree(tree, "          ")}
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="AI-Inbox" />
+    </StandardDirectory>
+    <ComponentGroup Id="AppComponents">
+${renderComponents(files)}
+      <Component Id="StartMenuShortcutComponent" Directory="ApplicationProgramsFolder" Guid="${stableGuid("ai-inbox-start-menu-shortcut")}">
+        <Shortcut Id="StartMenuShortcut" Name="AI-Inbox" Description="Start AI-Inbox" Target="[#AiInboxExe]" Arguments="start" WorkingDirectory="INSTALLFOLDER" />
+        <RemoveFolder Id="RemoveApplicationProgramsFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\\MaimoryLab\\AI-Inbox" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+    <Feature Id="MainFeature" Title="AI-Inbox" Level="1">
+      <ComponentGroupRef Id="AppComponents" />
+    </Feature>
+  </Package>
+</Wix>
+`;
+}
+
+function collectFiles(dir, base = dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return collectFiles(path, base);
+    if (!entry.isFile()) return [];
+    return [relative(base, path).split(sep).join("/")];
+  }).sort();
+}
+
+function directorySizeBytes(dir) {
+  return readdirSync(dir, { withFileTypes: true }).reduce((total, entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return total + directorySizeBytes(path);
+    if (!entry.isFile()) return total;
+    return total + statSync(path).size;
+  }, 0);
+}
+
+function directoryTree(files) {
+  const rootNode = { children: new Map() };
+  for (const file of files) {
+    const dirs = dirname(file) === "." ? [] : dirname(file).split("/");
+    let node = rootNode;
+    let current = "";
+    for (const dir of dirs) {
+      current = current ? `${current}/${dir}` : dir;
+      if (!node.children.has(dir)) node.children.set(dir, { path: current, children: new Map() });
+      node = node.children.get(dir);
+    }
+  }
+  return rootNode;
+}
+
+function renderDirectoryTree(node, indent) {
+  return [...node.children.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([name, child]) => [
+    `${indent}<Directory Id="${directoryId(child.path)}" Name="${xmlAttr(name)}">`,
+    renderDirectoryTree(child, `${indent}  `),
+    `${indent}</Directory>`
+  ].filter(Boolean).join("\n")).join("\n");
+}
+
+function renderComponents(files) {
+  const byDir = new Map();
+  for (const file of files) {
+    const dir = dirname(file) === "." ? "" : dirname(file);
+    if (!byDir.has(dir)) byDir.set(dir, []);
+    byDir.get(dir).push(file);
+  }
+
+  return [...byDir.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([dir, dirFiles]) => {
+    const componentId = wixId("Cmp", dir || "root");
+    const directory = dir ? directoryId(dir) : "INSTALLFOLDER";
+    const guid = stableGuid(`ai-inbox-component:${dir || "root"}`);
+    const body = dirFiles.sort().map((file, index) => {
+      const fileId = file === binaryName ? "AiInboxExe" : wixId("File", file);
+      const keyPath = index === 0 ? " KeyPath=\"yes\"" : "";
+      return `        <File Id="${fileId}" Source="${xmlAttr(join(packageDir, ...file.split("/")))}"${keyPath} />`;
+    }).join("\n");
+    return `      <Component Id="${componentId}" Directory="${directory}" Guid="${guid}">
+${body}
+      </Component>`;
+  }).join("\n");
+}
+
+function directoryId(dir) {
+  return wixId("Dir", dir);
+}
+
+function wixId(prefix, value) {
+  return `${prefix}_${createHash("sha1").update(value).digest("hex").slice(0, 16)}`;
+}
+
+function stableGuid(value) {
+  const hex = createHash("sha1").update(value).digest("hex").slice(0, 32).split("");
+  hex[12] = "5";
+  hex[16] = ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
+  return `${hex.slice(0, 8).join("")}-${hex.slice(8, 12).join("")}-${hex.slice(12, 16).join("")}-${hex.slice(16, 20).join("")}-${hex.slice(20, 32).join("")}`;
+}
+
+function msiVersion(version) {
+  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
+  if (!match) throw new Error(`Package version must start with major.minor.patch for MSI: ${version}`);
+  return `${Number(match[1])}.${Number(match[2])}.${Number(match[3])}`;
+}
+
+function xmlAttr(value) {
+  return xmlText(value).replace(/"/g, "&quot;");
+}
+
+function xmlText(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function runOptional(command, args) {

@@ -26,7 +26,7 @@ Commands:
   done|complete <todo-id>     Mark a todo complete.
   ignore|dismiss <todo-id>    Ignore a todo.
   restore|reopen <todo-id>    Restore a todo to open.
-  start|open [--port <port>]  Start the local UI.
+  start [--port <port>]       Start the local UI.
   mcp                         Start the MCP stdio server.`;
 
 export async function main(argv = process.argv.slice(2)): Promise<number> {
@@ -111,8 +111,12 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     return withDatabase((db) => updateStatus(db, argv[1], status));
   }
 
-  if (command === "start" || command === "open") {
-    return openUi(argv.slice(1), command);
+  if (command === "start") {
+    return startUi(argv.slice(1));
+  }
+
+  if (command === "open") {
+    return startUi(argv.slice(1));
   }
 
   if (command === "mcp") {
@@ -207,7 +211,7 @@ async function withDatabase(fn: (db: Database) => number | Promise<number>): Pro
   }
 }
 
-async function openUi(argv: string[] = [], command = "start"): Promise<number> {
+async function startUi(argv: string[] = [], command = "start"): Promise<number> {
   const args = parseOptions(argv);
   const port = args.port ? Number(args.port) : DEFAULT_UI_PORT;
   if (!Number.isInteger(port) || port < 0 || port > 65535) {
