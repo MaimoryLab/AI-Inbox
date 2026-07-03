@@ -13,10 +13,10 @@ AI-Inbox 会扫描 Codex 和 Claude Code 会话记录，调用你配置的 OpenA
 - 在完成、忽略或恢复卡片前，先查看对应的来源片段。
 - 配置和数据默认留在本机 `~/.ai-inbox`。
 
-从 [Releases](https://github.com/MaimoryLab/AI-Inbox/releases) 下载安装器，然后启动：
+从 [Releases](https://github.com/MaimoryLab/AI-Inbox/releases) 下载对应平台的 zip，解压后启动 CLI：
 
-- macOS Apple Silicon：打开 `ai-inbox-macos-arm64.dmg`，再打开 `AI-Inbox.app`。
-- Windows x64：运行 `ai-inbox-windows-x64.msi`，再从开始菜单打开 **AI-Inbox**。
+- macOS Apple Silicon：`cd ai-inbox-macos-arm64 && ./ai-inbox start`
+- Windows x64：`cd ai-inbox-windows-x64; .\ai-inbox.exe start`
 
 AI-Inbox 会打开本地浏览器工作台。在设置页配置来源和 LLM key，然后点击 **Organize / 整理**，卡片整理效果如下。
 
@@ -40,10 +40,10 @@ AI-Inbox 会打开本地浏览器工作台。在设置页配置来源和 LLM key
 
 ## 快速开始
 
-- macOS Apple Silicon：打开 `ai-inbox-macos-arm64.dmg`，再打开 `AI-Inbox.app`。
-- Windows x64：运行 `ai-inbox-windows-x64.msi`，再从开始菜单打开 **AI-Inbox**。
+- macOS Apple Silicon：解压 `ai-inbox-macos-arm64.zip`，然后在解压目录中运行 `./ai-inbox start`。
+- Windows x64：解压 `ai-inbox-windows-x64.zip`，然后在解压目录中运行 `.\ai-inbox.exe start`。
 
-npm 包尚未发布；当前请使用安装器或源码启动。
+npm 包尚未发布；当前请使用 release zip 或源码启动。
 
 然后：
 
@@ -74,18 +74,30 @@ npm 包尚未发布；当前请使用安装器或源码启动。
 
 ### 环境要求
 
-- 安装器：不需要安装 Node.js
+- Release zip：不需要安装 Node.js
 - 源码启动或未来 npm 包：Node.js `>=22.16.0`
 - 用于卡片抽取的 OpenAI-compatible Chat Completions API key
 
-### 安装器
+### Release Zip
 
-从 [Releases](https://github.com/MaimoryLab/AI-Inbox/releases) 下载对应平台的安装器：
+从 [Releases](https://github.com/MaimoryLab/AI-Inbox/releases) 下载对应平台的 zip：
 
-- macOS Apple Silicon：`ai-inbox-macos-arm64.dmg`
-- Windows x64：`ai-inbox-windows-x64.msi`
+- macOS Apple Silicon：`ai-inbox-macos-arm64.zip`
+- Windows x64：`ai-inbox-windows-x64.zip`
 
-配置和数据仍保存在 `~/.ai-inbox`，不会写进应用或安装目录。当前 release 安装器未签名，macOS Gatekeeper 或 Windows Defender 可能会在首次运行时要求确认。
+解压后，在解压目录中运行内置 CLI：
+
+```bash
+./ai-inbox start
+```
+
+Windows PowerShell：
+
+```powershell
+.\ai-inbox.exe start
+```
+
+配置和数据仍保存在 `~/.ai-inbox`，不会写进解压后的 release 目录。当前 release 二进制未签名，macOS Gatekeeper 或 Windows Defender 可能会在首次运行时要求确认。
 
 ### npm
 
@@ -219,7 +231,7 @@ AI_INBOX_ORGANIZE_MAX_SESSIONS=16
 | 没有生成卡片 | 运行 `ai-inbox doctor`，确认 API key 和 endpoint，再重新执行 `ai-inbox organize`。 |
 | 来源为空 | 检查 `AI_INBOX_CODEX_HOME`、`AI_INBOX_CLAUDE_HOME`，或运行 `ai-inbox scan <source> [path]`。 |
 | Finder 里找不到 `~/.ai-inbox` | macOS 默认隐藏点目录。使用 Finder 的 **前往文件夹**，输入 `~/.ai-inbox`。 |
-| npm 找不到包 | 在公开 npm 包可用前，使用源码启动或安装器。 |
+| npm 找不到包 | 在公开 npm 包可用前，使用源码启动或 release zip。 |
 | Release 二进制被系统拦截 | 在系统安全提示中确认未签名二进制，或使用 Node.js 从源码运行。 |
 
 ## 开源贡献

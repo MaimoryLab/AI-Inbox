@@ -1,6 +1,6 @@
 {
   "name": "@maimorylab/ai-inbox",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Local-first inbox extraction for AI agent sessions.",
   "type": "module",
   "bin": {
@@ -21,8 +21,8 @@
     "test": "npm run build && node --test \"dist/test/*.test.js\"",
     "start": "node dist/cli.js start",
     "doctor": "node dist/cli.js doctor",
-    "release": "npm run release:installer",
-    "release:installer": "npm run build && node scripts/build-release.mjs"
+    "release": "npm run release:zip",
+    "release:zip": "npm run build && node scripts/build-release.mjs"
   },
   "engines": {
     "node": ">=22.16.0"

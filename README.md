@@ -13,10 +13,10 @@ AI-Inbox scans Codex and Claude Code session records, asks your configured OpenA
 - Review source snippets before you complete, ignore, or restore a card.
 - Keep config and data local by default under `~/.ai-inbox`.
 
-Download the installer from [Releases](https://github.com/MaimoryLab/AI-Inbox/releases), then start it:
+Download the zip for your platform from [Releases](https://github.com/MaimoryLab/AI-Inbox/releases), unzip it, then start the CLI:
 
-- macOS Apple Silicon: open `ai-inbox-macos-arm64.dmg`, then open `AI-Inbox.app`.
-- Windows x64: run `ai-inbox-windows-x64.msi`, then open **AI-Inbox** from the Start menu.
+- macOS Apple Silicon: `cd ai-inbox-macos-arm64 && ./ai-inbox start`
+- Windows x64: `cd ai-inbox-windows-x64; .\ai-inbox.exe start`
 
 AI-Inbox opens a local browser workspace. Configure sources and your LLM key in Settings, then click **Organize**.
 
@@ -40,10 +40,10 @@ Scanning imports session text and readable attachment references. It does not co
 
 ## Quick Start
 
-- macOS Apple Silicon: open `ai-inbox-macos-arm64.dmg`, then open `AI-Inbox.app`.
-- Windows x64: run `ai-inbox-windows-x64.msi`, then open **AI-Inbox** from the Start menu.
+- macOS Apple Silicon: unzip `ai-inbox-macos-arm64.zip`, then run `./ai-inbox start` inside the extracted folder.
+- Windows x64: unzip `ai-inbox-windows-x64.zip`, then run `.\ai-inbox.exe start` inside the extracted folder.
 
-The npm package is not published yet; use the installer or source checkout today.
+The npm package is not published yet; use the release zip or source checkout today.
 
 Then:
 
@@ -74,18 +74,30 @@ Screenshots below use synthetic session text, synthetic paths, and an empty API 
 
 ### Requirements
 
-- Installer: no Node.js install required
+- Release zip: no Node.js install required
 - Source checkout or future npm package: Node.js `>=22.16.0`
 - An OpenAI-compatible Chat Completions API key for card extraction
 
-### Installer
+### Release Zip
 
-Download the installer for your platform from [Releases](https://github.com/MaimoryLab/AI-Inbox/releases):
+Download the zip for your platform from [Releases](https://github.com/MaimoryLab/AI-Inbox/releases):
 
-- macOS Apple Silicon: `ai-inbox-macos-arm64.dmg`
-- Windows x64: `ai-inbox-windows-x64.msi`
+- macOS Apple Silicon: `ai-inbox-macos-arm64.zip`
+- Windows x64: `ai-inbox-windows-x64.zip`
 
-Config and data still live in `~/.ai-inbox`; they are not stored inside the app or installer directory. Current release installers are unsigned, so macOS Gatekeeper or Windows Defender may ask for confirmation before first run.
+Unzip the file, open a terminal in the extracted folder, then run the bundled CLI:
+
+```bash
+./ai-inbox start
+```
+
+Windows PowerShell:
+
+```powershell
+.\ai-inbox.exe start
+```
+
+Config and data still live in `~/.ai-inbox`; they are not stored inside the extracted release folder. Current release binaries are unsigned, so macOS Gatekeeper or Windows Defender may ask for confirmation before first run.
 
 ### npm
 
@@ -219,7 +231,7 @@ The UI language preference is saved in the current browser, not in `.env`.
 | No cards are created | Run `ai-inbox doctor`, confirm the API key and endpoint, then run `ai-inbox organize` again. |
 | Sources look empty | Check `AI_INBOX_CODEX_HOME`, `AI_INBOX_CLAUDE_HOME`, or run `ai-inbox scan <source> [path]`. |
 | Cannot find `~/.ai-inbox` in Finder | Dot folders are hidden on macOS. Use Finder **Go to Folder** and enter `~/.ai-inbox`. |
-| npm cannot find the package | Use the source checkout or installer until the package is published to the public registry. |
+| npm cannot find the package | Use the source checkout or release zip until the package is published to the public registry. |
 | Release binary is blocked | Approve the unsigned binary in your OS security prompt, or run from source with Node.js. |
 
 ## Contributing
