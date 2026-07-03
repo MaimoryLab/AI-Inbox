@@ -3,6 +3,7 @@ import { isAgentContextText, isTurnAbortedText } from "../agent-context.js";
 import type { ChainNodeSummary, OrganizeResult, SourceKind, TaskChainView, TodoCard, TodoMetadata, TodoOrigin, TodoStatus } from "../contracts.js";
 import type { Database } from "../db/index.js";
 import { stableId } from "../extract/rules.js";
+import { dedupeBrowserObservations } from "../sources/browser.js";
 
 export interface TodoEvidence {
   id: string;
@@ -221,12 +222,13 @@ function loadScopedObservations(db: Database, scope: OrganizeOptions["scope"]): 
     where = "WHERE datetime(created_at) >= datetime(?)";
     params.push(new Date(Date.now() - scope.sinceDays * 24 * 60 * 60 * 1000).toISOString());
   }
-  return (db.prepare(
+  const observations = (db.prepare(
     `SELECT id, session_id as sessionId, source, role, text, created_at as createdAt
      FROM observations
      ${where}
      ORDER BY created_at, id`
   ).all(...params) as unknown as ObservationForOrganize[]).filter((observation) => !isNonUserDemandText(observation.text));
+  return dedupeBrowserObservations(observations);
 }
 
 function isNonUserDemandText(text: string): boolean {
@@ -1054,7 +1056,7 @@ function projectTitleFromPath(path: string): string | undefined {
 }
 
 function readableProjectTitle(title: string): string | undefined {
-  const marker = "AI-InboxProject";
+  const marker = "AI-TodoProject";
   const markerIndex = title.indexOf(marker);
   if (markerIndex >= 0) {
     const suffix = title.slice(markerIndex + marker.length).replace(/^-+/u, "");

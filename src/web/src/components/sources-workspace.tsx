@@ -190,7 +190,7 @@ export function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sess
                         <span className="min-w-0 truncate text-[var(--app-subtle)]">· {sessionProjectLabel(session, locale)}</span>
                       </div>
                       <div className="mt-1 line-clamp-1 text-sm font-medium leading-5 text-[var(--app-ink)]">{sessionTitle(session, text.temporarySession)}</div>
-                      {session.preview && session.preview !== session.title && (
+                      {session.preview && session.preview !== sessionTitle(session, text.temporarySession) && (
                         <div className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--app-muted)]">{session.preview}</div>
                       )}
                       <div className="mt-2 text-xs text-[var(--app-subtle)]">{text.messageCount(session.observationCount)}</div>

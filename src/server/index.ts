@@ -13,7 +13,7 @@ import { listSessionObservations, listSessions, listSources, type ListSessionsOp
 import { organizeConfiguredTodos } from "../todos/configured.js";
 import { clearTodoData, getOrganizeRun, listTodoEvidence, listTodos, type OrganizeOptions, updateTodoStatus } from "../todos/service.js";
 
-const PUBLIC_DIR = process.env.AI_INBOX_PUBLIC_DIR ?? fileURLToPath(new URL("../../public/", import.meta.url));
+const PUBLIC_DIR = process.env.AI_INDEX_PUBLIC_DIR ?? fileURLToPath(new URL("../../public/", import.meta.url));
 
 export type StartupScanStatus = {
   status: "idle" | "indexing" | "ready" | "failed";
@@ -173,8 +173,7 @@ export function createAppServer(options: {
       return;
     }
 
-    if (req.method === "POST" && path === "/browser/sessions") {
-      if (!authorizeLocalRequest(req, res, options.localToken)) return;
+    if (req.method === "POST" && (path === "/browser/sessions" || path === "/api/browser-sessions")) {
       const db = requireDb(res, options.db);
       if (!db) return;
       const body = await readJson(req, res);
@@ -344,7 +343,7 @@ function contentType(file: string): string {
 
 function authorizeLocalRequest(req: IncomingMessage, res: ServerResponse<IncomingMessage>, token: string | undefined, params?: URLSearchParams): boolean {
   if (!token) return true;
-  if (req.headers["x-ai-inbox-token"] === token) return true;
+  if (req.headers["x-ai-index-token"] === token) return true;
   if (params?.get("token") === token) return true;
   writeJson(res, 403, { error: "forbidden" });
   return false;

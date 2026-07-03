@@ -87,7 +87,7 @@ test("LLM runner sends task chain instructions and parses structured task chains
     const payload = await readJson(request);
     const systemMessage = payload.messages.find((message: any) => message.role === "system");
     assert.match(systemMessage.content, /taskChains/);
-    assert.match(systemMessage.content, /currentNode\.title is the Inbox card title/);
+    assert.match(systemMessage.content, /currentNode\.title is the Todo card title/);
     assert.match(systemMessage.content, /currentNode\.nodeTitle/);
     assert.match(systemMessage.content, /completedNodes/);
     assert.match(systemMessage.content, /user-recognizable goal/);

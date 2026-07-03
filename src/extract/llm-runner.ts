@@ -2,7 +2,7 @@ import type { AppConfig, AppSecrets } from "../config.js";
 import type { ExistingCardForLlm, LlmExtractResult, LlmExtractorContext, LlmTaskChain, LlmTaskChainNode, LlmTodoCandidate, ObservationForOrganize } from "../todos/service.js";
 
 const TODO_EXTRACTION_PROMPT = `
-You extract actionable AI-Inbox cards from cleaned user/assistant transcripts.
+You extract actionable AI-Index cards from cleaned user/assistant transcripts.
 
 Input JSON has three sections:
 - intentBlocks: user-visible requests. Titles, descriptions, dedupeKey, quote, and currentNode.sourceObservationId must primarily use intentBlocks.
@@ -17,7 +17,7 @@ Rules:
 - Use taskChains as the primary unit. Each chain is single-session only and represents one user task flow.
 - Output one current unresolved node per unfinished chain, not every user intent.
 - Put resolved prior work in completedNodes. Do not create a currentNode for fully completed chains.
-- currentNode.title is the Inbox card title: summarize the nearby user's core ask, requirement, or task focus from intentBlocks so the user remembers the real problem.
+- currentNode.title is the Todo card title: summarize the nearby user's core ask, requirement, or task focus from intentBlocks so the user remembers the real problem.
 - Titles must be a user-recognizable goal from intentBlocks and taskChains[].userIntent, not Agent progress narration or the Agent's next step.
 - currentNode.nodeTitle is optional but should name the actual current unresolved node/action when it differs from the user's core ask.
 - metadata.completionSummary is a concise summary of what the agent already completed, attempted, blocked on, or left pending from progressBlocks. Agent progress must not become the card subject.
@@ -36,7 +36,7 @@ Rules:
 
 Good examples:
 - "后续需要修复 CI 失败，并重新跑测试。" -> title "修复 CI 失败并重新跑测试"
-- "clone the AI-Inbox repo into the subdirectory" -> title "Clone the AI-Inbox repository into the subdirectory"
+- "clone the AI-Index repo into the subdirectory" -> title "Clone the AI-Index repository into the subdirectory"
 - "read README and dependency config before migration" -> title "Read README and dependency configuration"
 - "fix the dark mode button contrast" -> title "Fix dark mode button contrast"
 - "push branch codex/current-feature to remote" -> title "推送当前工作分支到远程仓库"; keep the branch in description

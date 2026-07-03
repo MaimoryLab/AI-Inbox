@@ -1,10 +1,10 @@
 {
-  "name": "@maimorylab/ai-inbox",
+  "name": "@maimorylab/ai-index",
   "version": "0.1.1",
-  "description": "Local-first inbox extraction for AI agent sessions.",
+  "description": "Local-first action index for AI and agent sessions.",
   "type": "module",
   "bin": {
-    "ai-inbox": "dist/cli.js"
+    "ai-index": "dist/cli.js"
   },
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",

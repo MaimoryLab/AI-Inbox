@@ -6,7 +6,7 @@ data/
 data-*/
 buglist/
 .local/
-.ai-inbox/
+.ai-index/
 *.tsbuildinfo
 *.log
 .DS_Store

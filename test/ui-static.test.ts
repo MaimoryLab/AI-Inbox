@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-test("React UI keeps card-first Sources wording and accessible icon controls", () => {
+test("React UI keeps task-first Sources wording and accessible icon controls", () => {
   const app = readFileSync("src/web/src/App.tsx", "utf8");
   const client = readFileSync("src/web/src/api/client.ts", "utf8");
   const i18n = readFileSync("src/web/src/i18n.ts", "utf8");
@@ -20,12 +20,12 @@ test("React UI keeps card-first Sources wording and accessible icon controls", (
   assert.match(viewModel, /type View = "todos" \| "sources" \| "settings"/);
   assert.match(i18n, /type Locale = "zh-CN" \| "en-US"/);
   assert.match(i18n, /const defaultLocale: Locale = "zh-CN"/);
-  assert.match(i18n, /actionInbox: "收件箱卡片"/);
-  assert.match(i18n, /actionInbox: "Inbox cards"/);
+  assert.match(i18n, /actionInbox: "任务面板"/);
+  assert.match(i18n, /actionInbox: "Task panel"/);
   assert.match(i18n, /language: "界面语言"/);
   assert.match(i18n, /language: "Interface language"/);
-  assert.match(i18n, /todos: "卡片"/);
-  assert.match(i18n, /todos: "Cards"/);
+  assert.match(i18n, /todos: "待办"/);
+  assert.match(i18n, /todos: "To-Do"/);
   assert.match(i18n, /sources: "来源"/);
   assert.match(i18n, /sources: "Sources"/);
   assert.match(i18n, /discovery: "路径发现"/);
@@ -48,7 +48,7 @@ test("React UI keeps card-first Sources wording and accessible icon controls", (
   assert.match(ui, /function StatusCallout/);
   assert.match(ui, /function SegmentedFilter/);
   assert.match(i18n, /agent: "Agent"/);
-  assert.doesNotMatch(todoBoard, /originLabel\(todo, locale\)/);
+  assert.match(todoBoard, /originLabel\(todo, locale\)/);
   assert.match(i18n, /temporarySession: "临时会话"/);
   assert.match(i18n, /temporarySession: "Temporary session"/);
   assert.match(app, /sourceFilter/);
@@ -115,19 +115,19 @@ test("React UI keeps card-first Sources wording and accessible icon controls", (
   assert.doesNotMatch(todoBoard, /key: "blocked"/);
   assert.doesNotMatch(todoBoard, /key: "in_progress"/);
   assert.doesNotMatch(todoBoard, /key: "needs_review"/);
-  assert.doesNotMatch(todoBoard, /originSessionLabel\(todo, locale\)/);
-  assert.match(todoBoard, /<SourceBadge todo=\{todo\} locale=\{locale\} \/>/);
-  assert.doesNotMatch(todoBoard, /todoTaskSignal\(todo, locale\)/);
-  assert.doesNotMatch(todoBoard, /todo\.metadata\.nextStep/);
-  assert.match(todoBoard, /text\.completedChainSteps\(todo\.chain\?\.completedNodeCount \?\? completedNodes\.length\)/);
-  assert.doesNotMatch(todoBoard, /completionStateLabel\(state, locale\)/);
+  assert.match(todoBoard, /originSessionLabel\(todo, locale\)/);
+  assert.match(todoBoard, /todoTaskSignal\(todo, locale\)/);
+  assert.match(todoBoard, /todo\.metadata\.nextStep/);
+  assert.match(todoBoard, /text\.completedChainSteps\(todo\.chain\.completedNodeCount\)/);
+  assert.match(todoBoard, /completionStateLabel\(state, locale\)/);
   assert.doesNotMatch(todoBoard, /todoConfidence\(todo\)/);
   assert.doesNotMatch(todoBoard, /evidenceIds\.length \* 9/);
   assert.doesNotMatch(todoBoard, /text\.confidenceLabel/);
   assert.doesNotMatch(i18n, /confidenceLabel/);
   assert.doesNotMatch(i18n, /Confidence/);
   assert.doesNotMatch(i18n, /置信度/);
-  assert.doesNotMatch(todoBoard, /taskSignal/);
+  assert.match(i18n, /nextStep: "下一步"/);
+  assert.match(i18n, /nextStep: "Next step"/);
   assert.match(todoBoard, /todoEventTime\(todo\)/);
   assert.match(todoBoard, /formatRelativeTime\(todoEventTime\(todo\), locale\)/);
   assert.match(todoBoard, /sortTodosByEventTime\(todos\)\.map/);
@@ -155,6 +155,8 @@ test("React UI keeps card-first Sources wording and accessible icon controls", (
   assert.match(sourcesWorkspace, /const visibleSessions = expanded \? group\.sessions : \[\]/);
   assert.match(sourcesWorkspace, /sourceLabel\(selected\.source, locale\)\} · \{sessionProjectLabel\(selected, locale\)\}/);
   assert.match(sourcesWorkspace, /sourceLabel\(session\.source, locale\)/);
+  assert.match(sourcesWorkspace, /session\.preview !== sessionTitle\(session, text\.temporarySession\)/);
+  assert.doesNotMatch(sourcesWorkspace, /session\.preview !== session\.title/);
   assert.match(sourcesWorkspace, /<ObservationText observation=\{observation\}/);
   assert.match(observationText, /from "react-markdown"/);
   assert.match(observationText, /skipHtml/);
@@ -164,7 +166,7 @@ test("React UI keeps card-first Sources wording and accessible icon controls", (
   assert.match(observationText, /attachmentMarkdownText/);
   assert.match(observationText, /withAttachmentToken/);
   assert.match(observationText, /localToken\(\)/);
-  assert.match(client, /sessionStorage\.getItem\("ai-inbox-token"\)/);
+  assert.match(client, /sessionStorage\.getItem\("ai-index-token"\)/);
   assert.match(client, /new URLSearchParams\(location\.hash\.replace/);
   assert.match(observationText, /sourceDisplayText\(observation\.text\)/);
   assert.doesNotMatch(observationText, /dangerouslySetInnerHTML/);
@@ -198,8 +200,8 @@ test("React UI keeps card-first Sources wording and accessible icon controls", (
   assert.match(i18n, /advancedDiagnostics: "高级诊断"/);
   assert.match(settingsWorkspace, /max=\{200\}/);
   assert.match(app, /organizeStatus\(result, locale\)/);
-  assert.match(client, /x-ai-inbox-token/);
-  assert.match(client, /sessionStorage\.setItem\("ai-inbox-token", token\)/);
+  assert.match(client, /x-ai-index-token/);
+  assert.match(client, /sessionStorage\.setItem\("ai-index-token", token\)/);
   assert.match(client, /history\.replaceState/);
   assert.match(client, /userErrorText\(error, readLocale\(\)\)/);
   assert.match(client, /localizedUserFacingError/);

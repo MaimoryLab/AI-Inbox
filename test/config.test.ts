@@ -21,7 +21,7 @@ import { discoverSourcePaths, ensureDiscoveredSourceEnv } from "../src/sources/d
 import { resolveSourcePath, resolveSourcePaths, scanConfiguredSources } from "../src/sources/scan.js";
 
 test("config reads defaults and persists source paths", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-config-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-config-"));
   try {
     const paths = getAppPaths(dir);
     assert.deepEqual(loadConfig(paths), {
@@ -73,9 +73,9 @@ test("config reads defaults and persists source paths", () => {
 });
 
 test("config rejects invalid files and preserves source path precedence", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-config-invalid-"));
-  const previousCodex = process.env.AI_INBOX_CODEX_HOME;
-  delete process.env.AI_INBOX_CODEX_HOME;
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-config-invalid-"));
+  const previousCodex = process.env.AI_INDEX_CODEX_HOME;
+  delete process.env.AI_INDEX_CODEX_HOME;
 
   try {
     const paths = getAppPaths(dir);
@@ -104,22 +104,22 @@ test("config rejects invalid files and preserves source path precedence", () => 
       }
     });
     assert.equal(resolveSourcePath("codex", explicit, paths), explicit);
-    process.env.AI_INBOX_CODEX_HOME = env;
+    process.env.AI_INDEX_CODEX_HOME = env;
     assert.equal(resolveSourcePath("codex", undefined, paths), env);
-    delete process.env.AI_INBOX_CODEX_HOME;
+    delete process.env.AI_INDEX_CODEX_HOME;
     assert.equal(resolveSourcePath("codex", undefined, paths), configPath);
   } finally {
     if (previousCodex === undefined) {
-      delete process.env.AI_INBOX_CODEX_HOME;
+      delete process.env.AI_INDEX_CODEX_HOME;
     } else {
-      process.env.AI_INBOX_CODEX_HOME = previousCodex;
+      process.env.AI_INDEX_CODEX_HOME = previousCodex;
     }
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
 test("config rejects invalid llm settings", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-config-llm-invalid-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-config-llm-invalid-"));
   try {
     const paths = getAppPaths(dir);
     assert.throws(() => saveConfig(paths, {
@@ -176,7 +176,7 @@ test("config rejects invalid llm settings", () => {
 });
 
 test("secrets persist separately and mask api keys", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-secrets-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-secrets-"));
   try {
     const paths = getAppPaths(dir);
     assert.deepEqual(loadSecrets(paths), {});
@@ -191,21 +191,21 @@ test("secrets persist separately and mask api keys", () => {
 });
 
 test("env config parses comments, quotes, defaults, and masks api keys", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-env-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-env-"));
   try {
     const paths = getAppPaths(dir);
     saveEnvConfig(paths, parseEnvFile([
       "# local config",
-      "AI_INBOX_CODEX_HOME='/tmp/codex sessions'",
-      "AI_INBOX_LLM_MODEL=custom/model # comment",
-      "AI_INBOX_LLM_API_KEY=\"dummy-llm-key-value\"",
-      "AI_INBOX_ORGANIZE_SINCE_DAYS=30"
+      "AI_INDEX_CODEX_HOME='/tmp/codex sessions'",
+      "AI_INDEX_LLM_MODEL=custom/model # comment",
+      "AI_INDEX_LLM_API_KEY=\"dummy-llm-key-value\"",
+      "AI_INDEX_ORGANIZE_SINCE_DAYS=30"
     ].join("\n")));
     const env = loadEnvConfig(paths);
-    assert.equal(env.AI_INBOX_CODEX_HOME, "/tmp/codex sessions");
-    assert.equal(env.AI_INBOX_LLM_MODEL, "custom/model");
+    assert.equal(env.AI_INDEX_CODEX_HOME, "/tmp/codex sessions");
+    assert.equal(env.AI_INDEX_LLM_MODEL, "custom/model");
     assert.equal(loadSecrets(paths).llmApiKey, "dummy-llm-key-value");
-    assert.match(formatEnvFile(env), /AI_INBOX_LLM_API_KEY=dummy-llm-key-value/);
+    assert.match(formatEnvFile(env), /AI_INDEX_LLM_API_KEY=dummy-llm-key-value/);
     assert.throws(() => parseEnvFile("UNSUPPORTED=value"), /env_invalid/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -213,51 +213,49 @@ test("env config parses comments, quotes, defaults, and masks api keys", () => {
 });
 
 test("env config ignores removed python setting for existing installs", () => {
-  const removedKey = "AI_INBOX_LLM_" + "PYTHON";
-  assert.deepEqual(parseEnvFile(`${removedKey}=python3\nAI_INBOX_LLM_MODEL=custom/model`), {
-    AI_INBOX_LLM_MODEL: "custom/model"
+  const removedKey = "AI_INDEX_LLM_" + "PYTHON";
+  assert.deepEqual(parseEnvFile(`${removedKey}=python3\nAI_INDEX_LLM_MODEL=custom/model`), {
+    AI_INDEX_LLM_MODEL: "custom/model"
   });
 });
 
 test("default env generation writes necessary values without empty api key", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-env-default-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-env-default-"));
   try {
     const paths = getAppPaths(dir);
     ensureDefaultEnv(paths);
     const text = readFileSync(paths.envPath, "utf8");
-    assert.match(text, /AI_INBOX_CODEX_HOME=.*\.codex/);
-    assert.doesNotMatch(text, /AI_INBOX_CODEX_HOME=.*\.codex\/sessions/);
-    assert.match(text, /AI_INBOX_LLM_MODEL=deepseek\/deepseek-v4-flash/);
-    assert.match(text, /AI_INBOX_ORGANIZE_SINCE_DAYS=7/);
-    assert.match(text, /AI_INBOX_ORGANIZE_MAX_SESSIONS=16/);
-    assert.match(text, /AI_INBOX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION=40/);
-    assert.doesNotMatch(text, /AI_INBOX_LLM_API_KEY/);
+    assert.match(text, /AI_INDEX_CODEX_HOME=.*\.codex/);
+    assert.doesNotMatch(text, /AI_INDEX_CODEX_HOME=.*\.codex\/sessions/);
+    assert.match(text, /AI_INDEX_LLM_MODEL=deepseek\/deepseek-v4-flash/);
+    assert.match(text, /AI_INDEX_ORGANIZE_SINCE_DAYS=7/);
+    assert.match(text, /AI_INDEX_ORGANIZE_MAX_SESSIONS=16/);
+    assert.match(text, /AI_INDEX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION=40/);
+    assert.doesNotMatch(text, /AI_INDEX_LLM_API_KEY/);
     assert.equal((readFileSync(paths.envPath).byteLength > 0), true);
-    if (process.platform !== "win32") assert.equal(statSync(paths.envPath).mode & 0o777, 0o600);
+    assert.equal(statSync(paths.envPath).mode & 0o777, 0o600);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
 test("partial source init keeps unconfigured sources out of env but startup scan checks missing defaults", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-env-partial-source-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-env-partial-source-"));
   const previousHome = process.env.HOME;
-  const previousUserProfile = process.env.USERPROFILE;
-  const previousClaude = process.env.AI_INBOX_CLAUDE_HOME;
-  delete process.env.AI_INBOX_CLAUDE_HOME;
+  const previousClaude = process.env.AI_INDEX_CLAUDE_HOME;
+  delete process.env.AI_INDEX_CLAUDE_HOME;
 
   try {
     process.env.HOME = dir;
-    process.env.USERPROFILE = dir;
     const paths = getAppPaths(dir);
     const codexHome = join(dir, ".codex");
     mkdirSync(join(codexHome, "sessions"), { recursive: true });
     mkdirSync(join(dir, ".claude", "projects"), { recursive: true });
 
-    ensureDefaultEnv(paths, { AI_INBOX_CODEX_HOME: codexHome });
+    ensureDefaultEnv(paths, { AI_INDEX_CODEX_HOME: codexHome });
     const text = readFileSync(paths.envPath, "utf8");
-    assert.match(text, /AI_INBOX_CODEX_HOME=/);
-    assert.doesNotMatch(text, /AI_INBOX_CLAUDE_HOME/);
+    assert.match(text, /AI_INDEX_CODEX_HOME=/);
+    assert.doesNotMatch(text, /AI_INDEX_CLAUDE_HOME/);
 
     const db = openDatabase(paths);
     try {
@@ -271,49 +269,22 @@ test("partial source init keeps unconfigured sources out of env but startup scan
   } finally {
     if (previousHome === undefined) delete process.env.HOME;
     else process.env.HOME = previousHome;
-    if (previousUserProfile === undefined) delete process.env.USERPROFILE;
-    else process.env.USERPROFILE = previousUserProfile;
-    if (previousClaude === undefined) delete process.env.AI_INBOX_CLAUDE_HOME;
-    else process.env.AI_INBOX_CLAUDE_HOME = previousClaude;
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test("configured scan counts Windows-style session paths under configured roots", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-windows-paths-"));
-  try {
-    const paths = getAppPaths(dir);
-    const codexHome = join(dir, ".codex");
-    mkdirSync(join(codexHome, "sessions"), { recursive: true });
-    ensureDefaultEnv(paths, { AI_INBOX_CODEX_HOME: codexHome });
-
-    const windowsRoot = join(codexHome, "sessions").replace(/\//gu, "\\");
-    const db = openDatabase(paths);
-    try {
-      db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES ('win-session', 'codex', ?, '2026-01-01T00:00:00.000Z')")
-        .run(`${windowsRoot}\\2026\\01\\01\\session.jsonl`);
-      const scan = scanConfiguredSources(db, paths);
-      assert.ok(!scan.warnings.includes("codex_no_sessions"));
-    } finally {
-      db.close();
-    }
-  } finally {
+    if (previousClaude === undefined) delete process.env.AI_INDEX_CLAUDE_HOME;
+    else process.env.AI_INDEX_CLAUDE_HOME = previousClaude;
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
 test("source discovery writes missing agent paths without overwriting configured env", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-discovery-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-source-discovery-"));
   const previousHome = process.env.HOME;
-  const previousUserProfile = process.env.USERPROFILE;
-  const previousCodex = process.env.AI_INBOX_CODEX_HOME;
-  const previousClaude = process.env.AI_INBOX_CLAUDE_HOME;
-  delete process.env.AI_INBOX_CODEX_HOME;
-  delete process.env.AI_INBOX_CLAUDE_HOME;
+  const previousCodex = process.env.AI_INDEX_CODEX_HOME;
+  const previousClaude = process.env.AI_INDEX_CLAUDE_HOME;
+  delete process.env.AI_INDEX_CODEX_HOME;
+  delete process.env.AI_INDEX_CLAUDE_HOME;
 
   try {
     process.env.HOME = dir;
-    process.env.USERPROFILE = dir;
     const paths = getAppPaths(join(dir, "home"));
     mkdirSync(join(dir, ".codex", "sessions"), { recursive: true });
     mkdirSync(join(dir, ".claude", "projects"), { recursive: true });
@@ -326,37 +297,33 @@ test("source discovery writes missing agent paths without overwriting configured
 
     ensureDiscoveredSourceEnv(paths);
     const env = loadEnvConfig(paths);
-    assert.equal(env.AI_INBOX_CODEX_HOME, join(dir, ".codex"));
-    assert.equal(env.AI_INBOX_CLAUDE_HOME, join(dir, ".claude", "projects"));
+    assert.equal(env.AI_INDEX_CODEX_HOME, join(dir, ".codex"));
+    assert.equal(env.AI_INDEX_CLAUDE_HOME, join(dir, ".claude", "projects"));
 
-    process.env.AI_INBOX_CODEX_HOME = join(dir, "custom-codex");
+    process.env.AI_INDEX_CODEX_HOME = join(dir, "custom-codex");
     ensureDiscoveredSourceEnv(paths);
-    assert.equal(loadEnvConfig(paths).AI_INBOX_CODEX_HOME, join(dir, ".codex"));
+    assert.equal(loadEnvConfig(paths).AI_INDEX_CODEX_HOME, join(dir, ".codex"));
   } finally {
     if (previousHome === undefined) delete process.env.HOME;
     else process.env.HOME = previousHome;
-    if (previousUserProfile === undefined) delete process.env.USERPROFILE;
-    else process.env.USERPROFILE = previousUserProfile;
-    if (previousCodex === undefined) delete process.env.AI_INBOX_CODEX_HOME;
-    else process.env.AI_INBOX_CODEX_HOME = previousCodex;
-    if (previousClaude === undefined) delete process.env.AI_INBOX_CLAUDE_HOME;
-    else process.env.AI_INBOX_CLAUDE_HOME = previousClaude;
+    if (previousCodex === undefined) delete process.env.AI_INDEX_CODEX_HOME;
+    else process.env.AI_INDEX_CODEX_HOME = previousCodex;
+    if (previousClaude === undefined) delete process.env.AI_INDEX_CLAUDE_HOME;
+    else process.env.AI_INDEX_CLAUDE_HOME = previousClaude;
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
 test("source discovery leaves env empty when agent paths are missing", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-discovery-missing-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-source-discovery-missing-"));
   const previousHome = process.env.HOME;
-  const previousUserProfile = process.env.USERPROFILE;
-  const previousCodex = process.env.AI_INBOX_CODEX_HOME;
-  const previousClaude = process.env.AI_INBOX_CLAUDE_HOME;
-  delete process.env.AI_INBOX_CODEX_HOME;
-  delete process.env.AI_INBOX_CLAUDE_HOME;
+  const previousCodex = process.env.AI_INDEX_CODEX_HOME;
+  const previousClaude = process.env.AI_INDEX_CLAUDE_HOME;
+  delete process.env.AI_INDEX_CODEX_HOME;
+  delete process.env.AI_INDEX_CLAUDE_HOME;
 
   try {
     process.env.HOME = dir;
-    process.env.USERPROFILE = dir;
     const paths = getAppPaths(join(dir, "home"));
     const discovery = ensureDiscoveredSourceEnv(paths);
     assert.deepEqual(discovery.map((source) => [source.source, source.status]), [
@@ -367,18 +334,16 @@ test("source discovery leaves env empty when agent paths are missing", () => {
   } finally {
     if (previousHome === undefined) delete process.env.HOME;
     else process.env.HOME = previousHome;
-    if (previousUserProfile === undefined) delete process.env.USERPROFILE;
-    else process.env.USERPROFILE = previousUserProfile;
-    if (previousCodex === undefined) delete process.env.AI_INBOX_CODEX_HOME;
-    else process.env.AI_INBOX_CODEX_HOME = previousCodex;
-    if (previousClaude === undefined) delete process.env.AI_INBOX_CLAUDE_HOME;
-    else process.env.AI_INBOX_CLAUDE_HOME = previousClaude;
+    if (previousCodex === undefined) delete process.env.AI_INDEX_CODEX_HOME;
+    else process.env.AI_INDEX_CODEX_HOME = previousCodex;
+    if (previousClaude === undefined) delete process.env.AI_INDEX_CLAUDE_HOME;
+    else process.env.AI_INDEX_CLAUDE_HOME = previousClaude;
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
 test("codex home expands to sessions and archived sessions roots", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-codex-roots-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-codex-roots-"));
   try {
     const codexHome = join(dir, ".codex");
     mkdirSync(join(codexHome, "sessions"), { recursive: true });
@@ -394,10 +359,10 @@ test("codex home expands to sessions and archived sessions roots", () => {
 });
 
 test("stale temporary source paths are ignored when loading config", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-stale-config-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-stale-config-"));
   try {
     const paths = getAppPaths(dir);
-    saveEnvConfig(paths, parseEnvFile("AI_INBOX_CODEX_HOME=/var/folders/x/ai-inbox-http-deadbeef/codex"));
+    saveEnvConfig(paths, parseEnvFile("AI_INDEX_CODEX_HOME=/var/folders/x/ai-index-http-deadbeef/codex"));
     assert.deepEqual(loadConfig(paths).sources.codex, {});
   } finally {
     rmSync(dir, { recursive: true, force: true });

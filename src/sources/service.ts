@@ -1,5 +1,6 @@
 import type { ObservationRecord, SessionRecord, SourceKind } from "../contracts.js";
 import type { Database } from "../db/index.js";
+import { dedupeBrowserObservations } from "./browser.js";
 
 const SOURCES: SourceKind[] = ["codex", "claude-code", "browser"];
 export interface ListSessionsOptions {
@@ -74,7 +75,7 @@ export function listSessions(db: Database, options: ListSessionsOptions = {}): S
 export function listSessionObservations(db: Database, sessionId: string): ObservationRecord[] | null {
   const session = db.prepare("SELECT id FROM sessions WHERE id = ?").get(sessionId);
   if (!session) return null;
-  return db.prepare(
+  const observations = db.prepare(
     `SELECT
       id,
       session_id as sessionId,
@@ -96,6 +97,7 @@ export function listSessionObservations(db: Database, sessionId: string): Observ
       createdAt: String(record.createdAt)
     };
   });
+  return dedupeBrowserObservations(observations);
 }
 
 function count(db: Database, table: "sessions" | "scan_checkpoints", source: SourceKind): number {

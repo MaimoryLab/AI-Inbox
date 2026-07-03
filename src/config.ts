@@ -14,8 +14,8 @@ export const DEFAULT_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION = 40;
 
 const DEFAULT_CODEX_HOME = join(homedir(), ".codex");
 const DEFAULT_CLAUDE_HOME = join(homedir(), ".claude", "projects");
-const IGNORED_ENV_KEYS = new Set(["AI_INBOX_LLM_" + "PYTHON"]);
-const SOURCE_ENV_KEYS = ["AI_INBOX_CODEX_HOME", "AI_INBOX_CLAUDE_HOME"] as const;
+const IGNORED_ENV_KEYS = new Set(["AI_INDEX_LLM_" + "PYTHON"]);
+const SOURCE_ENV_KEYS = ["AI_INDEX_CODEX_HOME", "AI_INDEX_CLAUDE_HOME"] as const;
 
 export interface AppConfig {
   sources: {
@@ -50,19 +50,19 @@ export type PublicAppConfig = AppConfig & {
 };
 
 export const WRITABLE_ENV_KEYS = [
-  "AI_INBOX_CODEX_HOME",
-  "AI_INBOX_CLAUDE_HOME",
-  "AI_INBOX_LLM_ENABLED",
-  "AI_INBOX_LLM_PROVIDER",
-  "AI_INBOX_LLM_MODEL",
-  "AI_INBOX_LLM_ENDPOINT",
-  "AI_INBOX_LLM_THINKING_DEPTH",
-  "AI_INBOX_LLM_TIMEOUT_MS",
-  "AI_INBOX_LLM_API_KEY",
-  "AI_INBOX_ORGANIZE_SINCE_DAYS",
-  "AI_INBOX_ORGANIZE_MAX_INTERACTIONS_PER_SESSION",
-  "AI_INBOX_ORGANIZE_MAX_SESSIONS",
-  "AI_INBOX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION"
+  "AI_INDEX_CODEX_HOME",
+  "AI_INDEX_CLAUDE_HOME",
+  "AI_INDEX_LLM_ENABLED",
+  "AI_INDEX_LLM_PROVIDER",
+  "AI_INDEX_LLM_MODEL",
+  "AI_INDEX_LLM_ENDPOINT",
+  "AI_INDEX_LLM_THINKING_DEPTH",
+  "AI_INDEX_LLM_TIMEOUT_MS",
+  "AI_INDEX_LLM_API_KEY",
+  "AI_INDEX_ORGANIZE_SINCE_DAYS",
+  "AI_INDEX_ORGANIZE_MAX_INTERACTIONS_PER_SESSION",
+  "AI_INDEX_ORGANIZE_MAX_SESSIONS",
+  "AI_INDEX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION"
 ] as const;
 
 export type WritableEnvKey = typeof WRITABLE_ENV_KEYS[number];
@@ -93,19 +93,19 @@ export function defaultConfig(): AppConfig {
 
 export function defaultEnvConfig(includeApiKey?: string): EnvConfig {
   return sanitizeEnvConfig({
-    AI_INBOX_CODEX_HOME: DEFAULT_CODEX_HOME,
-    AI_INBOX_CLAUDE_HOME: DEFAULT_CLAUDE_HOME,
-    AI_INBOX_LLM_ENABLED: "true",
-    AI_INBOX_LLM_PROVIDER: DEFAULT_LLM_PROVIDER,
-    AI_INBOX_LLM_MODEL: DEFAULT_LLM_MODEL,
-    AI_INBOX_LLM_ENDPOINT: DEFAULT_LLM_ENDPOINT,
-    AI_INBOX_LLM_THINKING_DEPTH: "medium",
-    AI_INBOX_LLM_TIMEOUT_MS: String(DEFAULT_LLM_TIMEOUT_MS),
-    AI_INBOX_LLM_API_KEY: includeApiKey,
-    AI_INBOX_ORGANIZE_SINCE_DAYS: String(DEFAULT_ORGANIZE_SINCE_DAYS),
-    AI_INBOX_ORGANIZE_MAX_INTERACTIONS_PER_SESSION: String(DEFAULT_ORGANIZE_MAX_INTERACTIONS_PER_SESSION),
-    AI_INBOX_ORGANIZE_MAX_SESSIONS: String(DEFAULT_ORGANIZE_MAX_SESSIONS),
-    AI_INBOX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION: String(DEFAULT_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION)
+    AI_INDEX_CODEX_HOME: DEFAULT_CODEX_HOME,
+    AI_INDEX_CLAUDE_HOME: DEFAULT_CLAUDE_HOME,
+    AI_INDEX_LLM_ENABLED: "true",
+    AI_INDEX_LLM_PROVIDER: DEFAULT_LLM_PROVIDER,
+    AI_INDEX_LLM_MODEL: DEFAULT_LLM_MODEL,
+    AI_INDEX_LLM_ENDPOINT: DEFAULT_LLM_ENDPOINT,
+    AI_INDEX_LLM_THINKING_DEPTH: "medium",
+    AI_INDEX_LLM_TIMEOUT_MS: String(DEFAULT_LLM_TIMEOUT_MS),
+    AI_INDEX_LLM_API_KEY: includeApiKey,
+    AI_INDEX_ORGANIZE_SINCE_DAYS: String(DEFAULT_ORGANIZE_SINCE_DAYS),
+    AI_INDEX_ORGANIZE_MAX_INTERACTIONS_PER_SESSION: String(DEFAULT_ORGANIZE_MAX_INTERACTIONS_PER_SESSION),
+    AI_INDEX_ORGANIZE_MAX_SESSIONS: String(DEFAULT_ORGANIZE_MAX_SESSIONS),
+    AI_INDEX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION: String(DEFAULT_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION)
   });
 }
 
@@ -121,7 +121,7 @@ export function saveConfig(paths: AppPaths, config: AppConfig): void {
 
 export function loadSecrets(paths: AppPaths): AppSecrets {
   const env = loadEnvConfig(paths);
-  if (env.AI_INBOX_LLM_API_KEY) return { llmApiKey: env.AI_INBOX_LLM_API_KEY };
+  if (env.AI_INDEX_LLM_API_KEY) return { llmApiKey: env.AI_INDEX_LLM_API_KEY };
   if (!existsSync(paths.secretsPath)) return {};
   try {
     return parseSecrets(JSON.parse(readFileSync(paths.secretsPath, "utf8")));
@@ -133,8 +133,8 @@ export function loadSecrets(paths: AppPaths): AppSecrets {
 export function saveSecrets(paths: AppPaths, secrets: AppSecrets): void {
   if (existsSync(paths.envPath)) {
     const env = loadEnvConfig(paths);
-    if (secrets.llmApiKey) env.AI_INBOX_LLM_API_KEY = secrets.llmApiKey;
-    else delete env.AI_INBOX_LLM_API_KEY;
+    if (secrets.llmApiKey) env.AI_INDEX_LLM_API_KEY = secrets.llmApiKey;
+    else delete env.AI_INDEX_LLM_API_KEY;
     saveEnvConfig(paths, env);
     return;
   }
@@ -194,10 +194,10 @@ export function parseSettingsUpdate(input: unknown): { config: AppConfig; apiKey
 export function settingsToEnv(config: AppConfig, currentSecrets: AppSecrets, apiKey?: string): EnvConfig {
   const env = configToEnv(config);
   if (apiKey !== undefined) {
-    if (apiKey.trim()) env.AI_INBOX_LLM_API_KEY = apiKey.trim();
-    else delete env.AI_INBOX_LLM_API_KEY;
+    if (apiKey.trim()) env.AI_INDEX_LLM_API_KEY = apiKey.trim();
+    else delete env.AI_INDEX_LLM_API_KEY;
   } else if (currentSecrets.llmApiKey) {
-    env.AI_INBOX_LLM_API_KEY = currentSecrets.llmApiKey;
+    env.AI_INDEX_LLM_API_KEY = currentSecrets.llmApiKey;
   }
   return env;
 }
@@ -205,18 +205,18 @@ export function settingsToEnv(config: AppConfig, currentSecrets: AppSecrets, api
 export function configToEnv(config: AppConfig): EnvConfig {
   const parsed = parseConfig(config);
   return sanitizeEnvConfig({
-    AI_INBOX_CODEX_HOME: parsed.sources.codex.path,
-    AI_INBOX_CLAUDE_HOME: parsed.sources["claude-code"].path,
-    AI_INBOX_LLM_ENABLED: String(parsed.llm.enabled),
-    AI_INBOX_LLM_PROVIDER: parsed.llm.provider,
-    AI_INBOX_LLM_MODEL: parsed.llm.model,
-    AI_INBOX_LLM_ENDPOINT: parsed.llm.endpoint,
-    AI_INBOX_LLM_THINKING_DEPTH: parsed.llm.thinkingDepth,
-    AI_INBOX_LLM_TIMEOUT_MS: String(parsed.llm.timeoutMs),
-    AI_INBOX_ORGANIZE_SINCE_DAYS: String(parsed.organize.sinceDays),
-    AI_INBOX_ORGANIZE_MAX_INTERACTIONS_PER_SESSION: String(parsed.organize.maxInteractionsPerSession),
-    AI_INBOX_ORGANIZE_MAX_SESSIONS: String(parsed.organize.maxSessions),
-    AI_INBOX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION: String(parsed.organize.maxObservationsPerSession)
+    AI_INDEX_CODEX_HOME: parsed.sources.codex.path,
+    AI_INDEX_CLAUDE_HOME: parsed.sources["claude-code"].path,
+    AI_INDEX_LLM_ENABLED: String(parsed.llm.enabled),
+    AI_INDEX_LLM_PROVIDER: parsed.llm.provider,
+    AI_INDEX_LLM_MODEL: parsed.llm.model,
+    AI_INDEX_LLM_ENDPOINT: parsed.llm.endpoint,
+    AI_INDEX_LLM_THINKING_DEPTH: parsed.llm.thinkingDepth,
+    AI_INDEX_LLM_TIMEOUT_MS: String(parsed.llm.timeoutMs),
+    AI_INDEX_ORGANIZE_SINCE_DAYS: String(parsed.organize.sinceDays),
+    AI_INDEX_ORGANIZE_MAX_INTERACTIONS_PER_SESSION: String(parsed.organize.maxInteractionsPerSession),
+    AI_INDEX_ORGANIZE_MAX_SESSIONS: String(parsed.organize.maxSessions),
+    AI_INDEX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION: String(parsed.organize.maxObservationsPerSession)
   });
 }
 
@@ -298,28 +298,28 @@ function applyEnvConfig(config: AppConfig, env: EnvConfig): AppConfig {
     llm: { ...config.llm },
     organize: { ...config.organize }
   };
-  if (env.AI_INBOX_CODEX_HOME) next.sources.codex = { path: cleanSourcePath(env.AI_INBOX_CODEX_HOME) };
-  if (env.AI_INBOX_CLAUDE_HOME) next.sources["claude-code"] = { path: cleanSourcePath(env.AI_INBOX_CLAUDE_HOME) };
-  if (env.AI_INBOX_LLM_ENABLED !== undefined) next.llm.enabled = parseBoolean(env.AI_INBOX_LLM_ENABLED);
-  if (env.AI_INBOX_LLM_PROVIDER !== undefined) {
-    if (env.AI_INBOX_LLM_PROVIDER !== "openai") throw new Error("config_invalid");
+  if (env.AI_INDEX_CODEX_HOME) next.sources.codex = { path: cleanSourcePath(env.AI_INDEX_CODEX_HOME) };
+  if (env.AI_INDEX_CLAUDE_HOME) next.sources["claude-code"] = { path: cleanSourcePath(env.AI_INDEX_CLAUDE_HOME) };
+  if (env.AI_INDEX_LLM_ENABLED !== undefined) next.llm.enabled = parseBoolean(env.AI_INDEX_LLM_ENABLED);
+  if (env.AI_INDEX_LLM_PROVIDER !== undefined) {
+    if (env.AI_INDEX_LLM_PROVIDER !== "openai") throw new Error("config_invalid");
     next.llm.provider = "openai";
   }
-  if (env.AI_INBOX_LLM_MODEL) next.llm.model = env.AI_INBOX_LLM_MODEL;
-  if (env.AI_INBOX_LLM_ENDPOINT) next.llm.endpoint = env.AI_INBOX_LLM_ENDPOINT;
-  if (env.AI_INBOX_LLM_THINKING_DEPTH !== undefined) next.llm.thinkingDepth = parseThinkingDepth(env.AI_INBOX_LLM_THINKING_DEPTH);
-  if (env.AI_INBOX_LLM_TIMEOUT_MS !== undefined) next.llm.timeoutMs = parseIntRange(env.AI_INBOX_LLM_TIMEOUT_MS, 1000, 600000);
-  if (env.AI_INBOX_ORGANIZE_SINCE_DAYS !== undefined) {
-    next.organize.sinceDays = parseIntRange(env.AI_INBOX_ORGANIZE_SINCE_DAYS, 1, 3650);
+  if (env.AI_INDEX_LLM_MODEL) next.llm.model = env.AI_INDEX_LLM_MODEL;
+  if (env.AI_INDEX_LLM_ENDPOINT) next.llm.endpoint = env.AI_INDEX_LLM_ENDPOINT;
+  if (env.AI_INDEX_LLM_THINKING_DEPTH !== undefined) next.llm.thinkingDepth = parseThinkingDepth(env.AI_INDEX_LLM_THINKING_DEPTH);
+  if (env.AI_INDEX_LLM_TIMEOUT_MS !== undefined) next.llm.timeoutMs = parseIntRange(env.AI_INDEX_LLM_TIMEOUT_MS, 1000, 600000);
+  if (env.AI_INDEX_ORGANIZE_SINCE_DAYS !== undefined) {
+    next.organize.sinceDays = parseIntRange(env.AI_INDEX_ORGANIZE_SINCE_DAYS, 1, 3650);
   }
-  if (env.AI_INBOX_ORGANIZE_MAX_INTERACTIONS_PER_SESSION !== undefined) {
-    next.organize.maxInteractionsPerSession = parseIntRange(env.AI_INBOX_ORGANIZE_MAX_INTERACTIONS_PER_SESSION, 1, 500);
+  if (env.AI_INDEX_ORGANIZE_MAX_INTERACTIONS_PER_SESSION !== undefined) {
+    next.organize.maxInteractionsPerSession = parseIntRange(env.AI_INDEX_ORGANIZE_MAX_INTERACTIONS_PER_SESSION, 1, 500);
   }
-  if (env.AI_INBOX_ORGANIZE_MAX_SESSIONS !== undefined) {
-    next.organize.maxSessions = parseIntRange(env.AI_INBOX_ORGANIZE_MAX_SESSIONS, 1, 200);
+  if (env.AI_INDEX_ORGANIZE_MAX_SESSIONS !== undefined) {
+    next.organize.maxSessions = parseIntRange(env.AI_INDEX_ORGANIZE_MAX_SESSIONS, 1, 200);
   }
-  if (env.AI_INBOX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION !== undefined) {
-    next.organize.maxObservationsPerSession = parseIntRange(env.AI_INBOX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION, 1, 1000);
+  if (env.AI_INDEX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION !== undefined) {
+    next.organize.maxObservationsPerSession = parseIntRange(env.AI_INDEX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION, 1, 1000);
   }
   return parseConfig(next);
 }
@@ -344,7 +344,7 @@ function cleanSourcePath(path: string): string | undefined {
 }
 
 function isStaleTempSourcePath(path: string): boolean {
-  return /\/ai-inbox-http-[A-Za-z0-9_-]+(?:\/|$)/.test(path);
+  return /\/ai-index-http-[A-Za-z0-9_-]+(?:\/|$)/.test(path);
 }
 
 function llmConfig(value: unknown): AppConfig["llm"] {

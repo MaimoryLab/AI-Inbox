@@ -18,7 +18,7 @@ export function listMcpTools(): McpTool[] {
   return [
     {
       name: "todo_scan",
-      description: "Scan Codex or Claude Code session JSONL files into AI-Inbox.",
+      description: "Scan Codex or Claude Code session JSONL files into AI-Index.",
       inputSchema: {
         type: "object",
         properties: {
@@ -30,12 +30,12 @@ export function listMcpTools(): McpTool[] {
     },
     {
       name: "todo_organize",
-      description: "Organize observations into evidence-grounded inbox cards.",
+      description: "Organize observations into evidence-grounded todo cards.",
       inputSchema: { type: "object", properties: {} }
     },
     {
       name: "todo_list",
-      description: "List current inbox cards.",
+      description: "List current todo cards.",
       inputSchema: { type: "object", properties: {} }
     },
     {
@@ -52,7 +52,7 @@ export function listMcpTools(): McpTool[] {
     },
     {
       name: "todo_open",
-      description: "Open the AI-Inbox viewer when available.",
+      description: "Open the AI-Index viewer when available.",
       inputSchema: { type: "object", properties: {} }
     }
   ];
@@ -89,7 +89,7 @@ export async function callMcpTool(
   }
 
   if (name === "todo_open") {
-    return { opened: false, message: "run ai-inbox start to start the local UI" };
+    return { opened: false, message: "run ai-index open to start the local UI" };
   }
 
   throw new Error(`unknown tool: ${name}`);

@@ -11,7 +11,7 @@ import { markAgentContext } from "../src/agent-context.js";
 import { clearTodoData, listTodos, organizeTodos, scopeObservations } from "../src/todos/service.js";
 
 test("organize without an LLM extractor creates no rule fallback cards", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-no-llm-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-no-llm-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -37,8 +37,39 @@ test("organize without an LLM extractor creates no rule fallback cards", async (
   }
 });
 
+test("organize skips mirrored browser unknown observations", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-browser-dedupe-"));
+  try {
+    const db = openDatabase(getAppPaths(dir));
+    ingestBrowserSession(db, {
+      id: "browser-1",
+      messages: [{ role: "user", text: "Please keep one browser todo" }]
+    });
+    db.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
+      "legacy-browser-mirror",
+      "browser-1",
+      "browser",
+      "unknown",
+      "Please keep one browser todo",
+      "2026-01-01T00:00:00.000Z"
+    );
+    let seen: Array<{ role: string; text: string }> = [];
+    await organizeTodos(db, {
+      llmExtractor: async (observations) => {
+        seen = observations.map((observation) => ({ role: observation.role, text: observation.text }));
+        return { ok: true, todos: [] };
+      }
+    });
+    db.close();
+
+    assert.deepEqual(seen, [{ role: "user", text: "Please keep one browser todo" }]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("clearTodoData removes todo-derived rows and preserves source observations", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-clear-todos-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-clear-todos-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -86,7 +117,7 @@ test("clearTodoData removes todo-derived rows and preserves source observations"
 });
 
 test("organize endpoint returns zero cards when LLM config is missing", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-http-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-http-"));
   const paths = getAppPaths(dir);
   const db = openDatabase(paths);
   ingestBrowserSession(db, {
@@ -114,7 +145,7 @@ test("organize endpoint returns zero cards when LLM config is missing", async ()
 });
 
 test("organize endpoint can use configured llm extraction", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-http-llm-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-http-llm-"));
   const paths = getAppPaths(dir);
   const db = openDatabase(paths);
   ingestBrowserSession(db, {
@@ -158,7 +189,7 @@ test("organize endpoint can use configured llm extraction", async () => {
 });
 
 test("llm organize creates grounded cards and dedupes by model key", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-llm-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-llm-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -210,7 +241,7 @@ test("llm organize creates grounded cards and dedupes by model key", async () =>
 });
 
 test("llm organize keeps provenance anchored to the validated source observation", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-provenance-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-provenance-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -247,7 +278,7 @@ test("llm organize keeps provenance anchored to the validated source observation
 });
 
 test("todo origin trims browser project titles derived from slash paths", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-browser-origin-title-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-browser-origin-title-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -280,11 +311,11 @@ test("todo origin trims browser project titles derived from slash paths", async 
 });
 
 test("todo origin prefers codex session project path over transcript path", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-codex-origin-project-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-codex-origin-project-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     db.prepare("INSERT INTO sessions (id, source, path, project_path, updated_at) VALUES (?, 'codex', ?, ?, '2026-01-01T00:00:00.000Z')")
-      .run("codex-session", "/Users/demo/.codex/sessions/2026/01/01/session.jsonl", "/Users/demo/AI-Inbox");
+      .run("codex-session", "/Users/demo/.codex/sessions/2026/01/01/session.jsonl", "/Users/demo/AI-Index");
     db.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES ('obs-codex', 'codex-session', 'codex', 'user', 'Please keep Codex project names', '2026-01-01T00:00:00.000Z')").run();
     db.prepare("INSERT INTO todos (id, title, description, status, metadata_json, updated_at) VALUES ('todo-codex', 'Codex project todo', 'Project names should come from session metadata.', 'todo', ?, '2026-01-01T00:00:00.000Z')")
       .run(JSON.stringify({ sourceObservationId: "obs-codex" }));
@@ -293,15 +324,15 @@ test("todo origin prefers codex session project path over transcript path", () =
     const [todo] = listTodos(db);
     db.close();
 
-    assert.equal(todo.origin?.projectPath, "/Users/demo/AI-Inbox");
-    assert.equal(todo.origin?.projectTitle, "AI-Inbox");
+    assert.equal(todo.origin?.projectPath, "/Users/demo/AI-Index");
+    assert.equal(todo.origin?.projectTitle, "AI-Index");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
 test("todo origin falls back to session path when project path is missing", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-origin-project-fallback-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-origin-project-fallback-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES ('legacy-session', 'browser', 'Browser / Legacy Project', '2026-01-01T00:00:00.000Z')").run();
@@ -321,7 +352,7 @@ test("todo origin falls back to session path when project path is missing", () =
 });
 
 test("database migration adds task chain tables and keeps legacy todos listable", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-task-chain-migration-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-task-chain-migration-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>;
@@ -347,14 +378,14 @@ test("database migration adds task chain tables and keeps legacy todos listable"
 });
 
 test("llm organize persists task chains and returns current node cards with collapsed completed nodes", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-task-chain-write-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-task-chain-write-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
       id: "browser-chain",
       path: "Browser / Chain Project",
       messages: [
-        { role: "user", text: "Please redesign the inbox card structure" },
+        { role: "user", text: "Please redesign the todo card structure" },
         { role: "assistant", text: "Completed the data audit. Remaining work is wiring the chain view." }
       ]
     });
@@ -366,7 +397,7 @@ test("llm organize persists task chains and returns current node cards with coll
         ok: true,
         taskChains: [{
           chainId: "browser-chain:todo-card-structure",
-          title: "Redesign inbox card structure",
+          title: "Redesign todo card structure",
           summary: "The data audit is complete; the UI still needs chain containers.",
           status: "in_progress",
           completedNodes: [{
@@ -377,8 +408,8 @@ test("llm organize persists task chains and returns current node cards with coll
             observationId: assistantObservationId
           }],
           currentNode: {
-            title: "Redesign inbox card structure",
-            description: "The user wanted the inbox card structure redesigned, but the chain container still needs to be rendered.",
+            title: "Redesign todo card structure",
+            description: "The user wanted the todo card structure redesigned, but the chain container still needs to be rendered.",
             nodeTitle: "Wire chain containers into Todo",
             owner: "agent",
             nextStep: "Agent should render the chain container and collapsed summary.",
@@ -388,7 +419,7 @@ test("llm organize persists task chains and returns current node cards with coll
             },
             confidence: 0.92,
             sourceObservationId: userObservationId,
-            quote: "Please redesign the inbox card structure",
+            quote: "Please redesign the todo card structure",
             dedupeKey: "redesign-todo-card-structure"
           }
         }]
@@ -401,9 +432,9 @@ test("llm organize persists task chains and returns current node cards with coll
     db.close();
 
     assert.equal(result.created, 1);
-    assert.equal(todo.title, "Redesign inbox card structure");
-    assert.equal(todo.description, "The user wanted the inbox card structure redesigned, but the chain container still needs to be rendered.");
-    assert.equal(todo.chain?.title, "Redesign inbox card structure");
+    assert.equal(todo.title, "Redesign todo card structure");
+    assert.equal(todo.description, "The user wanted the todo card structure redesigned, but the chain container still needs to be rendered.");
+    assert.equal(todo.chain?.title, "Redesign todo card structure");
     assert.equal(todo.chain?.summary, "The data audit is complete; the UI still needs chain containers.");
     assert.equal(todo.chain?.currentNode.title, "Wire chain containers into Todo");
     assert.equal(todo.chain?.currentNode.owner, "agent");
@@ -430,7 +461,7 @@ test("llm organize persists task chains and returns current node cards with coll
 });
 
 test("llm organize preserves existing task chain links when a later legacy todo update arrives", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-task-chain-preserve-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-task-chain-preserve-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -487,7 +518,7 @@ test("llm organize preserves existing task chain links when a later legacy todo 
 });
 
 test("llm organize stores user-owned blocked current nodes from task chains", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-task-chain-user-owner-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-task-chain-user-owner-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -532,7 +563,7 @@ test("llm organize stores user-owned blocked current nodes from task chains", as
 });
 
 test("llm organize rejects agent-only execution current nodes", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-agent-only-current-node-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-agent-only-current-node-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -578,7 +609,7 @@ test("llm organize rejects agent-only execution current nodes", async () => {
 });
 
 test("llm organize keeps agent nodes that explicitly need user confirmation", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-agent-user-confirmation-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-agent-user-confirmation-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -628,7 +659,7 @@ test("llm organize keeps agent nodes that explicitly need user confirmation", as
 });
 
 test("llm organize ignores fully completed task chains without current nodes", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-task-chain-completed-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-task-chain-completed-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -669,7 +700,7 @@ test("llm organize ignores fully completed task chains without current nodes", a
 });
 
 test("llm organize batches input without rules fallback for failed batches", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-llm-batch-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-llm-batch-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -715,7 +746,7 @@ test("llm organize batches input without rules fallback for failed batches", asy
 });
 
 test("llm organize batches by session instead of mixing sessions", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-session-batch-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-session-batch-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -742,7 +773,7 @@ test("llm organize batches by session instead of mixing sessions", async () => {
           ok: true,
           todos: [{
             title: observation.text.replace("Please add", "Add"),
-            description: "Create the session scoped inbox card.",
+            description: "Create the session scoped todo card.",
             confidence: 0.9,
             sourceObservationId: observation.id,
             quote: observation.text,
@@ -762,7 +793,7 @@ test("llm organize batches by session instead of mixing sessions", async () => {
 });
 
 test("organize applies batch payload budget per LLM request instead of globally", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-batch-budget-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-batch-budget-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     for (const sessionId of ["budget-1", "budget-2", "budget-3"]) {
@@ -806,7 +837,7 @@ test("organize applies batch payload budget per LLM request instead of globally"
 });
 
 test("llm organize extracts batches with bounded concurrency", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-concurrency-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-concurrency-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     for (const sessionId of ["concurrent-1", "concurrent-2", "concurrent-3", "concurrent-4"]) {
@@ -849,7 +880,7 @@ test("llm organize extracts batches with bounded concurrency", async () => {
 });
 
 test("organize limits scoped observations before LLM extraction", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-limits-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-limits-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -885,7 +916,7 @@ test("organize limits scoped observations before LLM extraction", async () => {
 });
 
 test("organize limits newest sessions before per-session extraction", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-max-sessions-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-max-sessions-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     insertObservation(db, "old-obs", "old-session", "browser", "user", "Please add old card", new Date(Date.now() - 60_000).toISOString());
@@ -901,7 +932,7 @@ test("organize limits newest sessions before per-session extraction", async () =
           ok: true,
           todos: [{
             title: "Add new card",
-            description: "Create the newest scoped inbox card.",
+            description: "Create the newest scoped todo card.",
             confidence: 0.9,
             sourceObservationId: observation.id,
             quote: observation.text,
@@ -922,7 +953,7 @@ test("organize limits newest sessions before per-session extraction", async () =
 });
 
 test("organize keeps newest sessions when payload user block budget is smaller than scoped sessions", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-newest-budget-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-newest-budget-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     insertObservation(db, "old-obs", "old-session", "browser", "user", "Please add old budget card", new Date(Date.now() - 60_000).toISOString());
@@ -957,7 +988,7 @@ test("organize keeps newest sessions when payload user block budget is smaller t
 });
 
 test("llm organize rejects task-chain cards anchored to assistant when user intent exists", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-assistant-card-source-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-assistant-card-source-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     insertObservation(db, "user-obs", "session-1", "browser", "user", "Please fix settings save", "2026-01-01T00:00:00.000Z");
@@ -993,7 +1024,7 @@ test("llm organize rejects task-chain cards anchored to assistant when user inte
 });
 
 test("llm organize accepts user card source with assistant metadata progress source", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-progress-source-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-progress-source-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     insertObservation(db, "user-obs", "session-1", "browser", "user", "Please fix settings save", "2026-01-01T00:00:00.000Z");
@@ -1035,7 +1066,7 @@ test("llm organize accepts user card source with assistant metadata progress sou
 });
 
 test("organize trims final LLM payload for user and assistant text with details", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-payload-budget-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-payload-budget-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -1071,7 +1102,7 @@ test("organize trims final LLM payload for user and assistant text with details"
 });
 
 test("organize records provider failure details while other sessions succeed", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-failure-details-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-failure-details-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, { id: "failed-session", messages: [{ role: "user", text: "Please add failed card" }] });
@@ -1120,7 +1151,7 @@ test("organize records provider failure details while other sessions succeed", a
 });
 
 test("llm organize rejects process, status, and tool-polluted candidates", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-quality-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-quality-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -1156,7 +1187,7 @@ test("llm organize rejects process, status, and tool-polluted candidates", async
 });
 
 test("llm organize suppresses near duplicate cards with different model keys", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-near-dupe-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-near-dupe-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -1202,7 +1233,7 @@ test("llm organize suppresses near duplicate cards with different model keys", a
 });
 
 test("llm organize updates an active near-duplicate card when the model key changes", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-update-drifted-key-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-update-drifted-key-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -1257,7 +1288,7 @@ test("llm organize updates an active near-duplicate card when the model key chan
 });
 
 test("organize skips sessions whose checkpoint was already processed", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-checkpoint-skip-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-checkpoint-skip-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -1298,7 +1329,7 @@ test("organize skips sessions whose checkpoint was already processed", async () 
 });
 
 test("organize retries sessions whose previous LLM batch failed", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-checkpoint-retry-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-checkpoint-retry-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -1343,7 +1374,7 @@ test("organize retries sessions whose previous LLM batch failed", async () => {
 });
 
 test("organize retries sessions whose previous candidates were rejected", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-checkpoint-invalid-retry-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-checkpoint-invalid-retry-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -1398,7 +1429,7 @@ test("organize retries sessions whose previous candidates were rejected", async 
 });
 
 test("llm unavailable returns warnings without creating rules cards", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-llm-unavailable-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-llm-unavailable-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -1422,7 +1453,7 @@ test("llm unavailable returns warnings without creating rules cards", async () =
 });
 
 test("llm organize rejects ungrounded model output without rules fallback", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-llm-invalid-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-llm-invalid-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     ingestBrowserSession(db, {
@@ -1457,7 +1488,7 @@ test("llm organize rejects ungrounded model output without rules fallback", asyn
 });
 
 test("llm organize ignores agent context as user demand", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-agent-context-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-agent-context-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     const createdAt = "2026-01-01T00:00:00.000Z";
@@ -1482,7 +1513,7 @@ test("llm organize ignores agent context as user demand", async () => {
 });
 
 test("llm organize ignores interrupted-turn events as user demand", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-turn-aborted-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-turn-aborted-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     insertObservation(
@@ -1530,7 +1561,7 @@ test("organize scope filters old observations and keeps recent interactions per 
 });
 
 test("organize with maxSessions selects the newest session across sources", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-newest-source-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-newest-source-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     const now = Date.now();
@@ -1555,7 +1586,7 @@ test("organize with maxSessions selects the newest session across sources", asyn
 });
 
 test("organize batches sessions newest first instead of insertion order", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-newest-batch-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-organize-newest-batch-"));
   try {
     const db = openDatabase(getAppPaths(dir));
     const now = Date.now();

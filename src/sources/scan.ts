@@ -85,8 +85,8 @@ function envPath(value: string | undefined): string | undefined {
 
 function configuredSourcePath(source: SessionSource, paths: AppPaths): string | undefined {
   const config = loadConfig(paths);
-  if (source === "codex") return envPath(process.env.AI_INBOX_CODEX_HOME) ?? config.sources.codex.path;
-  return envPath(process.env.AI_INBOX_CLAUDE_HOME) ?? config.sources["claude-code"].path;
+  if (source === "codex") return envPath(process.env.AI_INDEX_CODEX_HOME) ?? config.sources.codex.path;
+  return envPath(process.env.AI_INDEX_CLAUDE_HOME) ?? config.sources["claude-code"].path;
 }
 
 function defaultSourcePath(source: SessionSource): string {
@@ -119,16 +119,5 @@ function aggregateScanResults(results: ScanResult[]): ScanResult {
 
 function sourceSessionCount(db: Database, source: SessionSource, roots: string[]): number {
   const rows = db.prepare("SELECT path FROM sessions WHERE source = ?").all(source) as Array<{ path: string }>;
-  return rows.filter((row) => roots.some((root) => pathIsWithinRoot(row.path, root))).length;
-}
-
-function pathIsWithinRoot(path: string, root: string): boolean {
-  const normalizedPath = normalizePathSeparators(path);
-  const normalizedRoot = normalizePathSeparators(root).replace(/\/+$/u, "");
-  if (!normalizedRoot) return false;
-  return normalizedPath === normalizedRoot || normalizedPath.startsWith(`${normalizedRoot}/`);
-}
-
-function normalizePathSeparators(path: string): string {
-  return path.replace(/\\/gu, "/");
+  return rows.filter((row) => roots.some((root) => row.path === root || row.path.startsWith(`${root.replace(/\/+$/u, "")}/`))).length;
 }

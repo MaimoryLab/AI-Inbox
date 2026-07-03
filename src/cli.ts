@@ -14,19 +14,19 @@ import { getLlmDoctorStatus, organizeConfiguredTodos } from "./todos/configured.
 import { clearTodoData, listTodos, updateTodoStatus } from "./todos/service.js";
 
 export const DEFAULT_UI_PORT = 3111;
-const HELP_TEXT = `Usage: ai-inbox [command]
+const HELP_TEXT = `Usage: ai-index [command]
 
 Commands:
   init [options]              Create local config.
   doctor                      Check local config, data, and LLM setup.
   scan <codex|claude-code> [path]
   extract|organize            Extract todos from configured sessions.
-  regenerate --yes            Clear inbox cards and regenerate from all observations.
+  regenerate --yes            Clear todo cards and regenerate from all observations.
   list|ls                     List todos.
   done|complete <todo-id>     Mark a todo complete.
   ignore|dismiss <todo-id>    Ignore a todo.
   restore|reopen <todo-id>    Restore a todo to open.
-  start [--port <port>]       Start the local UI.
+  start|open [--port <port>]  Start the local UI.
   mcp                         Start the MCP stdio server.`;
 
 export async function main(argv = process.argv.slice(2)): Promise<number> {
@@ -49,7 +49,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     const llm = getLlmDoctorStatus(paths);
     console.log(`config: ${paths.configDir}`);
     console.log(`env: ${paths.envPath}`);
-    if (!existsSync(paths.envPath)) console.log("env status: missing; run ai-inbox init");
+    if (!existsSync(paths.envPath)) console.log("env status: missing; run ai-index init");
     console.log(`data: ${paths.dataDir}`);
     console.log(`llm enabled: ${llm.enabled}`);
     console.log(`llm key: ${llm.keyConfigured ? "configured" : "missing"}`);
@@ -74,8 +74,8 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
 
   if (command === "regenerate") {
     if (!argv.includes("--yes")) {
-      console.error("usage: ai-inbox regenerate --yes");
-      console.error("This clears inbox cards, evidence, task chains, and organize run history before regenerating.");
+      console.error("usage: ai-index regenerate --yes");
+      console.error("This clears todo cards, evidence, task chains, and organize run history before regenerating.");
       return 1;
     }
     const paths = getAppPaths();
@@ -111,12 +111,8 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     return withDatabase((db) => updateStatus(db, argv[1], status));
   }
 
-  if (command === "start") {
-    return startUi(argv.slice(1));
-  }
-
-  if (command === "open") {
-    return startUi(argv.slice(1));
+  if (command === "start" || command === "open") {
+    return openUi(argv.slice(1), command);
   }
 
   if (command === "mcp") {
@@ -132,17 +128,17 @@ async function init(argv: string[]): Promise<number> {
   const paths = getAppPaths();
   const args = parseOptions(argv);
   let env: EnvConfig = {
-    AI_INBOX_LLM_ENABLED: args["llm-enabled"],
-    AI_INBOX_LLM_PROVIDER: args.provider,
-    AI_INBOX_LLM_API_KEY: args["api-key"],
-    AI_INBOX_LLM_MODEL: args.model,
-    AI_INBOX_LLM_ENDPOINT: args.endpoint,
-    AI_INBOX_CODEX_HOME: args["codex-home"],
-    AI_INBOX_CLAUDE_HOME: args["claude-home"],
-    AI_INBOX_ORGANIZE_SINCE_DAYS: args["since-days"],
-    AI_INBOX_ORGANIZE_MAX_INTERACTIONS_PER_SESSION: args["max-interactions"],
-    AI_INBOX_ORGANIZE_MAX_SESSIONS: args["max-sessions"],
-    AI_INBOX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION: args["max-observations"]
+    AI_INDEX_LLM_ENABLED: args["llm-enabled"],
+    AI_INDEX_LLM_PROVIDER: args.provider,
+    AI_INDEX_LLM_API_KEY: args["api-key"],
+    AI_INDEX_LLM_MODEL: args.model,
+    AI_INDEX_LLM_ENDPOINT: args.endpoint,
+    AI_INDEX_CODEX_HOME: args["codex-home"],
+    AI_INDEX_CLAUDE_HOME: args["claude-home"],
+    AI_INDEX_ORGANIZE_SINCE_DAYS: args["since-days"],
+    AI_INDEX_ORGANIZE_MAX_INTERACTIONS_PER_SESSION: args["max-interactions"],
+    AI_INDEX_ORGANIZE_MAX_SESSIONS: args["max-sessions"],
+    AI_INDEX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION: args["max-observations"]
   };
 
   if (process.stdin.isTTY && Object.keys(args).length === 0) {
@@ -162,17 +158,17 @@ async function promptInit(defaults: EnvConfig): Promise<EnvConfig> {
   const env = { ...defaultEnvConfig(), ...defaults };
   try {
     return {
-      AI_INBOX_CODEX_HOME: await ask(rl, "Codex source path", env.AI_INBOX_CODEX_HOME),
-      AI_INBOX_CLAUDE_HOME: await ask(rl, "Claude Code source path", env.AI_INBOX_CLAUDE_HOME),
-      AI_INBOX_LLM_ENABLED: await ask(rl, "LLM enabled", env.AI_INBOX_LLM_ENABLED),
-      AI_INBOX_LLM_PROVIDER: await ask(rl, "LLM provider", env.AI_INBOX_LLM_PROVIDER),
-      AI_INBOX_LLM_MODEL: await ask(rl, "LLM model", env.AI_INBOX_LLM_MODEL),
-      AI_INBOX_LLM_ENDPOINT: await ask(rl, "LLM endpoint", env.AI_INBOX_LLM_ENDPOINT),
-      AI_INBOX_LLM_API_KEY: await ask(rl, "LLM API key", env.AI_INBOX_LLM_API_KEY),
-      AI_INBOX_ORGANIZE_SINCE_DAYS: await ask(rl, "Look-back days", env.AI_INBOX_ORGANIZE_SINCE_DAYS),
-      AI_INBOX_ORGANIZE_MAX_INTERACTIONS_PER_SESSION: await ask(rl, "Max interactions per session", env.AI_INBOX_ORGANIZE_MAX_INTERACTIONS_PER_SESSION),
-      AI_INBOX_ORGANIZE_MAX_SESSIONS: await ask(rl, "Max sessions", env.AI_INBOX_ORGANIZE_MAX_SESSIONS),
-      AI_INBOX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION: await ask(rl, "Max observations per session", env.AI_INBOX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION)
+      AI_INDEX_CODEX_HOME: await ask(rl, "Codex source path", env.AI_INDEX_CODEX_HOME),
+      AI_INDEX_CLAUDE_HOME: await ask(rl, "Claude Code source path", env.AI_INDEX_CLAUDE_HOME),
+      AI_INDEX_LLM_ENABLED: await ask(rl, "LLM enabled", env.AI_INDEX_LLM_ENABLED),
+      AI_INDEX_LLM_PROVIDER: await ask(rl, "LLM provider", env.AI_INDEX_LLM_PROVIDER),
+      AI_INDEX_LLM_MODEL: await ask(rl, "LLM model", env.AI_INDEX_LLM_MODEL),
+      AI_INDEX_LLM_ENDPOINT: await ask(rl, "LLM endpoint", env.AI_INDEX_LLM_ENDPOINT),
+      AI_INDEX_LLM_API_KEY: await ask(rl, "LLM API key", env.AI_INDEX_LLM_API_KEY),
+      AI_INDEX_ORGANIZE_SINCE_DAYS: await ask(rl, "Look-back days", env.AI_INDEX_ORGANIZE_SINCE_DAYS),
+      AI_INDEX_ORGANIZE_MAX_INTERACTIONS_PER_SESSION: await ask(rl, "Max interactions per session", env.AI_INDEX_ORGANIZE_MAX_INTERACTIONS_PER_SESSION),
+      AI_INDEX_ORGANIZE_MAX_SESSIONS: await ask(rl, "Max sessions", env.AI_INDEX_ORGANIZE_MAX_SESSIONS),
+      AI_INDEX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION: await ask(rl, "Max observations per session", env.AI_INDEX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION)
     };
   } finally {
     rl.close();
@@ -211,7 +207,7 @@ async function withDatabase(fn: (db: Database) => number | Promise<number>): Pro
   }
 }
 
-async function startUi(argv: string[] = [], command = "start"): Promise<number> {
+async function openUi(argv: string[] = [], command = "start"): Promise<number> {
   const args = parseOptions(argv);
   const port = args.port ? Number(args.port) : DEFAULT_UI_PORT;
   if (!Number.isInteger(port) || port < 0 || port > 65535) {
@@ -228,7 +224,7 @@ async function startUi(argv: string[] = [], command = "start"): Promise<number> 
   } catch (error) {
     db.close();
     if ((error as NodeJS.ErrnoException).code === "EADDRINUSE") {
-      console.error(`${port} is already in use. Try ai-inbox ${command} --port <port>.`);
+      console.error(`${port} is already in use. Try ai-index ${command} --port <port>.`);
       return 1;
     }
     console.error((error as Error).message);
@@ -237,7 +233,7 @@ async function startUi(argv: string[] = [], command = "start"): Promise<number> 
   startupScanner.start();
   const address = server.address();
   if (!address || typeof address === "string") return 1;
-  console.log(`AI-Inbox UI: http://127.0.0.1:${address.port}/#token=${localToken}`);
+  console.log(`AI-Index UI: http://127.0.0.1:${address.port}/#token=${localToken}`);
   console.log("Press Ctrl+C to stop.");
   await new Promise<void>((resolve) => {
     const stop = () => {
@@ -264,7 +260,7 @@ function listen(server: ReturnType<typeof createAppServer>, port: number): Promi
 
 function scan(db: Database, source: string | undefined, path: string | undefined): number {
   if (!source) {
-    console.error("usage: ai-inbox scan <codex|claude-code> [path]");
+    console.error("usage: ai-index scan <codex|claude-code> [path]");
     return 1;
   }
 
@@ -310,10 +306,5 @@ function printOrganizeResult(result: Awaited<ReturnType<typeof organizeConfigure
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().then((code) => {
-    process.exitCode = code;
-  }).catch((error) => {
-    console.error(error instanceof Error ? error.message : String(error));
-    process.exitCode = 1;
-  });
+  process.exitCode = await main();
 }

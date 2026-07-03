@@ -11,6 +11,7 @@ import { createAppServer } from "../src/server/index.js";
 import { scanClaudeCodeSessions } from "../src/sources/claude-code.js";
 import { scanCodexSessions } from "../src/sources/codex.js";
 import { observationFromRecord } from "../src/sources/jsonl-source.js";
+import { listSessionObservations } from "../src/sources/service.js";
 
 test("parseJsonl reads non-empty JSON object lines", () => {
   const records = parseJsonl("{\"text\":\"one\"}\n\n{\"text\":\"two\"}\n");
@@ -18,7 +19,7 @@ test("parseJsonl reads non-empty JSON object lines", () => {
 });
 
 test("codex and claude scanners write clean visible transcript and skip unchanged files", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-source-"));
   try {
     mkdirSync(join(dir, "codex"));
     mkdirSync(join(dir, "claude"));
@@ -84,7 +85,7 @@ test("codex and claude scanners write clean visible transcript and skip unchange
 });
 
 test("codex scanner backfills project path when checkpoint is unchanged", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-codex-project-backfill-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-codex-project-backfill-"));
   const db = openDatabase(getAppPaths(join(dir, "home")));
   try {
     const codexDir = join(dir, "codex");
@@ -112,7 +113,7 @@ test("codex scanner backfills project path when checkpoint is unchanged", () => 
 });
 
 test("claude scanner stores project path from cwd fields", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-claude-project-cwd-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-claude-project-cwd-"));
   const db = openDatabase(getAppPaths(join(dir, "home")));
   try {
     const claudeDir = join(dir, "claude");
@@ -138,7 +139,7 @@ test("claude scanner stores project path from cwd fields", () => {
 });
 
 test("claude scanner stores ai title as session title", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-claude-session-title-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-claude-session-title-"));
   const db = openDatabase(getAppPaths(join(dir, "home")));
   try {
     const claudeDir = join(dir, "claude");
@@ -162,7 +163,7 @@ test("claude scanner stores ai title as session title", () => {
 });
 
 test("claude scanner decodes encoded project directories when cwd is missing", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-claude-project-encoded-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-claude-project-encoded-"));
   const db = openDatabase(getAppPaths(join(dir, "home")));
   try {
     const claudeDir = join(dir, "claude");
@@ -190,7 +191,7 @@ test("claude scanner decodes encoded project directories when cwd is missing", (
 });
 
 test("claude scanner leaves project path null when cwd and encoded directory are unavailable", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-claude-no-project-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-claude-no-project-"));
   const db = openDatabase(getAppPaths(join(dir, "home")));
   try {
     const claudeDir = join(dir, "claude");
@@ -210,7 +211,7 @@ test("claude scanner leaves project path null when cwd and encoded directory are
 });
 
 test("codex scanner tolerates missing project path metadata", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-codex-no-project-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-codex-no-project-"));
   const db = openDatabase(getAppPaths(join(dir, "home")));
   try {
     const codexDir = join(dir, "codex");
@@ -230,7 +231,7 @@ test("codex scanner tolerates missing project path metadata", () => {
 });
 
 test("codex scanner dedupes mirrored event and response messages", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-dedupe-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-source-dedupe-"));
   try {
     mkdirSync(join(dir, "codex"));
     writeFileSync(join(dir, "codex", "session.jsonl"), [
@@ -253,7 +254,7 @@ test("codex scanner dedupes mirrored event and response messages", () => {
 });
 
 test("codex scanner stores readable file and image references", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-attachments-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-source-attachments-"));
   try {
     mkdirSync(join(dir, "codex"));
     const imagePath = "/var/folders/demo/codex-clipboard-a1ec.png";
@@ -299,7 +300,7 @@ test("codex scanner stores readable file and image references", () => {
 });
 
 test("codex scanner stores structured local image references without inline image tags", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-local-images-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-source-local-images-"));
   try {
     mkdirSync(join(dir, "codex"));
     writeFileSync(join(dir, "codex", "session.jsonl"), [
@@ -346,7 +347,7 @@ test("clean transcript preserves meaningful newlines and does not drop user JSON
 });
 
 test("codex scanner removes injected instruction noise before storing observations", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-noise-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-source-noise-"));
   try {
     mkdirSync(join(dir, "codex"));
     writeFileSync(join(dir, "codex", "session.jsonl"), [
@@ -378,7 +379,7 @@ test("codex scanner removes injected instruction noise before storing observatio
 });
 
 test("codex scanner removes subagent notifications from user observations", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-subagent-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-source-subagent-"));
   try {
     mkdirSync(join(dir, "codex"));
     const subagent = [
@@ -403,14 +404,14 @@ test("codex scanner removes subagent notifications from user observations", () =
 });
 
 test("codex scanner merges linked subagent sessions into the parent session", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-subagent-merge-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-source-subagent-merge-"));
   try {
     const root = join(dir, "codex");
     const agentDir = join(root, "agents", "agent-1");
     mkdirSync(agentDir, { recursive: true });
     const subagent = [
       "<subagent_notification>",
-      JSON.stringify({ agent_path: agentDir.replace(/\//gu, "\\"), status: { completed: "hidden report" } }),
+      JSON.stringify({ agent_path: agentDir, status: { completed: "hidden report" } }),
       "</subagent_notification>"
     ].join("\n");
     writeFileSync(join(root, "parent.jsonl"), [
@@ -448,7 +449,7 @@ function testId(...parts: string[]): string {
 }
 
 test("scanner checkpoints but does not store sessions with no visible observations", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-empty-session-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-source-empty-session-"));
   try {
     mkdirSync(join(dir, "claude"));
     writeFileSync(join(dir, "claude", "session.jsonl"), [
@@ -487,7 +488,7 @@ test("scanner checkpoints but does not store sessions with no visible observatio
 });
 
 test("claude scanner keeps visible user and assistant text after filtering metadata", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-claude-visible-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-source-claude-visible-"));
   try {
     mkdirSync(join(dir, "claude"));
     writeFileSync(join(dir, "claude", "session.jsonl"), [
@@ -509,7 +510,7 @@ test("claude scanner keeps visible user and assistant text after filtering metad
 });
 
 test("claude scanner removes subagent notifications from visible text", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-claude-subagent-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-source-claude-subagent-"));
   try {
     mkdirSync(join(dir, "claude"));
     writeFileSync(join(dir, "claude", "session.jsonl"), [
@@ -542,7 +543,7 @@ test("claude scanner removes subagent notifications from visible text", () => {
 });
 
 test("claude scanner stores readable attachment references", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-source-claude-attachments-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-source-claude-attachments-"));
   try {
     mkdirSync(join(dir, "claude"));
     writeFileSync(join(dir, "claude", "session.jsonl"), [
@@ -576,7 +577,7 @@ test("claude scanner stores readable attachment references", () => {
 });
 
 test("checkpoint rescans when jsonl file mtime and size change", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-checkpoint-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-checkpoint-"));
   try {
     mkdirSync(join(dir, "codex"));
     const file = join(dir, "codex", "session.jsonl");
@@ -599,7 +600,7 @@ test("checkpoint rescans when jsonl file mtime and size change", () => {
 });
 
 test("browser sessions endpoint ingests observations", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-browser-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-browser-"));
   const db = openDatabase(getAppPaths(dir));
   const server = createAppServer({ db });
 
@@ -615,6 +616,97 @@ test("browser sessions endpoint ingests observations", async () => {
     const row = db.prepare("SELECT COUNT(*) as count FROM observations WHERE source = 'browser'").get();
     assert.ok(row);
     assert.equal(row.count, 1);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("browser capture payload maps to browser session observations", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-browser-capture-"));
+  const db = openDatabase(getAppPaths(dir));
+  const server = createAppServer({ db });
+
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/browser-sessions`, {
+      method: "POST",
+      body: JSON.stringify({
+        schemaVersion: 1,
+        capturedAt: "2026-07-02T00:00:00.000Z",
+        page: { url: "https://chatgpt.com/c/abc", title: "ChatGPT", host: "chatgpt.com" },
+        conversation: {
+          provider: "chatgpt",
+          turns: [
+            { role: "human", text: "  Track this browser todo  " },
+            { role: "assistant", text: "I will track it." }
+          ]
+        }
+      })
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json() as { sessionId: string; observations: number };
+    assert.equal(body.observations, 2);
+    const session = db.prepare("SELECT source, path FROM sessions WHERE id = ?").get(body.sessionId) as { source: string; path: string };
+    assert.equal(session.source, "browser");
+    assert.equal(session.path, "https://chatgpt.com/c/abc");
+    const rows = db.prepare("SELECT role, text, created_at as createdAt FROM observations WHERE session_id = ? ORDER BY id").all(body.sessionId) as Array<{ role: string; text: string; createdAt: string }>;
+    assert.equal(rows.length, 2);
+    assert.ok(rows.some((row) => row.role === "unknown" && row.text === "Track this browser todo"));
+    assert.ok(rows.every((row) => row.createdAt === "2026-07-02T00:00:00.000Z"));
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("browser capture drops mirrored unknown turns", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-browser-dedupe-"));
+  const db = openDatabase(getAppPaths(dir));
+  const server = createAppServer({ db });
+
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/browser-sessions`, {
+      method: "POST",
+      body: JSON.stringify({
+        schemaVersion: 1,
+        capturedAt: "2026-07-02T00:00:00.000Z",
+        page: { url: "https://chatgpt.com/c/dedupe", title: "ChatGPT", host: "chatgpt.com" },
+        conversation: {
+          provider: "chatgpt",
+          turns: [
+            { role: "unknown", text: "Track this browser todo" },
+            { role: "user", text: "Track this browser todo" },
+            { role: "unknown", text: "I will track it." },
+            { role: "assistant", text: "ChatGPT said\n\nI will track it." }
+          ]
+        }
+      })
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json() as { sessionId: string; observations: number };
+    assert.equal(body.observations, 2);
+    const rows = db.prepare("SELECT role, text FROM observations WHERE session_id = ? ORDER BY id").all(body.sessionId) as Array<{ role: string; text: string }>;
+    assert.equal(rows.length, 2);
+    assert.ok(rows.some((row) => row.role === "user" && row.text === "Track this browser todo"));
+    assert.ok(rows.some((row) => row.role === "assistant" && row.text === "ChatGPT said\n\nI will track it."));
+
+    db.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
+      "legacy-browser-mirror",
+      body.sessionId,
+      "browser",
+      "unknown",
+      "I will track it.",
+      "2026-07-02T00:00:00.000Z"
+    );
+    assert.equal(listSessionObservations(db, body.sessionId)?.length, 2);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     db.close();

@@ -2,7 +2,7 @@ import { useId } from "react";
 import { Code2, Globe2 } from "lucide-react";
 import { sourceLabel, textFor, type Locale } from "../i18n.js";
 import { cn } from "../lib/utils.js";
-import type { SessionRecord, SourceKind, SourceSummary } from "../types.js";
+import type { SessionRecord, SourceKind, SourceSummary, TodoCard } from "../types.js";
 import type { SourceFilter } from "../view-model.js";
 
 export const sourceLabels: Record<SourceKind, string> = {
@@ -44,6 +44,27 @@ function CodexIcon({ className }: { className: string }) {
   );
 }
 
+export function originLabel(todo: TodoCard, locale: Locale): string {
+  const text = textFor(locale);
+  if (!todo.origin) return text.sourceUnavailable;
+  const source = sourceLabel(todo.origin.source, locale);
+  const project = todo.origin.projectTitle || source;
+  const session = todo.origin.sessionTitle || text.temporarySession;
+  return `${source} · ${project} › ${session}`;
+}
+
+export function originProjectLabel(todo: TodoCard, locale: Locale): string {
+  const text = textFor(locale);
+  if (!todo.origin) return text.sourceUnavailable;
+  const source = sourceLabel(todo.origin.source, locale);
+  const project = todo.origin.projectTitle || source;
+  return `${source} · ${project}`;
+}
+
+export function originSessionLabel(todo: TodoCard, locale: Locale): string {
+  return todo.origin?.sessionTitle || textFor(locale).temporarySession;
+}
+
 export function sourceCount(sources: SourceSummary[], filter: SourceFilter): number {
   if (filter === "all") return sources.reduce((sum, source) => sum + source.sessions, 0);
   return sources.find((source) => source.source === filter)?.sessions ?? 0;
@@ -69,7 +90,7 @@ function readableProjectPath(value: string | undefined): string | undefined {
 function readablePathSegment(value: string | undefined): string | undefined {
   if (!value) return undefined;
   const segment = value.replace(/\.jsonl$/u, "").replace(/^-+|-+$/gu, "");
-  const marker = "AI-InboxProject";
+  const marker = "AI-TodoProject";
   const markerIndex = segment.indexOf(marker);
   if (markerIndex >= 0) {
     const suffix = segment.slice(markerIndex + marker.length).replace(/^-+/u, "");

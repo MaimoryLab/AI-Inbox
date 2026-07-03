@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "AI-Index Browser Sessions",
+  "version": "0.1.0",
+  "description": "Capture AI browser sessions into local AI-Index.",
+  "permissions": ["activeTab", "alarms", "scripting", "storage", "tabs"],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://claude.ai/*",
+    "https://gemini.google.com/*",
+    "https://perplexity.ai/*",
+    "https://www.perplexity.ai/*",
+    "https://grok.com/*",
+    "https://x.ai/*",
+    "https://chat.deepseek.com/*",
+    "https://deepseek.com/*",
+    "http://127.0.0.1:*/*",
+    "http://localhost:*/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://claude.ai/*",
+        "https://gemini.google.com/*",
+        "https://perplexity.ai/*",
+        "https://www.perplexity.ai/*",
+        "https://grok.com/*",
+        "https://x.ai/*",
+        "https://chat.deepseek.com/*",
+        "https://deepseek.com/*"
+      ],
+      "js": ["shared/site-config.js", "content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "AI-Index"
+  },
+  "options_page": "options.html"
+}

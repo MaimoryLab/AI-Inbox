@@ -13,9 +13,9 @@ const appVersion = packageJson.version;
 const artifactsDir = join(root, "artifacts", "release");
 const workDir = join(root, "artifacts", "sea-build");
 const platformName = { darwin: "macos", win32: "windows" }[process.platform];
-const releaseName = platformName ? `ai-inbox-${platformName}-${process.arch}` : null;
+const releaseName = platformName ? `ai-index-${platformName}-${process.arch}` : null;
 const packageDir = releaseName ? join(artifactsDir, releaseName) : null;
-const binaryName = process.platform === "win32" ? "ai-inbox.exe" : "ai-inbox";
+const binaryName = process.platform === "win32" ? "ai-index.exe" : "ai-index";
 const binaryPath = packageDir ? join(packageDir, binaryName) : "";
 const seaNodePath = join(workDir, "node-runtime", binaryName);
 
@@ -41,8 +41,8 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 const releasePublicDir = join(dirname(process.execPath), "public");
-if (!process.env.AI_INBOX_PUBLIC_DIR && existsSync(releasePublicDir)) {
-  process.env.AI_INBOX_PUBLIC_DIR = releasePublicDir;
+if (!process.env.AI_INDEX_PUBLIC_DIR && existsSync(releasePublicDir)) {
+  process.env.AI_INDEX_PUBLIC_DIR = releasePublicDir;
 }
 
 const args = process.argv.slice(2);
@@ -156,7 +156,7 @@ function downloadOfficialNode() {
 }
 
 async function buildMacDmg(dmgPath) {
-  const appDir = join(artifactsDir, "AI-Inbox.app");
+  const appDir = join(artifactsDir, "AI-Index.app");
   const appRoot = join(appDir, "Contents");
   const macosDir = join(appRoot, "MacOS");
   const resourcesDir = join(appRoot, "Resources");
@@ -166,28 +166,28 @@ async function buildMacDmg(dmgPath) {
   mkdirSync(macosDir, { recursive: true });
   mkdirSync(resourcesDir, { recursive: true });
 
-  copyFileSync(binaryPath, join(resourcesDir, "ai-inbox"));
-  await chmod(join(resourcesDir, "ai-inbox"), 0o755);
+  copyFileSync(binaryPath, join(resourcesDir, "ai-index"));
+  await chmod(join(resourcesDir, "ai-index"), 0o755);
   cpSync(join(packageDir, "public"), join(resourcesDir, "public"), { recursive: true });
   copyFileSync(join(packageDir, "README.md"), join(resourcesDir, "README.md"));
   copyFileSync(join(packageDir, "LICENSE"), join(resourcesDir, "LICENSE"));
   writeFileSync(join(appRoot, "Info.plist"), macInfoPlist());
 
-  const launcher = join(macosDir, "AI-Inbox");
+  const launcher = join(macosDir, "AI-Index");
   writeFileSync(launcher, `#!/bin/sh
 APP_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-exec "$APP_ROOT/Resources/ai-inbox" start "$@"
+exec "$APP_ROOT/Resources/ai-index" start "$@"
 `);
   await chmod(launcher, 0o755);
 
   runOptional("codesign", ["--force", "--deep", "--sign", "-", appDir]);
   mkdirSync(dmgRoot, { recursive: true });
-  cpSync(appDir, join(dmgRoot, "AI-Inbox.app"), { recursive: true });
+  cpSync(appDir, join(dmgRoot, "AI-Index.app"), { recursive: true });
   copyFileSync(join(packageDir, "README.md"), join(dmgRoot, "README.md"));
   const sizeMb = Math.ceil(directorySizeBytes(dmgRoot) / 1024 / 1024) + 80;
   execFileSync("hdiutil", [
     "create",
-    "-volname", `AI-Inbox ${appVersion}`,
+    "-volname", `AI-Index ${appVersion}`,
     "-srcfolder", dmgRoot,
     "-ov",
     "-format", "UDZO",
@@ -205,15 +205,15 @@ function macInfoPlist() {
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleDisplayName</key>
-  <string>AI-Inbox</string>
+  <string>AI-Index</string>
   <key>CFBundleExecutable</key>
-  <string>AI-Inbox</string>
+  <string>AI-Index</string>
   <key>CFBundleIdentifier</key>
-  <string>lab.maimory.ai-inbox</string>
+  <string>lab.maimory.ai-index</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
-  <string>AI-Inbox</string>
+  <string>AI-Index</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
@@ -230,7 +230,7 @@ function macInfoPlist() {
 }
 
 function buildWindowsMsi(msiPath) {
-  const wxs = join(workDir, "ai-inbox.wxs");
+  const wxs = join(workDir, "ai-index.wxs");
   writeFileSync(wxs, windowsInstallerXml());
   execFileSync(wixBin(), ["build", wxs, "-arch", wixArch(), "-o", msiPath], { stdio: "inherit" });
 }
@@ -240,7 +240,7 @@ function wixBin() {
   const wix = join(wixDir, process.platform === "win32" ? "wix.exe" : "wix");
   if (!existsSync(wix)) {
     mkdirSync(wixDir, { recursive: true });
-    execFileSync("dotnet", ["tool", "install", "--tool-path", wixDir, "wix", "--version", process.env.AI_INBOX_WIX_VERSION ?? "5.0.2"], { stdio: "inherit" });
+    execFileSync("dotnet", ["tool", "install", "--tool-path", wixDir, "wix", "--version", process.env.AI_INDEX_WIX_VERSION ?? "5.0.2"], { stdio: "inherit" });
   }
   return wix;
 }
@@ -254,28 +254,28 @@ function windowsInstallerXml() {
   const tree = directoryTree(files);
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="AI-Inbox" Manufacturer="MaimoryLab" Version="${xmlAttr(msiVersion(appVersion))}" UpgradeCode="${stableGuid("ai-inbox-upgrade-code")}" Scope="perUser">
-    <MajorUpgrade DowngradeErrorMessage="A newer version of AI-Inbox is already installed." />
+  <Package Name="AI-Index" Manufacturer="MaimoryLab" Version="${xmlAttr(msiVersion(appVersion))}" UpgradeCode="${stableGuid("ai-index-upgrade-code")}" Scope="perUser">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of AI-Index is already installed." />
     <MediaTemplate EmbedCab="yes" />
     <StandardDirectory Id="LocalAppDataFolder">
       <Directory Id="ManufacturerFolder" Name="MaimoryLab">
-        <Directory Id="INSTALLFOLDER" Name="AI-Inbox">
+        <Directory Id="INSTALLFOLDER" Name="AI-Index">
 ${renderDirectoryTree(tree, "          ")}
         </Directory>
       </Directory>
     </StandardDirectory>
     <StandardDirectory Id="ProgramMenuFolder">
-      <Directory Id="ApplicationProgramsFolder" Name="AI-Inbox" />
+      <Directory Id="ApplicationProgramsFolder" Name="AI-Index" />
     </StandardDirectory>
     <ComponentGroup Id="AppComponents">
 ${renderComponents(files)}
-      <Component Id="StartMenuShortcutComponent" Directory="ApplicationProgramsFolder" Guid="${stableGuid("ai-inbox-start-menu-shortcut")}">
-        <Shortcut Id="StartMenuShortcut" Name="AI-Inbox" Description="Start AI-Inbox" Target="[#AiInboxExe]" Arguments="start" WorkingDirectory="INSTALLFOLDER" />
+      <Component Id="StartMenuShortcutComponent" Directory="ApplicationProgramsFolder" Guid="${stableGuid("ai-index-start-menu-shortcut")}">
+        <Shortcut Id="StartMenuShortcut" Name="AI-Index" Description="Start AI-Index" Target="[#AiIndexExe]" Arguments="start" WorkingDirectory="INSTALLFOLDER" />
         <RemoveFolder Id="RemoveApplicationProgramsFolder" On="uninstall" />
-        <RegistryValue Root="HKCU" Key="Software\\MaimoryLab\\AI-Inbox" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+        <RegistryValue Root="HKCU" Key="Software\\MaimoryLab\\AI-Index" Name="installed" Type="integer" Value="1" KeyPath="yes" />
       </Component>
     </ComponentGroup>
-    <Feature Id="MainFeature" Title="AI-Inbox" Level="1">
+    <Feature Id="MainFeature" Title="AI-Index" Level="1">
       <ComponentGroupRef Id="AppComponents" />
     </Feature>
   </Package>
@@ -335,9 +335,9 @@ function renderComponents(files) {
   return [...byDir.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([dir, dirFiles]) => {
     const componentId = wixId("Cmp", dir || "root");
     const directory = dir ? directoryId(dir) : "INSTALLFOLDER";
-    const guid = stableGuid(`ai-inbox-component:${dir || "root"}`);
+    const guid = stableGuid(`ai-index-component:${dir || "root"}`);
     const body = dirFiles.sort().map((file, index) => {
-      const fileId = file === binaryName ? "AiInboxExe" : wixId("File", file);
+      const fileId = file === binaryName ? "AiIndexExe" : wixId("File", file);
       const keyPath = index === 0 ? " KeyPath=\"yes\"" : "";
       return `        <File Id="${fileId}" Source="${xmlAttr(join(packageDir, ...file.split("/")))}"${keyPath} />`;
     }).join("\n");

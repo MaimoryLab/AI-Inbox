@@ -1,16 +1,16 @@
 export const CLI_COMMANDS = [
-  "ai-inbox",
-  "ai-inbox scan",
-  "ai-inbox organize",
-  "ai-inbox regenerate --yes",
-  "ai-inbox list",
-  "ai-inbox done <id>",
-  "ai-inbox ignore <id>",
-  "ai-inbox restore <id>",
-  "ai-inbox start",
-  "ai-inbox doctor",
-  "ai-inbox connect codex",
-  "ai-inbox mcp"
+  "ai-index",
+  "ai-index scan",
+  "ai-index organize",
+  "ai-index regenerate --yes",
+  "ai-index list",
+  "ai-index done <id>",
+  "ai-index ignore <id>",
+  "ai-index restore <id>",
+  "ai-index open",
+  "ai-index doctor",
+  "ai-index connect codex",
+  "ai-index mcp"
 ] as const;
 
 export const HTTP_ROUTES = [

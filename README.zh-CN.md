@@ -1,4 +1,4 @@
-# AI-Inbox
+# AI-Index
 
 [English](README.md) | [中文](README.zh-CN.md)
 
@@ -7,226 +7,148 @@
 
 **本地优先的 AI / Agent 会话卡片复查工作台。**
 
-AI-Inbox 会扫描 Codex 和 Claude Code 会话记录，调用你配置的 OpenAI-compatible LLM 抽取 Inbox cards，并把每张卡片都关联回原始证据。
+AI-Index 是一个本地优先的 AI 会话行动收件箱。它扫描 Codex、Claude Code 和浏览器会话，使用你配置的 OpenAI-compatible LLM 抽取未完成事项，并保留原始来源，方便你在处理卡片前复查上下文。
 
 - 把分散在 AI 会话里的后续事项收进一个可复查的卡片队列。
 - 在完成、忽略或恢复卡片前，先查看对应的来源片段。
-- 配置和数据默认留在本机 `~/.ai-inbox`。
+- 配置和数据默认留在本机 `~/.ai-index`。
 
-从 [Releases](https://github.com/MaimoryLab/AI-Inbox/releases) 下载安装器，然后启动：
-
-- macOS Apple Silicon：打开 `ai-inbox-macos-arm64.dmg`，再打开 `AI-Inbox.app`。
-- Windows x64：运行 `ai-inbox-windows-x64.msi`，再从开始菜单打开 **AI-Inbox**。
-
-AI-Inbox 会打开本地浏览器工作台。在设置页配置来源和 LLM key，然后点击 **Organize / 整理**，卡片整理效果如下。
-
-![AI-Inbox 卡片视图](docs/assets/readme/ai-inbox-cards.png)
-
-## 为什么需要 AI-Inbox
-
-各种 AI 助手能推进很多事情，但后续事项经常埋在很长的聊天和 agent 日志里。AI-Inbox 给这些散落的线索加了一层复查工作台：抽成简洁的 Inbox cards，保留原始证据，再由你决定哪些真正需要处理。
-
-它不是项目管理系统，而是一个本地优先的 AI 会话卡片复查入口。
-
-## 会捕获什么
-
-| 来源 | 默认位置 | AI-Inbox 导入内容 |
-| --- | --- | --- |
-| Codex | `~/.codex` | sessions 和 archived sessions |
-| Claude Code | `~/.claude/projects` | 项目会话记录 |
-| Browser | 计划中 | 浏览器插件和浏览器会话提取功能尚未实现，我们会尽快补齐。 |
-
-扫描会导入会话文本和可读附件引用，不会复制附件文件。
-
-## 快速开始
-
-- macOS Apple Silicon：打开 `ai-inbox-macos-arm64.dmg`，再打开 `AI-Inbox.app`。
-- Windows x64：运行 `ai-inbox-windows-x64.msi`，再从开始菜单打开 **AI-Inbox**。
-
-npm 包尚未发布；当前请使用安装器或源码启动。
-
-然后：
-
-1. 打开命令输出的 `127.0.0.1` 本地 URL。
-2. 在 **Settings / 设置** 中确认来源路径，并保存 OpenAI-compatible API key。
-3. 在 **Sources / 来源** 中复查导入的会话。
-4. 在 **Cards / 卡片** 中点击 **Organize / 整理**，查看生成的 Inbox cards。
-
-没有 LLM 配置时，AI-Inbox 仍可以打开界面和扫描来源；只有配置好 LLM endpoint 和 key 后，才会生成 Inbox cards。
-
-## 界面
-
-以下截图全部使用合成会话文本、合成路径和空 API key 字段。
-
-### Cards / 卡片
-
-![卡片视图，使用合成 Inbox cards](docs/assets/readme/ai-inbox-cards.png)
-
-### Sources / 来源
-
-![来源视图，展示关联证据](docs/assets/readme/ai-inbox-sources.png)
-
-### Settings / 设置
-
-![设置视图，使用合成路径且没有密钥](docs/assets/readme/ai-inbox-settings.png)
-
-## 安装
-
-### 环境要求
+### 需要准备
 
 - 安装器：不需要安装 Node.js
 - 源码启动或未来 npm 包：Node.js `>=22.16.0`
-- 用于卡片抽取的 OpenAI-compatible Chat Completions API key
+- 一个 OpenAI-compatible Chat Completions API key
 
-### 安装器
+没有 LLM 配置时，AI-Index 仍然可以打开界面和扫描来源，但不能整理出待办卡片。
 
-从 [Releases](https://github.com/MaimoryLab/AI-Inbox/releases) 下载对应平台的安装器：
+### 安装
 
-- macOS Apple Silicon：`ai-inbox-macos-arm64.dmg`
-- Windows x64：`ai-inbox-windows-x64.msi`
+从 [Releases](https://github.com/MaimoryLab/AI-Inbox/releases) 下载安装器，然后启动：
 
-配置和数据仍保存在 `~/.ai-inbox`，不会写进应用或安装目录。当前 release 安装器未签名，macOS Gatekeeper 或 Windows Defender 可能会在首次运行时要求确认。
+- macOS Apple Silicon：打开 `ai-index-macos-arm64.dmg`，再打开 `AI-Index.app`。
+- Windows x64：运行 `ai-index-windows-x64.msi`，再从开始菜单打开 **AI-Index**。
 
-### npm
+AI-Index 会打开本地浏览器工作台。在设置页配置来源和 LLM key，然后点击 **Organize / 整理**。
 
-npm 包尚未发布。发布到公开 registry 后，这会是最短安装路径：
+npm 包尚未发布；当前请使用安装器或源码启动。
 
-```bash
-npm install -g @maimorylab/ai-inbox
-ai-inbox start
-npx @maimorylab/ai-inbox start
-```
+![AI-Index 卡片视图](docs/assets/readme/ai-index-cards.png)
 
 ### 源码启动
 
-```bash
-git clone https://github.com/MaimoryLab/AI-Inbox.git
-cd AI-Inbox
-npm install
-npm run build
-npm start
-```
-
-macOS 或 Linux 也可以使用本地启动脚本：
+从全新 clone 开始：
 
 ```bash
+git clone https://github.com/MaimoryLab/AI-Inbox.git AI-Index
+cd AI-Index
 ./scripts/start-local.sh
 ```
 
-`ai-inbox start` 和 `npm start` 默认使用 `127.0.0.1:3111`。如果端口被占用，请显式指定：
+打开后访问 [http://127.0.0.1:3111/](http://127.0.0.1:3111/)。
+
+这个脚本会运行 `npm install`、`npm run build` 和 `npm start`。如果依赖已经安装并构建完成，可以直接运行 `npm start`。
+
+`start` 会在启动时自动发现 Codex 和 Claude Code 的默认路径，并写入缺失的来源配置；它不会覆盖你已经配置过的路径。默认端口固定为 `3111`，如果端口被占用，请显式指定：
 
 ```bash
-ai-inbox start --port 3112
 npm start -- --port 3112
 ```
 
-## 日常流程
+前端适合日常使用：
 
-1. 用 `ai-inbox start` 启动工作台。
-2. 需要调整来源路径、回看天数、最大会话数或 LLM 配置时，进入 **Settings / 设置**。
-3. 用 **Sources / 来源** 确认扫描结果并查看原始上下文。
-4. 用 **Cards / 卡片** 整理近期会话，查看证据，完成卡片，忽略噪音，或恢复卡片。
-5. 不要提交本地 `.env`、数据库或真实会话记录。
+1. 在 `设置` 中选择中文或 English，检查 Codex/Claude Code 路径发现结果，填写 API key，按需调整回看天数和最大会话数，然后保存。
+2. 在 `来源` 中查看已扫描的会话和原始证据。
+3. 在 `待办` 中点击整理，审查生成的卡片，确认来源后标记完成或忽略。
 
-## CLI 常用命令
+### 界面
+
+以下截图全部使用合成会话文本、合成路径和空 API key 字段。
+
+![来源视图，展示关联证据](docs/assets/readme/ai-index-sources.png)
+
+![设置视图，使用合成路径且没有密钥](docs/assets/readme/ai-index-settings.png)
+
+### 浏览器插件
+
+AI-Index 内置一个未打包的 Chrome 插件，用来采集 ChatGPT、Claude、Gemini、Perplexity、Grok 和 DeepSeek 浏览器会话：
+
+1. 启动前端工作台，并保持它运行在 `http://127.0.0.1:3111/`。
+2. 打开 Chrome `chrome://extensions`，启用开发者模式，点击 `Load unpacked`，选择本仓库的 `browser-extension` 目录。
+3. 打开一个受支持的 AI 对话页面。
+4. 点击 AI-Index 插件，再点击 `Sync Current Tab`。
+5. 回到 AI-Index，在 `来源` 中确认浏览器会话出现后，再执行整理。
+
+插件默认连接 `http://127.0.0.1:3111`。如果你用其他端口启动 AI-Index，请在插件的 `Options` 中修改 API base URL。
+
+### 命令行用法
+
+如果你更喜欢终端，可以只用 CLI：
 
 ```bash
-ai-inbox init --api-key <your-key>
-ai-inbox doctor
-ai-inbox scan codex
-ai-inbox scan claude-code
-ai-inbox organize
-ai-inbox list
+npm install
+npm run build
+AI_INDEX_HOME=.local/ai-index node dist/cli.js init --api-key <your-key>
+AI_INDEX_HOME=.local/ai-index node dist/cli.js doctor
+AI_INDEX_HOME=.local/ai-index node dist/cli.js scan codex
+AI_INDEX_HOME=.local/ai-index node dist/cli.js scan claude-code
+AI_INDEX_HOME=.local/ai-index node dist/cli.js organize
+AI_INDEX_HOME=.local/ai-index node dist/cli.js list
 ```
 
-| 命令 | 用途 |
+| Command | 用途 |
 | --- | --- |
-| `init [options]` | 创建本地配置，可选择保存 LLM key |
-| `doctor` | 检查配置、数据目录、数据库和 LLM 设置 |
-| `scan <codex\|claude-code> [path]` | 扫描指定来源路径 |
-| `extract` / `organize` | 调用配置好的 LLM 抽取 Inbox cards |
-| `regenerate --yes` | 清空卡片并基于全部 observations 重新生成 |
-| `list` / `ls` | 打印当前卡片 |
-| `done <card-id>` / `complete <card-id>` | 标记卡片完成 |
-| `ignore <card-id>` / `dismiss <card-id>` | 忽略卡片 |
-| `restore <card-id>` / `reopen <card-id>` | 把卡片恢复为打开状态 |
-| `start [--port <n>]` | 启动本地 Web 工作台 |
+| `init --api-key <key>` | 创建本地配置并保存 LLM key |
+| `doctor` | 检查配置、数据目录和数据库 |
+| `start [--port <n>]` / `open [--port <n>]` | 启动前端工作台 |
+| `scan <codex\|claude-code> [path]` | 扫描指定来源 |
+| `extract` / `organize` | 调用 LLM 抽取待办卡片 |
+| `list` / `ls` | 列出当前待办 |
+| `done <id>` / `complete <id>` | 标记卡片完成 |
+| `ignore <id>` / `dismiss <id>` | 忽略卡片 |
 | `mcp` | 启动 MCP stdio server |
 
-隔离测试可以指定 `AI_INBOX_HOME`：
+### 配置
+
+默认配置目录是 `~/.ai-index`。设置 `AI_INDEX_HOME` 可以改到项目内或其他位置，例如：
 
 ```bash
-AI_INBOX_HOME=.local/ai-inbox node dist/cli.js init
-AI_INBOX_HOME=.local/ai-inbox node dist/cli.js doctor
-```
-
-## 配置
-
-默认配置目录是 `~/.ai-inbox`。
-
-```text
-~/.ai-inbox/
-  .env
-  data/
-    ai-inbox.sqlite
-```
-
-设置 `AI_INBOX_HOME` 可以改到其他位置：
-
-```bash
-AI_INBOX_HOME=.local/ai-inbox ai-inbox start
+AI_INDEX_HOME=.local/ai-index npm start
 ```
 
 Windows PowerShell：
 
 ```powershell
-$env:AI_INBOX_HOME = ".local\ai-inbox"
-ai-inbox start
+$env:AI_INDEX_HOME = ".local\ai-index"
+ai-index start
 ```
 
-Web 设置页和 CLI 读写同一个 `.env` 配置。常见字段：
+前端 `设置` 和 CLI 都读写同一个 `.env` 配置。常见字段：
 
 ```bash
-AI_INBOX_CODEX_HOME=~/.codex
-AI_INBOX_CLAUDE_HOME=~/.claude/projects
-AI_INBOX_LLM_ENABLED=true
-AI_INBOX_LLM_PROVIDER=openai
-AI_INBOX_LLM_MODEL=deepseek/deepseek-v4-flash
-AI_INBOX_LLM_ENDPOINT=https://api.novita.ai/openai/v1
-AI_INBOX_LLM_API_KEY=<your-key>
-AI_INBOX_ORGANIZE_SINCE_DAYS=7
-AI_INBOX_ORGANIZE_MAX_SESSIONS=16
+AI_INDEX_CODEX_HOME=~/.codex
+AI_INDEX_CLAUDE_HOME=~/.claude/projects
+AI_INDEX_LLM_ENDPOINT=https://api.novita.ai/openai/v1
+AI_INDEX_LLM_MODEL=deepseek/deepseek-v4-flash
+AI_INDEX_LLM_API_KEY=<your-key>
+AI_INDEX_ORGANIZE_SINCE_DAYS=7
+AI_INDEX_ORGANIZE_MAX_SESSIONS=16
 ```
 
-如果需要文件配置模板，只把 `.env.example` 复制到本地配置目录。不要把真实 key 放在仓库根目录。
+如果需要文件配置模板，只把 `.env.example` 复制到本地配置目录，不要复制到仓库根目录。
 
-界面语言偏好只保存在当前浏览器，不写入 `.env`。
+语言偏好只保存在浏览器本地，不写入 `.env`。
 
-## 隐私边界
+### 来源和隐私
 
-- AI-Inbox 本地优先：配置、数据库和扫描记录默认留在 `~/.ai-inbox`，除非你覆盖 `AI_INBOX_HOME`。
-- 扫描和复查阶段，会话文本保留在本机。
-- 浏览器插件尚未实现，所以当前 AI-Inbox 不会自行采集浏览器会话。
-- 执行 `organize` 时，相关片段会发送到你配置的 LLM endpoint 用于抽取。
-- API key 只应保存在本地配置中，不能提交。
-- README 截图和测试样例必须使用合成或充分脱敏的内容。
+- Codex：默认扫描 `~/.codex` 下的 `sessions` 和 `archived_sessions`。
+- Claude Code：默认扫描 `~/.claude/projects`。
+- Browser：前端服务运行时，Chrome 插件会把采集到的浏览器会话发送到 `POST /api/browser-sessions`。
 
-## 排障
+AI-Index 的数据库、配置和来源记录默认保存在本机。执行 `organize` 时，相关会话片段会发送到你配置的 LLM endpoint。扫描只导入会话文本和可读附件引用，不复制附件文件。不要提交 `.env`、`data/`、`.local/` 或真实会话记录。
 
-| 问题 | 处理方式 |
-| --- | --- |
-| `3111 is already in use` | 运行 `ai-inbox start --port 3112`，或指定另一个明确端口。 |
-| 没有生成卡片 | 运行 `ai-inbox doctor`，确认 API key 和 endpoint，再重新执行 `ai-inbox organize`。 |
-| 来源为空 | 检查 `AI_INBOX_CODEX_HOME`、`AI_INBOX_CLAUDE_HOME`，或运行 `ai-inbox scan <source> [path]`。 |
-| Finder 里找不到 `~/.ai-inbox` | macOS 默认隐藏点目录。使用 Finder 的 **前往文件夹**，输入 `~/.ai-inbox`。 |
-| npm 找不到包 | 在公开 npm 包可用前，使用源码启动或安装器。 |
-| Release 二进制被系统拦截 | 在系统安全提示中确认未签名二进制，或使用 Node.js 从源码运行。 |
+### 开源贡献
 
-## 开源贡献
-
-欢迎提交 issue 和 pull request。报告、测试样例、截图和文档必须适合公开：不要包含 API key、token、私人路径、真实姓名或真实会话记录。
-
-提交 PR 前请运行：
+欢迎提交 issue 和 pull request。请确保报告和测试样例已经脱敏：不要包含 API key、token、重要私人路径或真实会话记录。提交 PR 前请运行：
 
 ```bash
 npm test
@@ -234,6 +156,6 @@ npm run build
 git diff --check
 ```
 
-## 许可证
+### 许可证
 
 Apache-2.0。见 [LICENSE](LICENSE)。

@@ -5,7 +5,7 @@ import { cn } from "../lib/utils.js";
 import type { SourceKind, TodoCard, TodoEvidence, TodoEvidenceContext } from "../types.js";
 import { MarkdownText } from "./observation-text.js";
 import { Badge, Button, Card, Input, SectionTitle } from "./ui.js";
-import { SourceIcon } from "./source-labels.js";
+import { originLabel, originSessionLabel, SourceIcon } from "./source-labels.js";
 
 const OPEN_GROUP_PREVIEW_LIMIT = 6;
 const OPEN_GROUP_INITIAL_LIMIT = 3;
@@ -404,6 +404,7 @@ function TodoItem({ todo, muted, compactStatus, selected, locale, onSelect, onCo
   const eventTime = todoEventTime(todo);
   const eventTitle = new Date(eventTime).toLocaleString();
   const progress = todoProgress(todo);
+  const taskSignal = todoTaskSignal(todo, locale);
   return (
     <Card className={cn("relative overflow-hidden border-0 p-4 shadow-none", selected && "bg-transparent", muted && "opacity-70")}>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_12rem] lg:items-center">
@@ -414,12 +415,16 @@ function TodoItem({ todo, muted, compactStatus, selected, locale, onSelect, onCo
           <div className="min-w-0 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             {!compactStatus && <Badge className={todoStatusBadgeClass(todo.status)}>{todo.status === "todo" ? text.open : todo.status === "done" ? text.done : text.ignored}</Badge>}
-            <SourceBadge todo={todo} locale={locale} />
+            {taskSignal && <Badge className={taskSignal.tone} title={taskSignal.title}>{taskSignal.label}</Badge>}
             {warningBadge(todo, locale)}
           </div>
           <h3 className="break-words text-base font-semibold leading-6 tracking-normal text-[var(--app-ink)] sm:text-lg">{todo.title}</h3>
           <p className="todo-description break-words text-sm leading-6 text-[var(--app-muted)]">{todo.description}</p>
           <div className="todo-meta-row">
+            <span className="inline-flex min-w-0 items-center gap-1.5 rounded-md text-left text-xs font-medium text-[var(--app-muted)]" title={originLabel(todo, locale)}>
+              <SourceIcon source={todo.origin?.source} />
+              <span className="truncate">{originSessionLabel(todo, locale)}</span>
+            </span>
             <time className="shrink-0 text-xs text-[var(--app-subtle)]" dateTime={eventTime} title={eventTitle}>{formatRelativeTime(todoEventTime(todo), locale)}</time>
             {progress && (
               <span className="inline-flex items-center gap-2 text-xs text-[var(--app-muted)]">
@@ -492,6 +497,7 @@ function TodoInspector({ todo, evidence, evidenceError, locale, onSources }: {
       </Card>
     );
   }
+  const taskSignal = todoTaskSignal(todo, locale);
   const project = todo.origin?.projectTitle || text.unknownProject;
   const session = todo.origin?.sessionTitle || text.temporarySession;
   return (
@@ -512,6 +518,7 @@ function TodoInspector({ todo, evidence, evidenceError, locale, onSources }: {
                   <SourceIcon source={todo.origin?.source} />
                   {todo.origin?.source ? sourceLabel(todo.origin.source, locale) : text.sourceUnavailable}
                 </Badge>
+                {taskSignal && <Badge className={taskSignal.tone} title={taskSignal.title}>{taskSignal.label}</Badge>}
                 <span className="text-xs text-[var(--app-subtle)]">{formatRelativeTime(todoEventTime(todo), locale)}</span>
               </div>
             </div>
@@ -650,13 +657,31 @@ function todoProgress(todo: TodoCard): { label: string; percent: number } | null
   return { label: `${todo.chain.completedNodeCount}/${total}`, percent };
 }
 
-function SourceBadge({ todo, locale }: { todo: TodoCard; locale: Locale }) {
-  return (
-    <Badge className="border-[var(--app-border)] bg-white text-[var(--app-muted)]">
-      <SourceIcon source={todo.origin?.source} />
-      {todo.origin?.source ? sourceLabel(todo.origin.source, locale) : textFor(locale).sourceUnavailable}
-    </Badge>
-  );
+function todoTaskSignal(todo: TodoCard, locale: Locale): { label: string; title?: string; tone: string } | null {
+  const text = textFor(locale);
+  const nextStep = todo.metadata.nextStep?.trim();
+  if (nextStep) return { label: text.nextStep, title: nextStep, tone: "border-blue-200 bg-blue-50 text-blue-700" };
+  if (todo.chain?.completedNodeCount) {
+    return {
+      label: text.completedChainSteps(todo.chain.completedNodeCount),
+      tone: "border-green-200 bg-green-50 text-green-700"
+    };
+  }
+  const state = todo.metadata.completionState?.trim();
+  if (!state) return null;
+  return {
+    label: completionStateLabel(state, locale),
+    tone: state.toLowerCase().includes("block") || state.includes("阻") ? "border-amber-200 bg-amber-50 text-amber-700" : "border-slate-200 bg-slate-50 text-slate-700"
+  };
+}
+
+function completionStateLabel(state: string, locale: Locale): string {
+  const normalized = state.toLowerCase().replace(/[_-]+/gu, " ");
+  const text = textFor(locale);
+  if (normalized.includes("block") || state.includes("阻")) return text.blocked;
+  if (normalized.includes("progress") || state.includes("进行")) return text.inProgress;
+  if (normalized.includes("done") || normalized.includes("complete") || state.includes("完成")) return text.done;
+  return state;
 }
 
 function warningBadge(todo: TodoCard, locale: Locale) {

@@ -7,9 +7,9 @@ import test from "node:test";
 import { DEFAULT_UI_PORT, main } from "../src/cli.js";
 
 test("CLI scans and organize does not create rule fallback cards without LLM config", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-cli-"));
-  const previousHome = process.env.AI_INBOX_HOME;
-  process.env.AI_INBOX_HOME = join(dir, "home");
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-cli-"));
+  const previousHome = process.env.AI_INDEX_HOME;
+  process.env.AI_INDEX_HOME = join(dir, "home");
 
   try {
     const sessions = join(dir, "codex");
@@ -35,15 +35,15 @@ test("CLI scans and organize does not create rule fallback cards without LLM con
     assert.equal(listed.code, 0);
     assert.match(listed.stdout, /No todos/);
   } finally {
-    process.env.AI_INBOX_HOME = previousHome;
+    process.env.AI_INDEX_HOME = previousHome;
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
 test("CLI init writes local env config and doctor reports it", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-cli-init-"));
-  const previousHome = process.env.AI_INBOX_HOME;
-  process.env.AI_INBOX_HOME = join(dir, "home");
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-cli-init-"));
+  const previousHome = process.env.AI_INDEX_HOME;
+  process.env.AI_INDEX_HOME = join(dir, "home");
 
   try {
     const init = await capture(() => main([
@@ -57,23 +57,23 @@ test("CLI init writes local env config and doctor reports it", async () => {
       "--max-interactions", "15"
     ]));
     assert.equal(init.code, 0);
-    const envText = readFileSync(join(process.env.AI_INBOX_HOME, ".env"), "utf8");
-    assert.match(envText, /AI_INBOX_LLM_MODEL=custom\/model/);
-    assert.match(envText, /AI_INBOX_LLM_API_KEY=dummy-llm-key-value/);
+    const envText = readFileSync(join(process.env.AI_INDEX_HOME, ".env"), "utf8");
+    assert.match(envText, /AI_INDEX_LLM_MODEL=custom\/model/);
+    assert.match(envText, /AI_INDEX_LLM_API_KEY=dummy-llm-key-value/);
     const doctor = await capture(() => main(["doctor"]));
     assert.equal(doctor.code, 0);
     assert.match(doctor.stdout, /llm key: configured/);
     assert.doesNotMatch(doctor.stdout, /dummy-llm-key-value/);
   } finally {
-    process.env.AI_INBOX_HOME = previousHome;
+    process.env.AI_INDEX_HOME = previousHome;
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
 test("CLI reports empty lists and invalid todo updates", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-cli-empty-"));
-  const previousHome = process.env.AI_INBOX_HOME;
-  process.env.AI_INBOX_HOME = join(dir, "home");
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-cli-empty-"));
+  const previousHome = process.env.AI_INDEX_HOME;
+  process.env.AI_INDEX_HOME = join(dir, "home");
 
   try {
     const listed = await capture(() => main(["list"]));
@@ -90,7 +90,7 @@ test("CLI reports empty lists and invalid todo updates", async () => {
 
     const missingScanSource = await capture(() => main(["scan"]));
     assert.equal(missingScanSource.code, 1);
-    assert.match(missingScanSource.stderr, /usage: ai-inbox scan/);
+    assert.match(missingScanSource.stderr, /usage: ai-index scan/);
 
     const badSource = await capture(() => main(["scan", "browser", dir]));
     assert.equal(badSource.code, 1);
@@ -100,15 +100,15 @@ test("CLI reports empty lists and invalid todo updates", async () => {
     assert.equal(missingPath.code, 1);
     assert.match(missingPath.stderr, /path not found/);
   } finally {
-    process.env.AI_INBOX_HOME = previousHome;
+    process.env.AI_INDEX_HOME = previousHome;
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
 test("CLI exposes common command aliases", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-cli-aliases-"));
-  const previousHome = process.env.AI_INBOX_HOME;
-  process.env.AI_INBOX_HOME = join(dir, "home");
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-cli-aliases-"));
+  const previousHome = process.env.AI_INDEX_HOME;
+  process.env.AI_INDEX_HOME = join(dir, "home");
 
   try {
     const listed = await capture(() => main(["ls"]));
@@ -128,27 +128,27 @@ test("CLI exposes common command aliases", async () => {
     assert.equal(missingDismiss.code, 1);
     assert.match(missingDismiss.stderr, /todo not found/);
   } finally {
-    process.env.AI_INBOX_HOME = previousHome;
+    process.env.AI_INDEX_HOME = previousHome;
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
 test("CLI scan uses default source paths with environment overrides", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-cli-defaults-"));
-  const previousHome = process.env.AI_INBOX_HOME;
-  const previousCodex = process.env.AI_INBOX_CODEX_HOME;
-  const previousClaude = process.env.AI_INBOX_CLAUDE_HOME;
-  process.env.AI_INBOX_HOME = join(dir, "home");
-  process.env.AI_INBOX_CODEX_HOME = join(dir, "codex-default");
-  process.env.AI_INBOX_CLAUDE_HOME = join(dir, "claude-default");
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-cli-defaults-"));
+  const previousHome = process.env.AI_INDEX_HOME;
+  const previousCodex = process.env.AI_INDEX_CODEX_HOME;
+  const previousClaude = process.env.AI_INDEX_CLAUDE_HOME;
+  process.env.AI_INDEX_HOME = join(dir, "home");
+  process.env.AI_INDEX_CODEX_HOME = join(dir, "codex-default");
+  process.env.AI_INDEX_CLAUDE_HOME = join(dir, "claude-default");
 
   try {
-    mkdirSync(process.env.AI_INBOX_CODEX_HOME);
-    mkdirSync(process.env.AI_INBOX_CLAUDE_HOME);
-    writeFileSync(join(process.env.AI_INBOX_CODEX_HOME, "session.jsonl"), [
+    mkdirSync(process.env.AI_INDEX_CODEX_HOME);
+    mkdirSync(process.env.AI_INDEX_CLAUDE_HOME);
+    writeFileSync(join(process.env.AI_INDEX_CODEX_HOME, "session.jsonl"), [
       JSON.stringify({ role: "user", text: "Please scan default Codex path" })
     ].join("\n"));
-    writeFileSync(join(process.env.AI_INBOX_CLAUDE_HOME, "session.jsonl"), [
+    writeFileSync(join(process.env.AI_INDEX_CLAUDE_HOME, "session.jsonl"), [
       JSON.stringify({ role: "user", content: "Please scan default Claude path" })
     ].join("\n"));
     const explicit = join(dir, "explicit-codex");
@@ -169,26 +169,26 @@ test("CLI scan uses default source paths with environment overrides", async () =
     assert.equal(explicitScan.code, 0);
     assert.match(explicitScan.stdout, /scanned: 1/);
   } finally {
-    process.env.AI_INBOX_HOME = previousHome;
-    process.env.AI_INBOX_CODEX_HOME = previousCodex;
-    process.env.AI_INBOX_CLAUDE_HOME = previousClaude;
+    process.env.AI_INDEX_HOME = previousHome;
+    process.env.AI_INDEX_CODEX_HOME = previousCodex;
+    process.env.AI_INDEX_CLAUDE_HOME = previousClaude;
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("CLI open alias points users to start when the fixed default port is occupied", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-cli-open-"));
-  const previousHome = process.env.AI_INBOX_HOME;
-  process.env.AI_INBOX_HOME = join(dir, "home");
+test("CLI open reports the fixed default port when it is occupied", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-cli-open-"));
+  const previousHome = process.env.AI_INDEX_HOME;
+  process.env.AI_INDEX_HOME = join(dir, "home");
   const blocker = await tryListenOnDefaultPort();
 
   try {
     const opened = await capture(() => main(["open"]));
     assert.equal(opened.code, 1);
     assert.match(opened.stderr, /3111 is already in use/);
-    assert.match(opened.stderr, /ai-inbox start --port <port>/);
+    assert.match(opened.stderr, /ai-index open --port <port>/);
   } finally {
-    process.env.AI_INBOX_HOME = previousHome;
+    process.env.AI_INDEX_HOME = previousHome;
     if (blocker) {
       await new Promise<void>((resolve, reject) => blocker.close((error) => error ? reject(error) : resolve()));
     }
@@ -197,18 +197,18 @@ test("CLI open alias points users to start when the fixed default port is occupi
 });
 
 test("CLI start reports the fixed default port when it is occupied", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-cli-start-"));
-  const previousHome = process.env.AI_INBOX_HOME;
-  process.env.AI_INBOX_HOME = join(dir, "home");
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-cli-start-"));
+  const previousHome = process.env.AI_INDEX_HOME;
+  process.env.AI_INDEX_HOME = join(dir, "home");
   const blocker = await tryListenOnDefaultPort();
 
   try {
     const opened = await capture(() => main(["start"]));
     assert.equal(opened.code, 1);
     assert.match(opened.stderr, /3111 is already in use/);
-    assert.match(opened.stderr, /ai-inbox start --port <port>/);
+    assert.match(opened.stderr, /ai-index start --port <port>/);
   } finally {
-    process.env.AI_INBOX_HOME = previousHome;
+    process.env.AI_INDEX_HOME = previousHome;
     if (blocker) {
       await new Promise<void>((resolve, reject) => blocker.close((error) => error ? reject(error) : resolve()));
     }

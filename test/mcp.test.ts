@@ -19,7 +19,7 @@ test("MCP exposes the minimal todo tools", () => {
 });
 
 test("MCP tools scan, organize, list, update, and open", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-mcp-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-mcp-"));
   try {
     const sessions = join(dir, "codex");
     mkdirSync(sessions);
@@ -43,14 +43,14 @@ test("MCP tools scan, organize, list, update, and open", async () => {
 
     const open = await callMcpTool(db, "todo_open", {}, paths);
     db.close();
-    assert.deepEqual(open, { opened: false, message: "run ai-inbox start to start the local UI" });
+    assert.deepEqual(open, { opened: false, message: "run ai-index open to start the local UI" });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
 test("MCP organize can use configured llm extraction", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-mcp-llm-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-mcp-llm-"));
   try {
     const paths = getAppPaths(join(dir, "home"));
     const db = openDatabase(paths);
@@ -91,7 +91,7 @@ test("MCP organize can use configured llm extraction", async () => {
 });
 
 test("MCP tools return small explicit errors", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-mcp-errors-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-mcp-errors-"));
   try {
     const paths = getAppPaths(join(dir, "home"));
     const db = openDatabase(paths);
@@ -106,7 +106,7 @@ test("MCP tools return small explicit errors", async () => {
 });
 
 test("MCP JSON-RPC handles list, call, and errors", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-mcp-rpc-"));
+  const dir = mkdtempSync(join(tmpdir(), "ai-index-mcp-rpc-"));
   try {
     const paths = getAppPaths(join(dir, "home"));
     const db = openDatabase(paths);
