@@ -18,11 +18,13 @@ env/
 
 .lark-auth/
 .claude/
+.obsidian/
 .agentmemory-python/
 .gstack/
 .codegraph/
 
 docs/hybrid-rebuild/
 docs/rebuild/
+docs/gtm-audit-2026-07-06.md
 docs/product-overview-cn.md
 docs/task-chain-perspective-cn.md
