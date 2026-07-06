@@ -1,5 +1,12 @@
 import { readLocale, userErrorText, type Locale } from "../i18n.js";
 
+export class ApiError extends Error {
+  constructor(message: string, public status: number, public data: unknown) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 export async function api<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
   const token = localToken();
   const headers: Record<string, string> = {};
@@ -13,7 +20,7 @@ export async function api<T>(path: string, options: { method?: string; body?: un
   const text = await response.text();
   const data = text ? JSON.parse(text) : null;
   if (!response.ok) {
-    throw new Error(userFacingError(data?.error ?? data?.message ?? "Request failed"));
+    throw new ApiError(userFacingError(responseErrorCode(data)), response.status, data);
   }
   return data as T;
 }
@@ -24,6 +31,15 @@ export function userFacingError(error: string): string {
 
 export function localizedUserFacingError(error: string, locale: Locale): string {
   return userErrorText(error, locale);
+}
+
+function responseErrorCode(data: unknown): string {
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const record = data as Record<string, unknown>;
+    if (typeof record.error === "string") return record.error;
+    if (typeof record.message === "string") return record.message;
+  }
+  return "Request failed";
 }
 
 export function localToken(): string {

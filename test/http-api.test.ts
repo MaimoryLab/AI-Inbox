@@ -699,6 +699,87 @@ test("HTTP organize returns structured failure", async () => {
   }
 });
 
+test("HTTP organize returns provider failure status with reason", async () => {
+  const fixture = createFixture();
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const scan = scanSource(db, "codex", fixture.codex, paths);
+  assert.equal(scan.ok, true);
+  const server = await startServer(db, paths, {
+    llmExtractor: async () => ({
+      ok: false,
+      warning: "llm_provider_failed",
+      reason: "http_401",
+      retryable: true
+    })
+  });
+
+  try {
+    const response = await postJson(server.url("/todos/organize"), {});
+    const body = await response.json();
+    assert.equal(response.status, 502);
+    assert.equal(body.error, "llm_provider_failed");
+    assert.deepEqual(body.warnings.sort(), ["llm_batch_failed", "llm_provider_failed"].sort());
+    assert.equal(body.details.batchFailures[0].reason, "http_401");
+  } finally {
+    await server.close();
+    db.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("HTTP organize keeps partial provider failures as warnings", async () => {
+  const fixture = createFixture();
+  writeFileSync(join(fixture.codex, "session-2.jsonl"), [
+    JSON.stringify({ role: "user", text: "Please keep one successful batch", timestamp: new Date().toISOString() })
+  ].join("\n"));
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const scan = scanSource(db, "codex", fixture.codex, paths);
+  assert.equal(scan.ok, true);
+  let calls = 0;
+  const server = await startServer(db, paths, {
+    limits: { llmBatchSize: 1 },
+    llmExtractor: async (observations: Array<{ id: string; role: string; text: string }>) => {
+      calls++;
+      const observation = observations.find((item) => item.role === "user");
+      assert.ok(observation);
+      if (calls === 1) {
+        return {
+          ok: false,
+          warning: "llm_provider_failed",
+          reason: "http_401",
+          retryable: true
+        };
+      }
+      return {
+        ok: true,
+        todos: [{
+          title: "Keep successful batch",
+          description: "Keep the successful organize batch even when another batch fails.",
+          confidence: 0.9,
+          sourceObservationId: observation.id,
+          quote: observation.text,
+          dedupeKey: "keep-successful-batch"
+        }]
+      };
+    }
+  });
+
+  try {
+    const response = await postJson(server.url("/todos/organize"), {});
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.created, 1);
+    assert.deepEqual(body.warnings.sort(), ["llm_batch_failed", "llm_provider_failed"].sort());
+    assert.equal(body.details.batchFailures[0].reason, "http_401");
+  } finally {
+    await server.close();
+    db.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test("GET /todos tolerates missing origin records", async () => {
   const fixture = createFixture();
   const paths = getAppPaths(join(fixture.root, "home"));

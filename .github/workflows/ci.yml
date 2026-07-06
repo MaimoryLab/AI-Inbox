@@ -25,6 +25,21 @@ jobs:
       - run: git diff --check
       - if: matrix.node-version == '22.x' && matrix.os != 'ubuntu-latest'
         run: npm run release:zip
+      - if: matrix.node-version == '22.x' && matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          ZIP="$(ls artifacts/release/ai-inbox-macos-*.zip | head -n 1)"
+          unzip -q "$ZIP" -d artifacts/release-smoke
+          BIN="$(find artifacts/release-smoke -type f -name ai-inbox | head -n 1)"
+          AI_INBOX_HOME="$RUNNER_TEMP/ai-inbox-release-smoke" "$BIN" doctor
+      - if: matrix.node-version == '22.x' && matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem artifacts/release/ai-inbox-windows-*.zip | Select-Object -First 1
+          Expand-Archive -Path $zip.FullName -DestinationPath artifacts/release-smoke -Force
+          $bin = Get-ChildItem artifacts/release-smoke -Recurse -Filter ai-inbox.exe | Select-Object -First 1
+          $env:AI_INBOX_HOME = Join-Path $env:RUNNER_TEMP "ai-inbox-release-smoke"
+          & $bin.FullName doctor
       - uses: actions/upload-artifact@v4
         if: matrix.node-version == '22.x' && matrix.os != 'ubuntu-latest'
         with:

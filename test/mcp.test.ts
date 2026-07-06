@@ -8,13 +8,13 @@ import { getAppPaths } from "../src/paths.js";
 import { callMcpTool, listMcpTools } from "../src/mcp/index.js";
 import { handleJsonRpcLine } from "../src/mcp/stdio.js";
 
-test("MCP exposes the minimal todo tools", () => {
+test("MCP exposes the minimal inbox tools", () => {
   assert.deepEqual(listMcpTools().map((tool) => tool.name), [
-    "todo_scan",
-    "todo_organize",
-    "todo_list",
-    "todo_update",
-    "todo_open"
+    "inbox_scan",
+    "inbox_organize",
+    "inbox_list",
+    "inbox_update",
+    "inbox_open"
   ]);
 });
 
@@ -29,19 +29,19 @@ test("MCP tools scan, organize, list, update, and open", async () => {
 
     const paths = getAppPaths(join(dir, "home"));
     const db = openDatabase(paths);
-    const scan = await callMcpTool(db, "todo_scan", { source: "codex", path: sessions }, paths);
+    const scan = await callMcpTool(db, "inbox_scan", { source: "codex", path: sessions }, paths);
     assert.equal(scan.source, "codex");
     assert.equal(scan.scanned, 1);
 
-    const organize = await callMcpTool(db, "todo_organize", {}, paths);
+    const organize = await callMcpTool(db, "inbox_organize", {}, paths);
     assert.equal(organize.created, 0);
     assert.equal(organize.engine, "llm");
     assert.deepEqual(organize.warnings, ["llm_config_missing"]);
 
-    const listed = await callMcpTool(db, "todo_list", {}, paths);
+    const listed = await callMcpTool(db, "inbox_list", {}, paths);
     assert.equal(listed.length, 0);
 
-    const open = await callMcpTool(db, "todo_open", {}, paths);
+    const open = await callMcpTool(db, "inbox_open", {}, paths);
     db.close();
     assert.deepEqual(open, { opened: false, message: "run ai-inbox start to start the local UI" });
   } finally {
@@ -57,10 +57,10 @@ test("MCP organize can use configured llm extraction", async () => {
     const sessions = join(dir, "codex");
     mkdirSync(sessions);
     writeFileSync(join(sessions, "session.jsonl"), JSON.stringify({ role: "user", text: "Please add MCP LLM cards", timestamp: new Date().toISOString() }));
-    await callMcpTool(db, "todo_scan", { source: "codex", path: sessions }, paths);
+    await callMcpTool(db, "inbox_scan", { source: "codex", path: sessions }, paths);
     const observationId = String((db.prepare("SELECT id FROM observations LIMIT 1").get() as any).id);
 
-    const organize = await callMcpTool(db, "todo_organize", {}, paths, {
+    const organize = await callMcpTool(db, "inbox_organize", {}, paths, {
       organizeOptions: {
         llmExtractor: async () => ({
           ok: true,
@@ -78,11 +78,11 @@ test("MCP organize can use configured llm extraction", async () => {
 
     assert.equal(organize.engine, "llm");
     assert.equal(organize.created, 1);
-    const listed = await callMcpTool(db, "todo_list", {}, paths);
+    const listed = await callMcpTool(db, "inbox_list", {}, paths);
     assert.equal(listed.length, 1);
-    const updated = await callMcpTool(db, "todo_update", { id: listed[0].id, status: "done" }, paths);
+    const updated = await callMcpTool(db, "inbox_update", { id: listed[0].id, status: "done" }, paths);
     assert.equal(updated.status, "done");
-    const restored = await callMcpTool(db, "todo_update", { id: listed[0].id, status: "todo" }, paths);
+    const restored = await callMcpTool(db, "inbox_update", { id: listed[0].id, status: "open" }, paths);
     assert.equal(restored.status, "todo");
     db.close();
   } finally {
@@ -96,9 +96,28 @@ test("MCP tools return small explicit errors", async () => {
     const paths = getAppPaths(join(dir, "home"));
     const db = openDatabase(paths);
     await assert.rejects(() => callMcpTool(db, "missing", {}, paths), /unknown tool/);
-    await assert.rejects(() => callMcpTool(db, "todo_scan", { source: "browser" }, paths), /unsupported source/);
-    await assert.rejects(() => callMcpTool(db, "todo_update", { id: "missing", status: "open" }, paths), /invalid status/);
-    await assert.rejects(() => callMcpTool(db, "todo_update", { id: "missing", status: "done" }, paths), /todo not found/);
+    await assert.rejects(() => callMcpTool(db, "inbox_scan", { source: "browser" }, paths), /unsupported source/);
+    await assert.rejects(() => callMcpTool(db, "inbox_update", { id: "missing", status: "todo" }, paths), /invalid status/);
+    await assert.rejects(() => callMcpTool(db, "inbox_update", { id: "missing", status: "done" }, paths), /todo not found/);
+    await assert.rejects(() => callMcpTool(db, "ai_todo_list", {}, paths), /unknown tool/);
+    db.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("MCP hides legacy todo aliases but keeps compatibility calls", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-mcp-compat-"));
+  try {
+    const paths = getAppPaths(join(dir, "home"));
+    const db = openDatabase(paths);
+
+    assert.equal(listMcpTools().some((tool) => tool.name.startsWith("todo_")), false);
+    assert.deepEqual(await callMcpTool(db, "todo_list", {}, paths), []);
+    assert.deepEqual(await callMcpTool(db, "todo_open", {}, paths), {
+      opened: false,
+      message: "run ai-inbox start to start the local UI"
+    });
     db.close();
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -117,7 +136,7 @@ test("MCP JSON-RPC handles list, call, and errors", async () => {
       jsonrpc: "2.0",
       id: 2,
       method: "tools/call",
-      params: { name: "todo_open", arguments: {} }
+      params: { name: "inbox_open", arguments: {} }
     }), paths) as any;
     assert.equal(JSON.parse(call.result.content[0].text).opened, false);
 

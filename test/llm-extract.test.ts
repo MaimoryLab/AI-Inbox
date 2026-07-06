@@ -24,7 +24,22 @@ const assistantObservation = {
 
 test("LLM runner reports missing api key before provider call", async () => {
   const runner = createLlmRunner(defaultConfig().llm, {});
-  assert.deepEqual(await runner([observation]), { ok: false, warning: "llm_config_missing" });
+  assert.deepEqual(await runner([observation]), {
+    ok: false,
+    warning: "llm_config_missing",
+    reason: "api_key_missing",
+    retryable: false
+  });
+});
+
+test("LLM runner reports disabled LLM before provider call", async () => {
+  const runner = createLlmRunner({ ...defaultConfig().llm, enabled: false }, { llmApiKey: "dummy-llm-key-value" });
+  assert.deepEqual(await runner([observation]), {
+    ok: false,
+    warning: "llm_config_missing",
+    reason: "llm_disabled",
+    retryable: false
+  });
 });
 
 test("LLM runner sends OpenAI-compatible request and parses grounded todos", async () => {

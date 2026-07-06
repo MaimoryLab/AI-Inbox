@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { api, localizedUserFacingError } from "./api/client.js";
+import { ApiError, api, localizedUserFacingError } from "./api/client.js";
 import { AppShell } from "./components/app-shell.js";
 import { SettingsWorkspace } from "./components/settings-workspace.js";
 import { SourcesWorkspace } from "./components/sources-workspace.js";
 import { TodoBoard } from "./components/todo-board.js";
-import { readLocale, textFor, writeLocale, type Locale } from "./i18n.js";
+import { organizeFailureReasonText, readLocale, textFor, writeLocale, type Locale } from "./i18n.js";
 import type { ObservationRecord, OrganizeResult, OrganizeStatus, PublicAppConfig, SessionRecord, SourceSummary, StartupScanStatus, TodoCard, TodoEvidence } from "./types.js";
 import type { SourceFilter, View } from "./view-model.js";
 
@@ -158,6 +158,15 @@ export function App() {
         setOrganizeRunning(true);
         setStatus(message);
         return;
+      }
+      if (error instanceof ApiError) {
+        const result = organizeResultFromError(error);
+        if (result) {
+          await refresh();
+          setStatus(organizeStatus(result, locale));
+          rememberOrganizeResult(result);
+          return;
+        }
       }
       const result: OrganizeResult = { created: 0, updated: 0, warnings: ["organize_failed"], durationMs: 0 };
       setStatus(localizedUserFacingError("organize_failed", locale));
@@ -333,6 +342,15 @@ function OrganizeHistoryPanel({ items, locale }: { items: OrganizeHistoryItem[];
                   {result.warnings.map((warning) => <li key={warning}>{localizedUserFacingError(warning, locale)}</li>)}
                 </ul>
               )}
+              {result.details?.batchFailures?.length ? (
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-[var(--app-muted)]">
+                  {result.details.batchFailures.map((failure) => (
+                    <li key={`${failure.sessionId}-${failure.warning}-${failure.reason}`}>
+                      {localizedUserFacingError(failure.warning, locale)} {organizeFailureReasonText(failure.reason, locale)}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </section>
           );
         })}
@@ -361,9 +379,28 @@ function OrganizeDetailsSummary({ result, locale }: { result: OrganizeResult; lo
 
 function organizeStatus(result: OrganizeResult, locale: Locale): string {
   if (result.warnings.includes("organize_failed")) return localizedUserFacingError("organize_failed", locale);
+  const hardFailure = organizeHardFailure(result);
+  if (hardFailure) return localizedUserFacingError(hardFailure, locale);
   const text = textFor(locale);
   const summary = text.organized(result.created, result.updated);
   return result.warnings.length > 0 ? `${summary} ${text.organizeNeedsReview}` : summary;
+}
+
+function organizeHardFailure(result: OrganizeResult): string | undefined {
+  if (result.created > 0 || result.updated > 0) return undefined;
+  if (result.warnings.includes("llm_config_missing")) return "llm_config_missing";
+  if (result.warnings.includes("llm_timeout")) return "llm_timeout";
+  if (result.warnings.includes("llm_provider_failed")) return "llm_provider_failed";
+  if (result.warnings.includes("llm_output_invalid")) return "llm_output_invalid";
+  return undefined;
+}
+
+function organizeResultFromError(error: ApiError): OrganizeResult | null {
+  const data = error.data;
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const record = data as Partial<OrganizeResult>;
+  if (typeof record.created !== "number" || typeof record.updated !== "number" || !Array.isArray(record.warnings)) return null;
+  return record as OrganizeResult;
 }
 
 function startupStatusMessage(startup: StartupScanStatus | null, locale: Locale): string {

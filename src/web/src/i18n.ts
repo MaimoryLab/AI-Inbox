@@ -358,6 +358,43 @@ const errorMessages: Record<Locale, Record<string, string>> = {
   }
 };
 
+const reasonMessages: Record<Locale, Record<string, string>> = {
+  "zh-CN": {
+    api_key_missing: "可能原因：Settings 中还没有填写 API key。",
+    llm_disabled: "可能原因：Settings 中的 LLM extraction 已关闭。",
+    http_401: "可能原因：API key 被 LLM 服务拒绝，key 可能填错、过期，或不属于当前 endpoint/provider。",
+    http_403: "可能原因：API key 没有权限，可能是模型权限、账号策略或额度限制。",
+    http_404: "可能原因：endpoint 路径或 model 名称可能写错。",
+    http_429: "可能原因：额度不足、频率限制或并发限制。",
+    http_500: "可能原因：LLM 服务暂时异常。",
+    http_502: "可能原因：LLM 服务网关异常。",
+    http_503: "可能原因：LLM 服务暂时不可用。",
+    http_504: "可能原因：LLM 服务网关超时。",
+    network_error: "可能原因：endpoint 无法访问，请检查网络、代理或 endpoint。",
+    timeout: "可能原因：LLM 服务响应超时，可稍后重试或调大 timeout。",
+    invalid_json: "可能原因：模型返回的 JSON 不符合 AI-Inbox 要求。",
+    invalid_schema: "可能原因：模型返回结构不符合 AI-Inbox 要求。",
+    unknown_provider_error: "可能原因：LLM provider 返回了无法归类的错误。"
+  },
+  "en-US": {
+    api_key_missing: "Possible cause: no API key is saved in Settings.",
+    llm_disabled: "Possible cause: LLM extraction is disabled in Settings.",
+    http_401: "Possible cause: the LLM service rejected the API key. It may be wrong, expired, or not for this endpoint/provider.",
+    http_403: "Possible cause: the API key lacks permission, model access, account policy access, or quota.",
+    http_404: "Possible cause: the endpoint path or model name may be wrong.",
+    http_429: "Possible cause: quota, rate, or concurrency limit reached.",
+    http_500: "Possible cause: the LLM service is temporarily failing.",
+    http_502: "Possible cause: the LLM service gateway failed.",
+    http_503: "Possible cause: the LLM service is temporarily unavailable.",
+    http_504: "Possible cause: the LLM service gateway timed out.",
+    network_error: "Possible cause: the endpoint is unreachable. Check network, proxy, or endpoint.",
+    timeout: "Possible cause: the LLM service timed out. Retry later or increase timeout.",
+    invalid_json: "Possible cause: the model returned JSON that AI-Inbox cannot use.",
+    invalid_schema: "Possible cause: the model returned a structure AI-Inbox cannot use.",
+    unknown_provider_error: "Possible cause: the LLM provider returned an unclassified error."
+  }
+};
+
 export function textFor(locale: Locale) {
   return appText[locale];
 }
@@ -368,4 +405,8 @@ export function sourceLabel(source: SourceKind, locale: Locale): string {
 
 export function userErrorText(error: string, locale: Locale = readLocale()): string {
   return errorMessages[locale][error] ?? error.replace(/_/g, " ");
+}
+
+export function organizeFailureReasonText(reason: string, locale: Locale = readLocale()): string {
+  return reasonMessages[locale][reason] ?? reason.replace(/_/g, " ");
 }

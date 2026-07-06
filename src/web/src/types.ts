@@ -140,13 +140,17 @@ export interface OrganizeResult {
     };
     skippedSessions?: number;
     truncations?: Array<{
+      sessionId: string;
       source: SourceKind;
+      role: string;
       originalChars: number;
       keptChars: number;
     }>;
     batchFailures?: Array<{
+      sessionId: string;
       source: SourceKind;
       warning: string;
+      reason: string;
       retryable: boolean;
     }>;
   };

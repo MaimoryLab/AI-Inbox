@@ -51,7 +51,12 @@ export function createLlmRunner(
   secrets: AppSecrets
 ): (observations: ObservationForOrganize[], context?: LlmExtractorContext) => Promise<LlmExtractResult> {
   return async (observations, context) => {
-    if (!config.enabled || !secrets.llmApiKey) return { ok: false, warning: "llm_config_missing" };
+    if (!config.enabled) {
+      return { ok: false, warning: "llm_config_missing", reason: "llm_disabled", retryable: false };
+    }
+    if (!secrets.llmApiKey) {
+      return { ok: false, warning: "llm_config_missing", reason: "api_key_missing", retryable: false };
+    }
     const visibleObservations = observations.filter((observation) =>
       observation.role === "user" || observation.role === "assistant"
     );

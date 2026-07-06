@@ -30,6 +30,7 @@ test("CLI scans and organize does not create rule fallback cards without LLM con
     assert.match(organized.stdout, /created: 0/);
     assert.match(organized.stdout, /engine: llm/);
     assert.match(organized.stdout, /warnings: llm_config_missing/);
+    assert.match(organized.stdout, /failure: llm_config_missing api_key_missing retryable=false/);
 
     const listed = await capture(() => main(["list"]));
     assert.equal(listed.code, 0);

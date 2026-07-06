@@ -33,11 +33,11 @@ export const HTTP_ROUTES = [
 ] as const;
 
 export const MCP_TOOLS = [
-  "todo_scan",
-  "todo_organize",
-  "todo_list",
-  "todo_update",
-  "todo_open"
+  "inbox_scan",
+  "inbox_organize",
+  "inbox_list",
+  "inbox_update",
+  "inbox_open"
 ] as const;
 
 export type TodoStatus = "todo" | "done" | "ignored";

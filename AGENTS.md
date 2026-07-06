@@ -28,10 +28,11 @@ single caller.
 
 ## Fixed Port Rule
 
-`ai-inbox open` defaults to `127.0.0.1:3111`. Keep `--port <n>` as the explicit
-override and keep `--port 0` available for tests or temporary avoidance. If the
-default port is occupied, return a clear error and suggest
-`ai-inbox open --port <port>`; do not silently choose a random port.
+`ai-inbox start` defaults to `127.0.0.1:3111`. Keep `ai-inbox open` as a hidden
+compatibility alias. Keep `--port <n>` as the explicit override and keep
+`--port 0` available for tests or temporary avoidance. If the default port is
+occupied, return a clear error and suggest `ai-inbox start --port <port>`; do
+not silently choose a random port.
 
 ## LLM-only Rule
 
@@ -49,6 +50,6 @@ npm run build
 git diff --check
 ```
 
-For local UI verification, build first, start `ai-inbox open`, and inspect
+For local UI verification, build first, start `ai-inbox start`, and inspect
 Settings, organize warnings, and LLM failure details in Chrome. Do not leak API
 keys in logs, screenshots, fixtures, or docs.

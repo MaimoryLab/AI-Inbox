@@ -32,12 +32,18 @@ test("release packaging builds runnable platform zips and no legacy ai-todo comm
   assert.match(workflow, /node-version: \[22\.x, 24\.x\]/);
   assert.match(workflow, /npm run release:zip/);
   assert.match(workflow, /artifacts\/release\/\*\.zip/);
+  assert.match(workflow, /AI_INBOX_HOME=.*release-smoke/);
+  assert.match(workflow, /doctor/);
+  assert.match(workflow, /unzip|Expand-Archive/);
   assert.match(script, /--build-sea|--experimental-sea-config/);
   assert.match(script, /postject/);
   assert.match(script, /args\.length === 0\) args\.push\("start"\)/);
   assert.match(script, /release zip:/);
   assert.match(script, /Compress-Archive/);
   assert.match(script, /ditto/);
+  assert.match(script, /COPYFILE_DISABLE/);
+  assert.match(script, /assertCleanZip/);
+  assert.match(script, /\\\._\*|\\\.DS_Store|node_modules|\\.env|\\.ai-todo/);
   assert.doesNotMatch(script, /hdiutil/);
   assert.doesNotMatch(script, /AI-Inbox\.app/);
   assert.doesNotMatch(script, /wix/);
@@ -45,7 +51,7 @@ test("release packaging builds runnable platform zips and no legacy ai-todo comm
   assert.doesNotMatch(script, /\.dmg/);
   assert.match(script, /execFileSync\(process\.execPath, \[postjectCli\(\), \.\.\.args\]/);
   assert.doesNotMatch(script, /postject\.cmd/);
-  assert.doesNotMatch(`${workflow}\n${script}`, /ai-todo/);
+  assert.doesNotMatch(`${workflow}\n${script.replace(/\.ai-todo/g, "")}`, /ai-todo/);
 });
 
 test("README documents zip-first release usage", () => {

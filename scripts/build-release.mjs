@@ -73,6 +73,7 @@ await chmod(binaryPath, 0o755);
 
 const zipPath = join(artifactsDir, `${releaseName}.zip`);
 buildReleaseZip(zipPath);
+assertCleanZip(zipPath);
 console.log(`release zip: ${zipPath}`);
 
 async function buildSeaExecutable(main, output) {
@@ -154,7 +155,39 @@ function buildReleaseZip(zipPath) {
     ], { stdio: "inherit" });
     return;
   }
-  execFileSync("ditto", ["-c", "-k", "--keepParent", packageDir, zipPath], { stdio: "inherit" });
+  execFileSync("ditto", ["-c", "-k", "--norsrc", "--keepParent", packageDir, zipPath], {
+    stdio: "inherit",
+    env: { ...process.env, COPYFILE_DISABLE: "1" }
+  });
+}
+
+function assertCleanZip(zipPath) {
+  const forbiddenReleaseEntryPatterns = [
+    /(^|\/)\._/,
+    /(^|\/)\.DS_Store$/,
+    /(^|\/)\.env$/,
+    /(^|\/)data\//,
+    /(^|\/)node_modules\//,
+    /(^|\/)\.ai-inbox\//,
+    /(^|\/)\.ai-todo\//
+  ];
+  const badEntries = listZipEntries(zipPath).filter((entry) =>
+    forbiddenReleaseEntryPatterns.some((pattern) => pattern.test(entry))
+  );
+  if (badEntries.length > 0) {
+    throw new Error(`release zip contains forbidden entries: ${badEntries.slice(0, 5).join(", ")}`);
+  }
+}
+
+function listZipEntries(zipPath) {
+  if (process.platform === "win32") {
+    const script = [
+      "Add-Type -AssemblyName System.IO.Compression.FileSystem;",
+      `[System.IO.Compression.ZipFile]::OpenRead(${JSON.stringify(zipPath)}).Entries | ForEach-Object { $_.FullName }`
+    ].join(" ");
+    return execFileSync("powershell", ["-NoProfile", "-Command", script], { encoding: "utf8" }).split(/\r?\n/).filter(Boolean);
+  }
+  return execFileSync("unzip", ["-Z1", zipPath], { encoding: "utf8" }).split(/\r?\n/).filter(Boolean);
 }
 
 function runOptional(command, args) {

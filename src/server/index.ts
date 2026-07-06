@@ -199,7 +199,9 @@ export function createAppServer(options: {
       organizeStatus.running = true;
       organizeStatus.startedAt = new Date().toISOString();
       try {
-        writeJson(res, 200, await organizeConfiguredTodos(db, paths, options.organizeOptions));
+        const result = await organizeConfiguredTodos(db, paths, options.organizeOptions);
+        const error = organizeError(result);
+        writeJson(res, organizeHttpStatus(result), error ? { ...result, error } : result);
       } catch (error) {
         writeJson(res, 500, {
           error: "organize_failed",
@@ -276,6 +278,25 @@ export function createAppServer(options: {
 
     writeJson(res, 404, { error: "not_found" });
   });
+}
+
+type OrganizeResponse = Awaited<ReturnType<typeof organizeConfiguredTodos>>;
+
+function organizeHttpStatus(result: OrganizeResponse): number {
+  if (result.created > 0 || result.updated > 0) return 200;
+  if (result.warnings.includes("llm_config_missing")) return 422;
+  if (result.warnings.includes("llm_timeout")) return 504;
+  if (result.warnings.includes("llm_provider_failed") || result.warnings.includes("llm_output_invalid")) return 502;
+  return 200;
+}
+
+function organizeError(result: OrganizeResponse): string | undefined {
+  if (organizeHttpStatus(result) === 200) return undefined;
+  if (result.warnings.includes("llm_config_missing")) return "llm_config_missing";
+  if (result.warnings.includes("llm_timeout")) return "llm_timeout";
+  if (result.warnings.includes("llm_provider_failed")) return "llm_provider_failed";
+  if (result.warnings.includes("llm_output_invalid")) return "llm_output_invalid";
+  return "organize_failed";
 }
 
 function serveStatic(res: ServerResponse<IncomingMessage>, path: string, publicDir: string): boolean {

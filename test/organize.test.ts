@@ -101,7 +101,8 @@ test("organize endpoint returns zero cards when LLM config is missing", async ()
     assert.ok(address && typeof address !== "string");
     const response = await fetch(`http://127.0.0.1:${address.port}/todos/organize`, { method: "POST" });
     const result = await response.json();
-    assert.equal(response.status, 200);
+    assert.equal(response.status, 422);
+    assert.equal(result.error, "llm_config_missing");
     assert.equal(result.engine, "llm");
     assert.equal(result.created, 0);
     assert.equal(result.ignored, 0);

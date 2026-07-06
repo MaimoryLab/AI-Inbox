@@ -14,10 +14,18 @@ export interface McpTool {
   };
 }
 
+const LEGACY_TOOL_ALIASES: Record<string, string> = {
+  todo_scan: "inbox_scan",
+  todo_organize: "inbox_organize",
+  todo_list: "inbox_list",
+  todo_update: "inbox_update",
+  todo_open: "inbox_open"
+};
+
 export function listMcpTools(): McpTool[] {
   return [
     {
-      name: "todo_scan",
+      name: "inbox_scan",
       description: "Scan Codex or Claude Code session JSONL files into AI-Inbox.",
       inputSchema: {
         type: "object",
@@ -29,29 +37,29 @@ export function listMcpTools(): McpTool[] {
       }
     },
     {
-      name: "todo_organize",
+      name: "inbox_organize",
       description: "Organize observations into evidence-grounded inbox cards.",
       inputSchema: { type: "object", properties: {} }
     },
     {
-      name: "todo_list",
+      name: "inbox_list",
       description: "List current inbox cards.",
       inputSchema: { type: "object", properties: {} }
     },
     {
-      name: "todo_update",
-      description: "Update a todo status.",
+      name: "inbox_update",
+      description: "Update an inbox card status.",
       inputSchema: {
         type: "object",
         properties: {
           id: { type: "string" },
-          status: { type: "string", enum: ["todo", "done", "ignored"] }
+          status: { type: "string", enum: ["open", "done", "ignored"] }
         },
         required: ["id", "status"]
       }
     },
     {
-      name: "todo_open",
+      name: "inbox_open",
       description: "Open the AI-Inbox viewer when available.",
       inputSchema: { type: "object", properties: {} }
     }
@@ -66,29 +74,32 @@ export async function callMcpTool(
   options: { organizeOptions?: OrganizeOptions } = {}
 ): Promise<any> {
   const input = objectArgs(args);
+  const legacyName = LEGACY_TOOL_ALIASES[name];
+  const toolName = legacyName ?? name;
 
-  if (name === "todo_scan") {
+  if (toolName === "inbox_scan") {
     const scan = scanSource(db, input.source, input.path, paths);
     if (!scan.ok) throw new Error(scan.error === "unsupported_source" ? "unsupported source" : "path not found");
     return scan.result;
   }
 
-  if (name === "todo_organize") {
+  if (toolName === "inbox_organize") {
     return await organizeConfiguredTodos(db, paths, options.organizeOptions);
   }
 
-  if (name === "todo_list") {
+  if (toolName === "inbox_list") {
     return listTodos(db);
   }
 
-  if (name === "todo_update") {
+  if (toolName === "inbox_update") {
     if (typeof input.id !== "string" || !input.id) throw new Error("missing todo id");
-    if (input.status !== "todo" && input.status !== "done" && input.status !== "ignored") throw new Error("invalid status");
-    if (!updateTodoStatus(db, input.id, input.status)) throw new Error("todo not found");
+    const status = legacyName && input.status === "todo" ? "todo" : input.status === "open" ? "todo" : input.status === "done" || input.status === "ignored" ? input.status : undefined;
+    if (status !== "todo" && status !== "done" && status !== "ignored") throw new Error("invalid status");
+    if (!updateTodoStatus(db, input.id, status)) throw new Error("todo not found");
     return listTodos(db).find((todo) => todo.id === input.id);
   }
 
-  if (name === "todo_open") {
+  if (toolName === "inbox_open") {
     return { opened: false, message: "run ai-inbox start to start the local UI" };
   }
 

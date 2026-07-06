@@ -307,6 +307,9 @@ function printOrganizeResult(result: Awaited<ReturnType<typeof organizeConfigure
   console.log(`ignored: ${result.ignored}`);
   console.log(`engine: ${result.engine}`);
   if (result.warnings.length > 0) console.log(`warnings: ${result.warnings.join(",")}`);
+  for (const failure of result.details?.batchFailures ?? []) {
+    console.log(`failure: ${failure.warning} ${failure.reason} retryable=${failure.retryable}`);
+  }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
