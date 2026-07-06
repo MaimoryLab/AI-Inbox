@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -29,6 +29,35 @@ test("doctor creates config, data, and database paths", async () => {
     assert.ok(rows.some((row) => row.name === "sessions"));
   } finally {
     process.env.AI_INBOX_HOME = previous;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("doctor reports managed release keys without printing them", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-managed-doctor-"));
+  const previousHome = process.env.AI_INBOX_HOME;
+  const previousConfig = process.env.AI_INBOX_MANAGED_LLM_CONFIG;
+  process.env.AI_INBOX_HOME = dir;
+
+  try {
+    const managedConfig = join(dir, "managed-llm.json");
+    writeFileSync(managedConfig, JSON.stringify({
+      endpoint: "https://api.novita.ai/openai/v1",
+      model: "deepseek/deepseek-v4-flash",
+      apiKeys: ["dummy-managed-doctor-key"],
+      createdAt: "2026-07-06T00:00:00.000Z"
+    }));
+    process.env.AI_INBOX_MANAGED_LLM_CONFIG = managedConfig;
+
+    const doctor = await capture(() => main(["doctor"]));
+    assert.equal(doctor.code, 0);
+    assert.match(doctor.stdout, /llm key: managed/);
+    assert.doesNotMatch(doctor.stdout, /dummy-managed-doctor-key/);
+  } finally {
+    if (previousHome === undefined) delete process.env.AI_INBOX_HOME;
+    else process.env.AI_INBOX_HOME = previousHome;
+    if (previousConfig === undefined) delete process.env.AI_INBOX_MANAGED_LLM_CONFIG;
+    else process.env.AI_INBOX_MANAGED_LLM_CONFIG = previousConfig;
     rmSync(dir, { recursive: true, force: true });
   }
 });

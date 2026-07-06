@@ -1,6 +1,7 @@
+import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { homedir, hostname } from "node:os";
+import { dirname, join } from "node:path";
 import type { AppPaths } from "./paths.js";
 
 export const DEFAULT_LLM_MODEL = "deepseek/deepseek-v4-flash";
@@ -14,6 +15,7 @@ export const DEFAULT_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION = 40;
 
 const DEFAULT_CODEX_HOME = join(homedir(), ".codex");
 const DEFAULT_CLAUDE_HOME = join(homedir(), ".claude", "projects");
+const MANAGED_LLM_CONFIG_FILE = "managed-llm.json";
 const IGNORED_ENV_KEYS = new Set(["AI_INBOX_LLM_" + "PYTHON"]);
 const SOURCE_ENV_KEYS = ["AI_INBOX_CODEX_HOME", "AI_INBOX_CLAUDE_HOME"] as const;
 
@@ -40,12 +42,14 @@ export interface AppConfig {
 
 export interface AppSecrets {
   llmApiKey?: string;
+  llmApiKeySource?: "configured" | "managed";
 }
 
 export type PublicAppConfig = AppConfig & {
   llm: AppConfig["llm"] & {
     apiKeyConfigured: boolean;
     apiKeyMasked: string;
+    apiKeySource?: "configured" | "managed";
   };
 };
 
@@ -79,7 +83,7 @@ export function defaultConfig(): AppConfig {
       provider: DEFAULT_LLM_PROVIDER,
       model: DEFAULT_LLM_MODEL,
       endpoint: DEFAULT_LLM_ENDPOINT,
-      thinkingDepth: "medium",
+      thinkingDepth: "low",
       timeoutMs: DEFAULT_LLM_TIMEOUT_MS
     },
     organize: {
@@ -99,7 +103,7 @@ export function defaultEnvConfig(includeApiKey?: string): EnvConfig {
     AI_INBOX_LLM_PROVIDER: DEFAULT_LLM_PROVIDER,
     AI_INBOX_LLM_MODEL: DEFAULT_LLM_MODEL,
     AI_INBOX_LLM_ENDPOINT: DEFAULT_LLM_ENDPOINT,
-    AI_INBOX_LLM_THINKING_DEPTH: "medium",
+    AI_INBOX_LLM_THINKING_DEPTH: "low",
     AI_INBOX_LLM_TIMEOUT_MS: String(DEFAULT_LLM_TIMEOUT_MS),
     AI_INBOX_LLM_API_KEY: includeApiKey,
     AI_INBOX_ORGANIZE_SINCE_DAYS: String(DEFAULT_ORGANIZE_SINCE_DAYS),
@@ -121,26 +125,29 @@ export function saveConfig(paths: AppPaths, config: AppConfig): void {
 
 export function loadSecrets(paths: AppPaths): AppSecrets {
   const env = loadEnvConfig(paths);
-  if (env.AI_INBOX_LLM_API_KEY) return { llmApiKey: env.AI_INBOX_LLM_API_KEY };
-  if (!existsSync(paths.secretsPath)) return {};
-  try {
-    return parseSecrets(JSON.parse(readFileSync(paths.secretsPath, "utf8")));
-  } catch {
-    throw new Error("secrets_invalid");
+  if (env.AI_INBOX_LLM_API_KEY) return { llmApiKey: env.AI_INBOX_LLM_API_KEY, llmApiKeySource: "configured" };
+  if (existsSync(paths.secretsPath)) {
+    try {
+      const localSecrets = parseSecrets(JSON.parse(readFileSync(paths.secretsPath, "utf8")));
+      if (localSecrets.llmApiKey) return localSecrets;
+    } catch {
+      throw new Error("secrets_invalid");
+    }
   }
+  return loadManagedArtifactSecrets(paths) ?? loadManagedEnvSecrets(paths) ?? {};
 }
 
 export function saveSecrets(paths: AppPaths, secrets: AppSecrets): void {
   if (existsSync(paths.envPath)) {
     const env = loadEnvConfig(paths);
-    if (secrets.llmApiKey) env.AI_INBOX_LLM_API_KEY = secrets.llmApiKey;
+    if (secrets.llmApiKey && secrets.llmApiKeySource !== "managed") env.AI_INBOX_LLM_API_KEY = secrets.llmApiKey;
     else delete env.AI_INBOX_LLM_API_KEY;
     saveEnvConfig(paths, env);
     return;
   }
   mkdirSync(paths.configDir, { recursive: true });
   const parsed = parseSecrets(secrets);
-  writeFileSync(paths.secretsPath, `${JSON.stringify(parsed, null, 2)}\n`, { mode: 0o600 });
+  writeFileSync(paths.secretsPath, `${JSON.stringify(parsed.llmApiKey ? { llmApiKey: parsed.llmApiKey } : {}, null, 2)}\n`, { mode: 0o600 });
 }
 
 export function loadEnvConfig(paths: AppPaths): EnvConfig {
@@ -173,7 +180,8 @@ export function publicConfig(config: AppConfig, secrets: AppSecrets): PublicAppC
     llm: {
       ...config.llm,
       apiKeyConfigured: !!secrets.llmApiKey,
-      apiKeyMasked: maskSecret(secrets.llmApiKey)
+      apiKeyMasked: secrets.llmApiKeySource === "managed" ? "managed" : maskSecret(secrets.llmApiKey),
+      apiKeySource: secrets.llmApiKeySource
     }
   };
 }
@@ -197,7 +205,7 @@ export function settingsToEnv(config: AppConfig, currentSecrets: AppSecrets, api
     if (apiKey.trim()) env.AI_INBOX_LLM_API_KEY = apiKey.trim();
     else delete env.AI_INBOX_LLM_API_KEY;
   } else if (currentSecrets.llmApiKey) {
-    env.AI_INBOX_LLM_API_KEY = currentSecrets.llmApiKey;
+    if (currentSecrets.llmApiKeySource !== "managed") env.AI_INBOX_LLM_API_KEY = currentSecrets.llmApiKey;
   }
   return env;
 }
@@ -395,7 +403,39 @@ function parseSecrets(input: unknown): AppSecrets {
   const keys = Object.keys(record);
   if (keys.some((key) => key !== "llmApiKey")) throw new Error("secrets_invalid");
   if (record.llmApiKey === undefined) return {};
-  return { llmApiKey: nonEmptyString(record.llmApiKey) };
+  return { llmApiKey: nonEmptyString(record.llmApiKey), llmApiKeySource: "configured" };
+}
+
+function loadManagedArtifactSecrets(paths: AppPaths): AppSecrets | undefined {
+  const configPath = managedLlmConfigPath();
+  if (!existsSync(configPath)) return undefined;
+  const record = objectValue(JSON.parse(readFileSync(configPath, "utf8")));
+  const keys = parseManagedKeys(record?.apiKeys);
+  if (keys.length === 0) return undefined;
+  return { llmApiKey: selectManagedKey(keys, paths), llmApiKeySource: "managed" };
+}
+
+function loadManagedEnvSecrets(paths: AppPaths): AppSecrets | undefined {
+  const keys = parseManagedKeys(process.env.AI_INBOX_MANAGED_LLM_API_KEYS ?? process.env.AI_INBOX_MANAGED_LLM_API_KEY);
+  if (keys.length === 0) return undefined;
+  return { llmApiKey: selectManagedKey(keys, paths), llmApiKeySource: "managed" };
+}
+
+function managedLlmConfigPath(): string {
+  const explicit = process.env.AI_INBOX_MANAGED_LLM_CONFIG?.trim();
+  return explicit || join(dirname(process.execPath), MANAGED_LLM_CONFIG_FILE);
+}
+
+function parseManagedKeys(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((item) => typeof item === "string" ? item.trim() : "").filter(Boolean);
+  if (typeof value !== "string") return [];
+  return value.split(/[,\n]+/).map((item) => item.trim()).filter(Boolean);
+}
+
+function selectManagedKey(keys: string[], paths: AppPaths): string {
+  if (keys.length === 1) return keys[0];
+  const hash = createHash("sha256").update(`${hostname()}\n${paths.configDir}`).digest();
+  return keys[hash.readUInt32BE(0) % keys.length];
 }
 
 function sanitizeEnvConfig(input: EnvConfig): EnvConfig {

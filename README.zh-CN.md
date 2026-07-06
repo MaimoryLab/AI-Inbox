@@ -7,7 +7,7 @@
 
 **本地优先的 AI / Agent 会话卡片复查工作台。**
 
-AI-Inbox 会扫描 Codex 和 Claude Code 会话记录，调用你配置的 OpenAI-compatible LLM 抽取 Inbox cards，并把每张卡片都关联回原始证据。
+AI-Inbox 会扫描 Codex 和 Claude Code 会话记录，优先使用 release zip 内置的托管 OpenAI-compatible 抽取配置，并把每张卡片都关联回原始证据。
 
 - 把分散在 AI 会话里的后续事项收进一个可复查的卡片队列。
 - 在完成、忽略或恢复卡片前，先查看对应的来源片段。
@@ -18,7 +18,7 @@ AI-Inbox 会扫描 Codex 和 Claude Code 会话记录，调用你配置的 OpenA
 - macOS Apple Silicon：`cd ai-inbox-macos-arm64 && ./ai-inbox start`
 - Windows x64：`cd ai-inbox-windows-x64; .\ai-inbox.exe start`
 
-AI-Inbox 会打开本地浏览器工作台。在设置页配置来源和 LLM key，然后点击 **Organize / 整理**，卡片整理效果如下。
+AI-Inbox 会打开本地浏览器工作台。在设置页确认来源路径，然后点击 **Organize / 整理**，卡片整理效果如下。
 
 ![AI-Inbox 卡片视图](docs/assets/readme/ai-inbox-cards.png)
 
@@ -48,15 +48,15 @@ npm 包尚未发布；当前请使用 release zip 或源码启动。
 然后：
 
 1. 打开命令输出的 `127.0.0.1` 本地 URL。
-2. 在 **Settings / 设置** 中确认来源路径，并保存 OpenAI-compatible API key。
+2. 在 **Settings / 设置** 中确认来源路径。
 3. 在 **Sources / 来源** 中复查导入的会话。
 4. 在 **Cards / 卡片** 中点击 **Organize / 整理**，查看生成的 Inbox cards。
 
-没有 LLM 配置时，AI-Inbox 仍可以打开界面和扫描来源；只有配置好 LLM endpoint 和 key 后，才会生成 Inbox cards。
+CI 构建的 release zip 可以内置托管 Novita key，所以早期用户无需手动配置 LLM 就能整理卡片。没有该 artifact 的源码构建仍可打开界面和扫描来源，但需要在高级 LLM 配置里填写 key 才能抽取卡片。
 
 ## 界面
 
-以下截图全部使用合成会话文本、合成路径和空 API key 字段。
+以下截图全部使用合成会话文本、合成路径，不包含真实 API key。
 
 ### Cards / 卡片
 
@@ -76,7 +76,7 @@ npm 包尚未发布；当前请使用 release zip 或源码启动。
 
 - Release zip：不需要安装 Node.js
 - 源码启动或未来 npm 包：Node.js `>=22.16.0`
-- 用于卡片抽取的 OpenAI-compatible Chat Completions API key
+- 可选：当你要覆盖内置托管配置时，提供自己的 OpenAI-compatible Chat Completions API key
 
 ### Release Zip
 
@@ -143,7 +143,7 @@ npm start -- --port 3112
 ## CLI 常用命令
 
 ```bash
-ai-inbox init --api-key <your-key>
+ai-inbox init
 ai-inbox doctor
 ai-inbox scan codex
 ai-inbox scan claude-code
@@ -153,7 +153,7 @@ ai-inbox list
 
 | 命令 | 用途 |
 | --- | --- |
-| `init [options]` | 创建本地配置，可选择保存 LLM key |
+| `init [options]` | 创建本地配置，可选择保存自定义 LLM key |
 | `doctor` | 检查配置、数据目录、数据库和 LLM 设置 |
 | `scan <codex\|claude-code> [path]` | 扫描指定来源路径 |
 | `extract` / `organize` | 调用配置好的 LLM 抽取 Inbox cards |
@@ -205,12 +205,11 @@ AI_INBOX_LLM_ENABLED=true
 AI_INBOX_LLM_PROVIDER=openai
 AI_INBOX_LLM_MODEL=deepseek/deepseek-v4-flash
 AI_INBOX_LLM_ENDPOINT=https://api.novita.ai/openai/v1
-AI_INBOX_LLM_API_KEY=<your-key>
 AI_INBOX_ORGANIZE_SINCE_DAYS=7
 AI_INBOX_ORGANIZE_MAX_SESSIONS=16
 ```
 
-如果需要文件配置模板，只把 `.env.example` 复制到本地配置目录。不要把真实 key 放在仓库根目录。
+Release zip 可能在二进制旁边带有 `managed-llm.json`。如需覆盖它，在本地配置目录设置 `AI_INBOX_LLM_API_KEY`。不要把真实 key 放在仓库根目录。
 
 界面语言偏好只保存在当前浏览器，不写入 `.env`。
 
@@ -219,8 +218,8 @@ AI_INBOX_ORGANIZE_MAX_SESSIONS=16
 - AI-Inbox 本地优先：配置、数据库和扫描记录默认留在 `~/.ai-inbox`，除非你覆盖 `AI_INBOX_HOME`。
 - 扫描和复查阶段，会话文本保留在本机。
 - 浏览器插件尚未实现，所以当前 AI-Inbox 不会自行采集浏览器会话。
-- 执行 `organize` 时，相关片段会发送到你配置的 LLM endpoint 用于抽取。
-- API key 只应保存在本地配置中，不能提交。
+- 执行 `organize` 时，相关片段会发送到内置托管 endpoint 或你配置的 LLM endpoint 用于抽取。
+- 自定义 API key 只应保存在本地配置中，不能提交。
 - README 截图和测试样例必须使用合成或充分脱敏的内容。
 
 ## 排障
@@ -228,7 +227,7 @@ AI_INBOX_ORGANIZE_MAX_SESSIONS=16
 | 问题 | 处理方式 |
 | --- | --- |
 | `3111 is already in use` | 运行 `ai-inbox start --port 3112`，或指定另一个明确端口。 |
-| 没有生成卡片 | 运行 `ai-inbox doctor`，确认 API key 和 endpoint，再重新执行 `ai-inbox organize`。 |
+| 没有生成卡片 | 运行 `ai-inbox doctor`；如果显示 `llm key: missing`，在高级 LLM 配置里填写 key，或使用带托管配置的 CI release zip。 |
 | 来源为空 | 检查 `AI_INBOX_CODEX_HOME`、`AI_INBOX_CLAUDE_HOME`，或运行 `ai-inbox scan <source> [path]`。 |
 | Finder 里找不到 `~/.ai-inbox` | macOS 默认隐藏点目录。使用 Finder 的 **前往文件夹**，输入 `~/.ai-inbox`。 |
 | npm 找不到包 | 在公开 npm 包可用前，使用源码启动或 release zip。 |

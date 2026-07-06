@@ -146,14 +146,12 @@ export function SettingsWorkspace({ settings, startup, locale, onLocale, onSaved
                   <Field label={text.maxSessions}>
                     <Input type="number" min={1} max={200} value={form.organize.maxSessions} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, organize: { ...form.organize, maxSessions: Number(event.target.value) } })} />
                   </Field>
-                  <Field label={text.apiKey}>
-                    <Input type="password" autoComplete="off" placeholder={settings.llm.apiKeyConfigured ? `${text.configured} ${settings.llm.apiKeyMasked}` : text.pasteApiKey} value={apiKey} onChange={(event: ChangeEvent<HTMLInputElement>) => setApiKey(event.target.value)} />
+                  <Field label={text.extractionService}>
+                    <div className="flex h-10 items-center rounded-md border border-[var(--app-border)] bg-[var(--app-surface-muted)] px-3 text-sm text-[var(--app-muted)]">
+                      {settings.llm.apiKeyConfigured ? text.configured : text.needsSetup}
+                    </div>
                   </Field>
                 </div>
-                <label className="mt-3 flex items-center gap-2 text-sm text-[var(--app-muted)]">
-                  <input type="checkbox" checked={clearKey} onChange={(event) => setClearKey(event.target.checked)} />
-                  {text.clearSavedApiKey}
-                </label>
               </div>
             </section>
           </div>
@@ -168,10 +166,17 @@ export function SettingsWorkspace({ settings, startup, locale, onLocale, onSaved
       </Card>
       <details className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
         <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium text-[var(--app-ink)]">
-          {text.advancedDiagnostics}
+          {text.advancedLlmSettings}
           <ChevronDown className="h-4 w-4 text-[var(--app-subtle)]" aria-hidden="true" />
         </summary>
         <div className="mt-3 grid gap-4 text-sm text-[var(--app-muted)] md:grid-cols-2">
+          <Field label={text.apiKey}>
+            <Input type="password" autoComplete="off" placeholder={settings.llm.apiKeyConfigured ? `${text.configured} ${settings.llm.apiKeySource === "managed" ? text.managed : settings.llm.apiKeyMasked}` : text.pasteApiKey} value={apiKey} onChange={(event: ChangeEvent<HTMLInputElement>) => setApiKey(event.target.value)} />
+          </Field>
+          <label className="flex items-center gap-2 self-end text-sm text-[var(--app-muted)]">
+            <input type="checkbox" checked={clearKey} onChange={(event) => setClearKey(event.target.checked)} />
+            {text.clearSavedApiKey}
+          </label>
           <Field label={text.model}>
             <Input value={form.llm.model} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, llm: { ...form.llm, model: event.target.value } })} />
           </Field>

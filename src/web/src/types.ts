@@ -117,6 +117,7 @@ export interface PublicAppConfig {
     timeoutMs: number;
     apiKeyConfigured: boolean;
     apiKeyMasked: string;
+    apiKeySource?: "configured" | "managed";
   };
   organize: {
     sinceDays: number;

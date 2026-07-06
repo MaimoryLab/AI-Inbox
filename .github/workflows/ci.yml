@@ -24,6 +24,8 @@ jobs:
       - run: npm run build
       - run: git diff --check
       - if: matrix.node-version == '22.x' && matrix.os != 'ubuntu-latest'
+        env:
+          AI_INBOX_MANAGED_LLM_API_KEYS: ${{ secrets.AI_INBOX_MANAGED_LLM_API_KEYS }}
         run: npm run release:zip
       - if: matrix.node-version == '22.x' && matrix.os == 'macos-latest'
         shell: bash

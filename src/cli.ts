@@ -52,7 +52,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     if (!existsSync(paths.envPath)) console.log("env status: missing; run ai-inbox init");
     console.log(`data: ${paths.dataDir}`);
     console.log(`llm enabled: ${llm.enabled}`);
-    console.log(`llm key: ${llm.keyConfigured ? "configured" : "missing"}`);
+    console.log(`llm key: ${llm.keyStatus}`);
     console.log(`llm model: ${llm.model}`);
     console.log(`llm endpoint: ${llm.endpoint}`);
     console.log("ok");

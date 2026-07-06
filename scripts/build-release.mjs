@@ -11,6 +11,9 @@ const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
 const appVersion = packageJson.version;
 const artifactsDir = join(root, "artifacts", "release");
 const workDir = join(root, "artifacts", "sea-build");
+const managedLlmConfigName = "managed-llm.json";
+const managedLlmEndpoint = "https://api.novita.ai/openai/v1";
+const managedLlmModel = "deepseek/deepseek-v4-flash";
 const platformName = { darwin: "macos", win32: "windows" }[process.platform];
 const releaseName = platformName ? `ai-inbox-${platformName}-${process.arch}` : null;
 const packageDir = releaseName ? join(artifactsDir, releaseName) : null;
@@ -69,6 +72,7 @@ await buildSeaExecutable(bundle, binaryPath);
 cpSync(join(root, "dist", "public"), join(packageDir, "public"), { recursive: true });
 copyFileSync(join(root, "README.md"), join(packageDir, "README.md"));
 copyFileSync(join(root, "LICENSE"), join(packageDir, "LICENSE"));
+writeManagedLlmConfig();
 await chmod(binaryPath, 0o755);
 
 const zipPath = join(artifactsDir, `${releaseName}.zip`);
@@ -159,6 +163,22 @@ function buildReleaseZip(zipPath) {
     stdio: "inherit",
     env: { ...process.env, COPYFILE_DISABLE: "1" }
   });
+}
+
+function writeManagedLlmConfig() {
+  const apiKeys = parseManagedKeys(process.env.AI_INBOX_MANAGED_LLM_API_KEYS ?? process.env.AI_INBOX_MANAGED_LLM_API_KEY);
+  if (apiKeys.length === 0) return;
+  writeFileSync(join(packageDir, managedLlmConfigName), `${JSON.stringify({
+    endpoint: managedLlmEndpoint,
+    model: managedLlmModel,
+    apiKeys,
+    createdAt: new Date().toISOString()
+  }, null, 2)}\n`);
+}
+
+function parseManagedKeys(value) {
+  if (!value) return [];
+  return String(value).split(/[,\n]+/).map((item) => item.trim()).filter(Boolean);
 }
 
 function assertCleanZip(zipPath) {

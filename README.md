@@ -7,7 +7,7 @@
 
 **Local-first review workspace for follow-up cards extracted from AI and agent sessions.**
 
-AI-Inbox scans Codex and Claude Code session records, asks your configured OpenAI-compatible LLM to extract Inbox cards, and keeps every card linked to its source evidence.
+AI-Inbox scans Codex and Claude Code session records, uses the bundled managed OpenAI-compatible extraction config when present, and keeps every card linked to its source evidence.
 
 - Turn scattered AI-session loose ends into one reviewable card queue.
 - Review source snippets before you complete, ignore, or restore a card.
@@ -18,7 +18,7 @@ Download the zip for your platform from [Releases](https://github.com/MaimoryLab
 - macOS Apple Silicon: `cd ai-inbox-macos-arm64 && ./ai-inbox start`
 - Windows x64: `cd ai-inbox-windows-x64; .\ai-inbox.exe start`
 
-AI-Inbox opens a local browser workspace. Configure sources and your LLM key in Settings, then click **Organize**.
+AI-Inbox opens a local browser workspace. Confirm source paths in Settings, then click **Organize**.
 
 ![AI-Inbox Cards view](docs/assets/readme/ai-inbox-cards.png)
 
@@ -48,15 +48,15 @@ The npm package is not published yet; use the release zip or source checkout tod
 Then:
 
 1. Open the printed `127.0.0.1` URL.
-2. In **Settings**, confirm source paths and save your OpenAI-compatible API key.
+2. In **Settings**, confirm source paths.
 3. In **Sources**, review the imported sessions.
 4. In **Cards**, click **Organize** and review the generated Inbox cards.
 
-Without LLM configuration, AI-Inbox can still open the UI and scan sources. It will not create Inbox cards until an LLM endpoint and key are configured.
+Release zips can include a managed Novita key injected by CI, so early users can organize cards without manual LLM setup. Source builds without that artifact can still open the UI and scan sources, but need a key in Advanced LLM settings before card extraction.
 
 ## Screenshots
 
-Screenshots below use synthetic session text, synthetic paths, and an empty API key field.
+Screenshots below use synthetic session text, synthetic paths, and no real API keys.
 
 ### Cards
 
@@ -76,7 +76,7 @@ Screenshots below use synthetic session text, synthetic paths, and an empty API 
 
 - Release zip: no Node.js install required
 - Source checkout or future npm package: Node.js `>=22.16.0`
-- An OpenAI-compatible Chat Completions API key for card extraction
+- Optional: an OpenAI-compatible Chat Completions API key when overriding the bundled managed config
 
 ### Release Zip
 
@@ -143,7 +143,7 @@ npm start -- --port 3112
 ## CLI
 
 ```bash
-ai-inbox init --api-key <your-key>
+ai-inbox init
 ai-inbox doctor
 ai-inbox scan codex
 ai-inbox scan claude-code
@@ -153,7 +153,7 @@ ai-inbox list
 
 | Command | Purpose |
 | --- | --- |
-| `init [options]` | Create local config and optionally save the LLM key |
+| `init [options]` | Create local config and optionally save a custom LLM key |
 | `doctor` | Check config, data directory, database, and LLM setup |
 | `scan <codex\|claude-code> [path]` | Scan a source path |
 | `extract` / `organize` | Ask the configured LLM to extract Inbox cards |
@@ -205,12 +205,11 @@ AI_INBOX_LLM_ENABLED=true
 AI_INBOX_LLM_PROVIDER=openai
 AI_INBOX_LLM_MODEL=deepseek/deepseek-v4-flash
 AI_INBOX_LLM_ENDPOINT=https://api.novita.ai/openai/v1
-AI_INBOX_LLM_API_KEY=<your-key>
 AI_INBOX_ORGANIZE_SINCE_DAYS=7
 AI_INBOX_ORGANIZE_MAX_SESSIONS=16
 ```
 
-Copy `.env.example` only into your local config directory when you want a file-based starting point. Do not place real keys in the repository root.
+Release zips may include `managed-llm.json` next to the binary. To override it, set `AI_INBOX_LLM_API_KEY` in your local config directory. Do not place real keys in the repository root.
 
 The UI language preference is saved in the current browser, not in `.env`.
 
@@ -219,8 +218,8 @@ The UI language preference is saved in the current browser, not in `.env`.
 - AI-Inbox is local-first: config, database, and scanned records stay under `~/.ai-inbox` unless you override `AI_INBOX_HOME`.
 - Session text remains local during scanning and review.
 - Browser plugin support is not implemented yet, so AI-Inbox does not collect browser sessions by itself today.
-- During `organize`, relevant snippets are sent to your configured LLM endpoint for extraction.
-- API keys are stored in local config only and must never be committed.
+- During `organize`, relevant snippets are sent to the bundled managed endpoint or your configured LLM endpoint for extraction.
+- Custom API keys are stored in local config only and must never be committed.
 - README screenshots and fixtures should use synthetic or heavily anonymized content only.
 
 ## Troubleshooting
@@ -228,7 +227,7 @@ The UI language preference is saved in the current browser, not in `.env`.
 | Problem | What to do |
 | --- | --- |
 | `3111 is already in use` | Run `ai-inbox start --port 3112` or choose another explicit port. |
-| No cards are created | Run `ai-inbox doctor`, confirm the API key and endpoint, then run `ai-inbox organize` again. |
+| No cards are created | Run `ai-inbox doctor`; if it reports `llm key: missing`, add a key in Advanced LLM settings or use a CI-built release zip with managed config. |
 | Sources look empty | Check `AI_INBOX_CODEX_HOME`, `AI_INBOX_CLAUDE_HOME`, or run `ai-inbox scan <source> [path]`. |
 | Cannot find `~/.ai-inbox` in Finder | Dot folders are hidden on macOS. Use Finder **Go to Folder** and enter `~/.ai-inbox`. |
 | npm cannot find the package | Use the source checkout or release zip until the package is published to the public registry. |

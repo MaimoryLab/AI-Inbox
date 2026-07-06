@@ -31,6 +31,7 @@ test("release packaging builds runnable platform zips and no legacy ai-todo comm
   assert.match(workflow, /os: \[ubuntu-latest, macos-latest, windows-latest\]/);
   assert.match(workflow, /node-version: \[22\.x, 24\.x\]/);
   assert.match(workflow, /npm run release:zip/);
+  assert.match(workflow, /AI_INBOX_MANAGED_LLM_API_KEYS/);
   assert.match(workflow, /artifacts\/release\/\*\.zip/);
   assert.match(workflow, /AI_INBOX_HOME=.*release-smoke/);
   assert.match(workflow, /doctor/);
@@ -42,6 +43,10 @@ test("release packaging builds runnable platform zips and no legacy ai-todo comm
   assert.match(script, /Compress-Archive/);
   assert.match(script, /ditto/);
   assert.match(script, /COPYFILE_DISABLE/);
+  assert.match(script, /managed-llm\.json/);
+  assert.match(script, /AI_INBOX_MANAGED_LLM_API_KEYS/);
+  assert.match(script, /deepseek\/deepseek-v4-flash/);
+  assert.match(script, /https:\/\/api\.novita\.ai\/openai\/v1/);
   assert.match(script, /assertCleanZip/);
   assert.match(script, /\\\._\*|\\\.DS_Store|node_modules|\\.env|\\.ai-todo/);
   assert.doesNotMatch(script, /hdiutil/);

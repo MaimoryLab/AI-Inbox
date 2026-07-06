@@ -25,6 +25,7 @@ export async function organizeConfiguredTodos(
 export interface LlmDoctorStatus {
   enabled: boolean;
   keyConfigured: boolean;
+  keyStatus: "configured" | "managed" | "missing";
   model: string;
   endpoint: string;
 }
@@ -35,6 +36,7 @@ export function getLlmDoctorStatus(paths: AppPaths): LlmDoctorStatus {
   return {
     enabled: config.llm.enabled,
     keyConfigured: !!secrets.llmApiKey,
+    keyStatus: secrets.llmApiKey ? secrets.llmApiKeySource ?? "configured" : "missing",
     model: config.llm.model,
     endpoint: config.llm.endpoint
   };

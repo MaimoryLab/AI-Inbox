@@ -49,7 +49,7 @@ test("LLM runner sends OpenAI-compatible request and parses grounded todos", asy
     const payload = await readJson(request);
     assert.equal(payload.model, "test/model");
     assert.equal(payload.temperature, 0);
-    assert.equal(payload.reasoning_effort, "medium");
+    assert.equal(payload.reasoning_effort, "low");
     assert.deepEqual(payload.response_format, { type: "json_object" });
     const userMessage = payload.messages.find((message: any) => message.role === "user");
     const userPayload = JSON.parse(userMessage.content);

@@ -66,6 +66,11 @@ test("React UI keeps card-first Sources wording and accessible icon controls", (
   assert.match(settingsWorkspace, /text\.clearTodoCards/);
   assert.match(i18n, /clearTodoCards: "清空卡片数据库"/);
   assert.match(i18n, /clearTodoCards: "Clear card database"/);
+  assert.match(i18n, /advancedLlmSettings: "高级 LLM 配置"/);
+  assert.match(i18n, /advancedLlmSettings: "Advanced LLM settings"/);
+  assert.match(settingsWorkspace, /text\.extractionService/);
+  assert.match(settingsWorkspace, /text\.advancedLlmSettings/);
+  assert.match(settingsWorkspace, /settings\.llm\.apiKeySource === "managed"/);
   assert.match(i18n, /sourceScanFinished: "来源扫描完成。"/);
   assert.match(i18n, /sourceScanFailed: "Source scan failed: "/);
   assert.match(app, /startupStatusMessage/);

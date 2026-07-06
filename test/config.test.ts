@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { getAppPaths } from "../src/paths.js";
 import {
+  defaultConfig,
   ensureDefaultEnv,
   formatEnvFile,
   loadConfig,
@@ -12,9 +13,11 @@ import {
   loadSecrets,
   maskSecret,
   parseEnvFile,
+  publicConfig,
   saveConfig,
   saveEnvConfig,
-  saveSecrets
+  saveSecrets,
+  settingsToEnv
 } from "../src/config.js";
 import { openDatabase } from "../src/db/index.js";
 import { discoverSourcePaths, ensureDiscoveredSourceEnv } from "../src/sources/discovery.js";
@@ -34,7 +37,7 @@ test("config reads defaults and persists source paths", () => {
         provider: "openai",
         model: "deepseek/deepseek-v4-flash",
         endpoint: "https://api.novita.ai/openai/v1",
-        thinkingDepth: "medium",
+        thinkingDepth: "low",
         timeoutMs: 120000
       },
       organize: {
@@ -93,7 +96,7 @@ test("config rejects invalid files and preserves source path precedence", () => 
         provider: "openai",
         model: "deepseek/deepseek-v4-flash",
         endpoint: "https://api.novita.ai/openai/v1",
-        thinkingDepth: "medium",
+        thinkingDepth: "low",
         timeoutMs: 120000
       },
       organize: {
@@ -190,6 +193,75 @@ test("secrets persist separately and mask api keys", () => {
   }
 });
 
+test("managed release artifact secrets are used without leaking the key", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-managed-secrets-"));
+  const previousConfig = process.env.AI_INBOX_MANAGED_LLM_CONFIG;
+  const previousManagedKey = process.env.AI_INBOX_MANAGED_LLM_API_KEY;
+  const previousManagedKeys = process.env.AI_INBOX_MANAGED_LLM_API_KEYS;
+  try {
+    const paths = getAppPaths(dir);
+    const managedConfig = join(dir, "managed-llm.json");
+    writeFileSync(managedConfig, JSON.stringify({
+      endpoint: "https://api.novita.ai/openai/v1",
+      model: "deepseek/deepseek-v4-flash",
+      apiKeys: ["dummy-managed-key-a", "dummy-managed-key-b"],
+      createdAt: "2026-07-06T00:00:00.000Z"
+    }));
+    process.env.AI_INBOX_MANAGED_LLM_CONFIG = managedConfig;
+    process.env.AI_INBOX_MANAGED_LLM_API_KEY = "dummy-runtime-key";
+    process.env.AI_INBOX_MANAGED_LLM_API_KEYS = "dummy-runtime-key-a,dummy-runtime-key-b";
+
+    const managed = loadSecrets(paths);
+    assert.equal(managed.llmApiKeySource, "managed");
+    assert.ok(["dummy-managed-key-a", "dummy-managed-key-b"].includes(managed.llmApiKey ?? ""));
+    assert.equal(loadSecrets(paths).llmApiKey, managed.llmApiKey);
+
+    const publicSettings = publicConfig(defaultConfig(), managed);
+    assert.equal(publicSettings.llm.apiKeyConfigured, true);
+    assert.equal(publicSettings.llm.apiKeySource, "managed");
+    assert.equal(publicSettings.llm.apiKeyMasked, "managed");
+    assert.equal(settingsToEnv(defaultConfig(), managed).AI_INBOX_LLM_API_KEY, undefined);
+
+    saveSecrets(paths, { llmApiKey: "dummy-user-key" });
+    assert.deepEqual(loadSecrets(paths), { llmApiKey: "dummy-user-key", llmApiKeySource: "configured" });
+    saveSecrets(paths, {});
+    assert.equal(loadSecrets(paths).llmApiKeySource, "managed");
+  } finally {
+    if (previousConfig === undefined) delete process.env.AI_INBOX_MANAGED_LLM_CONFIG;
+    else process.env.AI_INBOX_MANAGED_LLM_CONFIG = previousConfig;
+    if (previousManagedKey === undefined) delete process.env.AI_INBOX_MANAGED_LLM_API_KEY;
+    else process.env.AI_INBOX_MANAGED_LLM_API_KEY = previousManagedKey;
+    if (previousManagedKeys === undefined) delete process.env.AI_INBOX_MANAGED_LLM_API_KEYS;
+    else process.env.AI_INBOX_MANAGED_LLM_API_KEYS = previousManagedKeys;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("managed runtime environment secrets are a fallback after artifact lookup", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-managed-env-"));
+  const previousConfig = process.env.AI_INBOX_MANAGED_LLM_CONFIG;
+  const previousManagedKey = process.env.AI_INBOX_MANAGED_LLM_API_KEY;
+  const previousManagedKeys = process.env.AI_INBOX_MANAGED_LLM_API_KEYS;
+  try {
+    const paths = getAppPaths(dir);
+    process.env.AI_INBOX_MANAGED_LLM_CONFIG = join(dir, "missing-managed-llm.json");
+    delete process.env.AI_INBOX_MANAGED_LLM_API_KEY;
+    process.env.AI_INBOX_MANAGED_LLM_API_KEYS = "dummy-env-key-a\ndummy-env-key-b";
+
+    const managed = loadSecrets(paths);
+    assert.equal(managed.llmApiKeySource, "managed");
+    assert.ok(["dummy-env-key-a", "dummy-env-key-b"].includes(managed.llmApiKey ?? ""));
+  } finally {
+    if (previousConfig === undefined) delete process.env.AI_INBOX_MANAGED_LLM_CONFIG;
+    else process.env.AI_INBOX_MANAGED_LLM_CONFIG = previousConfig;
+    if (previousManagedKey === undefined) delete process.env.AI_INBOX_MANAGED_LLM_API_KEY;
+    else process.env.AI_INBOX_MANAGED_LLM_API_KEY = previousManagedKey;
+    if (previousManagedKeys === undefined) delete process.env.AI_INBOX_MANAGED_LLM_API_KEYS;
+    else process.env.AI_INBOX_MANAGED_LLM_API_KEYS = previousManagedKeys;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("env config parses comments, quotes, defaults, and masks api keys", () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-env-"));
   try {
@@ -228,6 +300,7 @@ test("default env generation writes necessary values without empty api key", () 
     assert.match(text, /AI_INBOX_CODEX_HOME=.*\.codex/);
     assert.doesNotMatch(text, /AI_INBOX_CODEX_HOME=.*\.codex\/sessions/);
     assert.match(text, /AI_INBOX_LLM_MODEL=deepseek\/deepseek-v4-flash/);
+    assert.match(text, /AI_INBOX_LLM_THINKING_DEPTH=low/);
     assert.match(text, /AI_INBOX_ORGANIZE_SINCE_DAYS=7/);
     assert.match(text, /AI_INBOX_ORGANIZE_MAX_SESSIONS=16/);
     assert.match(text, /AI_INBOX_ORGANIZE_MAX_OBSERVATIONS_PER_SESSION=40/);

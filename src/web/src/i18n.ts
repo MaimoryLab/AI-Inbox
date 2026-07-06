@@ -124,8 +124,10 @@ export const appText = {
     extractionDescription: "控制整理成卡片的最近会话范围。",
     lookbackDays: "回看天数",
     maxSessions: "最大会话数",
+    extractionService: "抽取服务",
     apiKey: "API key",
     configured: "已配置",
+    managed: "托管",
     pasteApiKey: "粘贴 API key",
     clearSavedApiKey: "清除已保存 API key",
     saveSettings: "保存设置",
@@ -140,6 +142,7 @@ export const appText = {
     todoCardsCleared: "卡片数据库已清空。",
     cancel: "取消",
     advancedDiagnostics: "高级诊断",
+    advancedLlmSettings: "高级 LLM 配置",
     model: "模型",
     endpoint: "Endpoint",
     startupScan: "启动扫描",
@@ -266,8 +269,10 @@ export const appText = {
     extractionDescription: "Control how many recent sessions are organized into cards.",
     lookbackDays: "Look-back days",
     maxSessions: "Max sessions",
+    extractionService: "Extraction service",
     apiKey: "API key",
     configured: "Configured",
+    managed: "managed",
     pasteApiKey: "Paste API key",
     clearSavedApiKey: "Clear saved API key",
     saveSettings: "Save Settings",
@@ -282,6 +287,7 @@ export const appText = {
     todoCardsCleared: "Card database cleared.",
     cancel: "Cancel",
     advancedDiagnostics: "Advanced diagnostics",
+    advancedLlmSettings: "Advanced LLM settings",
     model: "Model",
     endpoint: "Endpoint",
     startupScan: "Startup scan",
@@ -334,7 +340,7 @@ const errorMessages: Record<Locale, Record<string, string>> = {
     database_unavailable: "本地数据库不可用。",
     source_scan_failed: "刷新来源失败，请检查来源路径。",
     organize_in_progress: "整理仍在进行，请等待当前整理完成。",
-    organize_failed: "整理失败，请打开诊断查看详情。"
+    organize_failed: "整理失败，详情如下。"
   },
   "en-US": {
     llm_config_missing: "Extraction needs setup.",
@@ -354,13 +360,13 @@ const errorMessages: Record<Locale, Record<string, string>> = {
     database_unavailable: "Local database is unavailable.",
     source_scan_failed: "Source refresh failed. Check source paths.",
     organize_in_progress: "Organize is still running. Wait for the current run to finish.",
-    organize_failed: "Organize failed. Open diagnostics for details."
+    organize_failed: "Organize failed. Details are shown below."
   }
 };
 
 const reasonMessages: Record<Locale, Record<string, string>> = {
   "zh-CN": {
-    api_key_missing: "可能原因：Settings 中还没有填写 API key。",
+    api_key_missing: "可能原因：默认抽取服务未配置，请在高级 LLM 配置中填写 API key。",
     llm_disabled: "可能原因：Settings 中的 LLM extraction 已关闭。",
     http_401: "可能原因：API key 被 LLM 服务拒绝，key 可能填错、过期，或不属于当前 endpoint/provider。",
     http_403: "可能原因：API key 没有权限，可能是模型权限、账号策略或额度限制。",
@@ -377,7 +383,7 @@ const reasonMessages: Record<Locale, Record<string, string>> = {
     unknown_provider_error: "可能原因：LLM provider 返回了无法归类的错误。"
   },
   "en-US": {
-    api_key_missing: "Possible cause: no API key is saved in Settings.",
+    api_key_missing: "Possible cause: the default extraction service is not configured. Add an API key in Advanced LLM settings.",
     llm_disabled: "Possible cause: LLM extraction is disabled in Settings.",
     http_401: "Possible cause: the LLM service rejected the API key. It may be wrong, expired, or not for this endpoint/provider.",
     http_403: "Possible cause: the API key lacks permission, model access, account policy access, or quota.",
