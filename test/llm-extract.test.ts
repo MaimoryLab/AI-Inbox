@@ -42,6 +42,27 @@ test("LLM runner reports disabled LLM before provider call", async () => {
   });
 });
 
+test("LLM runner uses managed-key compatible defaults", async () => {
+  const server = await startMockProvider(async (request) => {
+    assert.equal(request.url, "/openai/v1/chat/completions");
+    assert.equal(request.headers.authorization, "Bearer dummy-managed-llm-key");
+    const payload = await readJson(request);
+    assert.equal(payload.model, "deepseek/deepseek-v4-flash");
+    assert.equal(payload.reasoning_effort, "low");
+    return jsonResponse({ todos: [] });
+  });
+
+  try {
+    const runner = createLlmRunner(
+      { ...defaultConfig().llm, endpoint: server.url("/openai/v1") },
+      { llmApiKey: "dummy-managed-llm-key", llmApiKeySource: "managed" }
+    );
+    assert.deepEqual(await runner([observation]), { ok: true, todos: [], taskChains: [] });
+  } finally {
+    await server.close();
+  }
+});
+
 test("LLM runner sends OpenAI-compatible request and parses grounded todos", async () => {
   const server = await startMockProvider(async (request) => {
     assert.equal(request.url, "/v1/chat/completions");

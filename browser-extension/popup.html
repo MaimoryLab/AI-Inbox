@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI-Inbox</title>
+    <style>
+      body {
+        width: 280px;
+        margin: 0;
+        padding: 14px;
+        font: 13px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #111827;
+        background: #f9fafb;
+      }
+      h1 {
+        margin: 0 0 10px;
+        font-size: 15px;
+      }
+      dl {
+        display: grid;
+        grid-template-columns: 78px 1fr;
+        gap: 6px 8px;
+        margin: 0 0 12px;
+      }
+      dt {
+        color: #6b7280;
+      }
+      dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      button {
+        width: 100%;
+        border: 1px solid #111827;
+        border-radius: 6px;
+        padding: 8px 10px;
+        background: #111827;
+        color: white;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:disabled {
+        cursor: default;
+        opacity: 0.55;
+      }
+      a {
+        display: inline-block;
+        margin-top: 10px;
+        color: #2563eb;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>AI-Inbox</h1>
+    <dl>
+      <dt>API</dt>
+      <dd id="apiBase">-</dd>
+      <dt>Status</dt>
+      <dd id="status">-</dd>
+      <dt>Turns</dt>
+      <dd id="turns">-</dd>
+      <dt>Synced</dt>
+      <dd id="syncedAt">-</dd>
+    </dl>
+    <button id="sync" type="button">Sync Current Tab</button>
+    <a href="options.html" target="_blank">Options</a>
+    <script src="popup.js"></script>
+  </body>
+</html>

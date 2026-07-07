@@ -117,7 +117,7 @@ export function App() {
     setBusy(true);
     setStatus(text.refreshingSources);
     try {
-      await Promise.allSettled([scanSource("codex"), scanSource("claude-code")]);
+      await Promise.allSettled([scanSource("codex"), scanSource("claude-code"), scanSource("cursor")]);
       await refresh();
       setStatus(text.ready);
     } catch {
@@ -261,7 +261,6 @@ export function App() {
       onRefresh={() => void refreshSources()}
       onOrganize={() => void organize()}
     >
-      <OrganizeHistoryPanel items={organizeHistory} locale={locale} />
       {view === "todos" && (
         <TodoBoard
           openTodos={openTodos}
@@ -276,6 +275,7 @@ export function App() {
           onOrganize={() => void organize()}
           busy={busy || organizeRunning}
           locale={locale}
+          organizeHistory={<OrganizeHistoryPanel items={organizeHistory} locale={locale} />}
         />
       )}
       {view === "sources" && (
@@ -316,15 +316,24 @@ export function App() {
   );
 }
 
-async function scanSource(source: Extract<SourceFilter, "codex" | "claude-code">): Promise<void> {
+async function scanSource(source: Extract<SourceFilter, "codex" | "claude-code" | "cursor">): Promise<void> {
   await api("/sources/scan", { method: "POST", body: { source } });
 }
 
 function OrganizeHistoryPanel({ items, locale }: { items: OrganizeHistoryItem[]; locale: Locale }) {
-  if (items.length === 0) return null;
   const text = textFor(locale);
+  const latest = items[0];
+  const [open, setOpen] = useState(latest ? isFailedOrganizeResult(latest.result) : false);
+  useEffect(() => {
+    if (latest) setOpen(isFailedOrganizeResult(latest.result));
+  }, [latest?.id]);
+  if (items.length === 0) return null;
   return (
-    <details className="mb-4 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] p-4 text-sm">
+    <details
+      className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] p-4 text-sm"
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
       <summary className="cursor-pointer font-medium text-[var(--app-ink)]">{text.organizeHistory}</summary>
       <div className="mt-3 grid gap-3">
         {items.map((item) => {
@@ -351,6 +360,7 @@ function OrganizeHistoryPanel({ items, locale }: { items: OrganizeHistoryItem[];
                   ))}
                 </ul>
               ) : null}
+              {result.details?.failureReason && <p className="mt-2 text-[var(--app-muted)]">{result.details.failureReason}</p>}
             </section>
           );
         })}
@@ -393,6 +403,10 @@ function organizeHardFailure(result: OrganizeResult): string | undefined {
   if (result.warnings.includes("llm_provider_failed")) return "llm_provider_failed";
   if (result.warnings.includes("llm_output_invalid")) return "llm_output_invalid";
   return undefined;
+}
+
+function isFailedOrganizeResult(result: OrganizeResult): boolean {
+  return result.warnings.includes("organize_failed") || Boolean(organizeHardFailure(result));
 }
 
 function organizeResultFromError(error: ApiError): OrganizeResult | null {

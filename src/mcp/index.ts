@@ -26,11 +26,11 @@ export function listMcpTools(): McpTool[] {
   return [
     {
       name: "inbox_scan",
-      description: "Scan Codex or Claude Code session JSONL files into AI-Inbox.",
+      description: "Scan Codex, Claude Code, or Cursor local sessions into AI-Inbox.",
       inputSchema: {
         type: "object",
         properties: {
-          source: { type: "string", enum: ["codex", "claude-code"] },
+          source: { type: "string", enum: ["codex", "claude-code", "cursor"] },
           path: { type: "string" }
         },
         required: ["source"]

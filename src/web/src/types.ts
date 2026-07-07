@@ -1,4 +1,4 @@
-export type SourceKind = "codex" | "claude-code" | "browser";
+export type SourceKind = "codex" | "claude-code" | "cursor" | "browser";
 export type TodoStatus = "todo" | "done" | "ignored";
 
 export interface TodoOrigin {
@@ -107,6 +107,7 @@ export interface PublicAppConfig {
   sources: {
     codex: { path?: string };
     "claude-code": { path?: string };
+    cursor: { path?: string };
   };
   llm: {
     enabled: boolean;
@@ -154,6 +155,7 @@ export interface OrganizeResult {
       reason: string;
       retryable: boolean;
     }>;
+    failureReason?: string;
   };
   durationMs: number;
 }
@@ -166,7 +168,7 @@ export interface OrganizeStatus {
 export interface StartupScanStatus {
   status: "idle" | "indexing" | "ready" | "failed";
   discovery: Array<{
-    source: Extract<SourceKind, "codex" | "claude-code">;
+    source: Extract<SourceKind, "codex" | "claude-code" | "cursor">;
     status: "configured" | "discovered" | "missing";
     path?: string;
   }>;

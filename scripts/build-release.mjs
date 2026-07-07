@@ -70,6 +70,7 @@ await build({
 
 await buildSeaExecutable(bundle, binaryPath);
 cpSync(join(root, "dist", "public"), join(packageDir, "public"), { recursive: true });
+cpSync(join(root, "browser-extension"), join(packageDir, "browser-extension"), { recursive: true });
 copyFileSync(join(root, "README.md"), join(packageDir, "README.md"));
 copyFileSync(join(root, "LICENSE"), join(packageDir, "LICENSE"));
 writeManagedLlmConfig();

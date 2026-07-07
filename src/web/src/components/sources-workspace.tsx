@@ -38,7 +38,7 @@ export function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sess
   const totalSessions = sourceFilter === "all"
     ? sourceSummaries.reduce((sum, source) => sum + source.sessions, 0)
     : sourceSummaries.find((source) => source.source === sourceFilter)?.sessions ?? 0;
-  const filters: SourceFilter[] = ["all", "codex", "claude-code", "browser"];
+  const filters: SourceFilter[] = ["all", "codex", "claude-code", "cursor", "browser"];
   const projectOptions = useMemo(() => sessionProjectOptions(sessions, locale), [sessions, locale]);
   const selectedProject = projectFilter === "all" ? undefined : projectOptions.find((project) => project.key === projectFilter);
   const projectMenuOptions = useMemo(() => filterProjects(projectOptions, projectQuery), [projectOptions, projectQuery]);
@@ -227,7 +227,7 @@ export function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sess
                 >
                   <div className="mb-2 flex flex-col gap-1 text-xs text-[var(--app-subtle)] sm:flex-row sm:items-center sm:justify-between">
                     <span className="font-semibold capitalize text-[var(--app-muted)]">{sourceRoleLabel(observation, locale)}</span>
-                    <time dateTime={observation.createdAt}>{new Date(observation.createdAt).toLocaleString()}</time>
+                    {sourceObservationTime(observation.createdAt) && <time dateTime={observation.createdAt}>{sourceObservationTime(observation.createdAt)}</time>}
                   </div>
                   <ObservationText observation={observation} />
                 </article>
@@ -335,6 +335,12 @@ function sourceRoleLabel(observation: ObservationRecord, locale: Locale): string
   if (isTurnAborted(observation)) return text.turnInterrupted;
   if (isAgentContext(observation)) return text.agentContext;
   return observation.role === "unknown" ? text.message : observation.role;
+}
+
+function sourceObservationTime(createdAt: string): string {
+  const time = Date.parse(createdAt);
+  if (!Number.isFinite(time) || time === 0) return "";
+  return new Date(time).toLocaleString();
 }
 
 function isAgentContext(observation: ObservationRecord): boolean {

@@ -116,6 +116,7 @@ export const appText = {
     sourceSettingsDescription: "选择 AI-Inbox 扫描本地 Agent 会话的位置。",
     codexSource: "Codex 来源",
     claudeSource: "Claude 来源",
+    cursorSource: "Cursor 来源",
     discovery: "路径发现",
     discoveryConfigured: "用户已配置",
     discoveryDiscovered: "已自动发现",
@@ -149,7 +150,7 @@ export const appText = {
     needsSetup: "需要配置",
     organizing: "正在整理最近会话...",
     organizeNeedsReview: "有提示。",
-    organizeHistory: "整理历史",
+    organizeHistory: "本次整理记录",
     organizeDetails: (created: number, updated: number, durationMs: number) => `新增 ${created}，更新 ${updated}，耗时 ${durationMs} ms。`,
     organizeScanned: (count: number) => `扫描 ${count} 条观察。`,
     organizeScopeDetails: (scanned: number, sessionsDropped: number, observationsDropped: number) => `范围：纳入 ${scanned} 个会话，跳过 ${sessionsDropped} 个会话、${observationsDropped} 条观察。`,
@@ -261,6 +262,7 @@ export const appText = {
     sourceSettingsDescription: "Choose where AI-Inbox scans local agent sessions.",
     codexSource: "Codex source",
     claudeSource: "Claude source",
+    cursorSource: "Cursor source",
     discovery: "Path discovery",
     discoveryConfigured: "User configured",
     discoveryDiscovered: "Auto-discovered",
@@ -294,7 +296,7 @@ export const appText = {
     needsSetup: "Needs setup",
     organizing: "Organizing recent sessions...",
     organizeNeedsReview: "Has notices.",
-    organizeHistory: "Organize history",
+    organizeHistory: "This session’s organize history",
     organizeDetails: (created: number, updated: number, durationMs: number) => `${created} created, ${updated} updated, ${durationMs} ms.`,
     organizeScanned: (count: number) => `${count} observations scanned.`,
     organizeScopeDetails: (scanned: number, sessionsDropped: number, observationsDropped: number) => `Scope: ${scanned} sessions included, ${sessionsDropped} sessions and ${observationsDropped} observations skipped.`,
@@ -312,11 +314,13 @@ const sourceNames: Record<Locale, Record<SourceKind, string>> = {
   "zh-CN": {
     codex: "Codex",
     "claude-code": "Claude",
+    cursor: "Cursor",
     browser: "浏览器"
   },
   "en-US": {
     codex: "Codex",
     "claude-code": "Claude",
+    cursor: "Cursor",
     browser: "Browser"
   }
 };
@@ -334,8 +338,10 @@ const errorMessages: Record<Locale, Record<string, string>> = {
     path_not_found: "来源路径需要配置。",
     codex_path_not_found: "未找到 Codex 来源路径。",
     "claude-code_path_not_found": "未找到 Claude 来源路径。",
+    cursor_path_not_found: "未找到 Cursor 来源路径。",
     codex_no_sessions: "来源路径中没有找到 Codex 会话。",
     "claude-code_no_sessions": "来源路径中没有找到 Claude 会话。",
+    cursor_no_sessions: "来源路径中没有找到 Cursor 会话。",
     config_invalid: "设置需要检查。",
     database_unavailable: "本地数据库不可用。",
     source_scan_failed: "刷新来源失败，请检查来源路径。",
@@ -354,13 +360,15 @@ const errorMessages: Record<Locale, Record<string, string>> = {
     path_not_found: "Source path needs setup.",
     codex_path_not_found: "Codex source path was not found.",
     "claude-code_path_not_found": "Claude source path was not found.",
+    cursor_path_not_found: "Cursor source path was not found.",
     codex_no_sessions: "No Codex sessions were found in the source path.",
     "claude-code_no_sessions": "No Claude sessions were found in the source path.",
+    cursor_no_sessions: "No Cursor sessions were found in the source path.",
     config_invalid: "Settings need review.",
     database_unavailable: "Local database is unavailable.",
     source_scan_failed: "Source refresh failed. Check source paths.",
     organize_in_progress: "Organize is still running. Wait for the current run to finish.",
-    organize_failed: "Organize failed. Details are shown below."
+    organize_failed: "Organize failed. Details below."
   }
 };
 

@@ -114,6 +114,9 @@ export function SettingsWorkspace({ settings, startup, locale, onLocale, onSaved
                   <Field label={text.claudeSource}>
                     <Input autoComplete="off" value={form.sources["claude-code"].path ?? ""} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, sources: { ...form.sources, "claude-code": { path: event.target.value } } })} />
                   </Field>
+                  <Field label={text.cursorSource}>
+                    <Input autoComplete="off" value={form.sources.cursor.path ?? ""} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, sources: { ...form.sources, cursor: { path: event.target.value } } })} />
+                  </Field>
                 </div>
                 {startup?.discovery.length ? (
                   <div className="rounded-md border border-[var(--app-border)] bg-[var(--app-surface-muted)] p-3">
@@ -225,7 +228,7 @@ function changedSourcePaths(
   before: PublicAppConfig["sources"],
   after: PublicAppConfig["sources"]
 ): SessionSource[] {
-  return (["codex", "claude-code"] as const).filter((source) =>
+  return (["codex", "claude-code", "cursor"] as const).filter((source) =>
     (before[source].path ?? "").trim() !== (after[source].path ?? "").trim()
   );
 }

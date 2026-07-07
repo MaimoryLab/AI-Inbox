@@ -1,5 +1,5 @@
 import { Archive, CheckCircle2, ChevronDown, Eye, FileText, Inbox, RotateCcw, Search, Sparkles } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { sourceLabel, textFor, type Locale } from "../i18n.js";
 import { cn } from "../lib/utils.js";
 import type { SourceKind, TodoCard, TodoEvidence, TodoEvidenceContext } from "../types.js";
@@ -26,6 +26,7 @@ export function TodoBoard(props: {
   onOrganize: () => void;
   busy: boolean;
   locale: Locale;
+  organizeHistory?: ReactNode;
 }) {
   const text = textFor(props.locale);
   const [showClosed, setShowClosed] = useState(false);
@@ -64,15 +65,18 @@ export function TodoBoard(props: {
 
   if (props.openTodos.length === 0 && props.closedTodos.length === 0) {
     return (
-      <Card className="flex min-h-80 flex-col items-center justify-center p-6 text-center">
-        <Sparkles className="h-10 w-10 text-[var(--app-subtle)]" aria-hidden="true" />
-        <h2 className="mt-3 text-lg font-semibold text-[var(--app-ink)]">{text.noCards}</h2>
-        <p className="mt-1 max-w-md text-sm text-[var(--app-muted)]">{text.noCardsDescription}</p>
-        <Button aria-label={text.organizeEmpty} title={text.organizeEmpty} className="mt-4" onClick={props.onOrganize} disabled={props.busy}>
-          <Sparkles className="h-4 w-4" aria-hidden="true" />
-          {text.organize}
-        </Button>
-      </Card>
+      <div className="space-y-3">
+        {props.organizeHistory}
+        <Card className="flex min-h-80 flex-col items-center justify-center p-6 text-center">
+          <Sparkles className="h-10 w-10 text-[var(--app-subtle)]" aria-hidden="true" />
+          <h2 className="mt-3 text-lg font-semibold text-[var(--app-ink)]">{text.noCards}</h2>
+          <p className="mt-1 max-w-md text-sm text-[var(--app-muted)]">{text.noCardsDescription}</p>
+          <Button aria-label={text.organizeEmpty} title={text.organizeEmpty} className="mt-4" onClick={props.onOrganize} disabled={props.busy}>
+            <Sparkles className="h-4 w-4" aria-hidden="true" />
+            {text.organize}
+          </Button>
+        </Card>
+      </div>
     );
   }
 
@@ -107,7 +111,7 @@ export function TodoBoard(props: {
               </label>
               <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_minmax(12rem,18rem)] xl:items-start">
                 <div className="flex min-w-0 flex-wrap gap-2" aria-label={text.sourceFilter}>
-                  {(["all", "codex", "claude-code", "browser"] as const).map((filter) => (
+                  {(["all", "codex", "claude-code", "cursor", "browser"] as const).map((filter) => (
                     <button
                       key={filter}
                       type="button"
@@ -171,6 +175,8 @@ export function TodoBoard(props: {
               </div>
             </div>
           </Card>
+
+          {props.organizeHistory}
 
           {visibleOpenTodos.length === 0 && <Card className="p-6 text-sm text-[var(--app-muted)]">{text.noCardsMatch}</Card>}
           {visibleOpenGroups.map((group) => {

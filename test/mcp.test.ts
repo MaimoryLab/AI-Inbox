@@ -9,13 +9,15 @@ import { callMcpTool, listMcpTools } from "../src/mcp/index.js";
 import { handleJsonRpcLine } from "../src/mcp/stdio.js";
 
 test("MCP exposes the minimal inbox tools", () => {
-  assert.deepEqual(listMcpTools().map((tool) => tool.name), [
+  const tools = listMcpTools();
+  assert.deepEqual(tools.map((tool) => tool.name), [
     "inbox_scan",
     "inbox_organize",
     "inbox_list",
     "inbox_update",
     "inbox_open"
   ]);
+  assert.deepEqual((tools[0].inputSchema.properties.source as any).enum, ["codex", "claude-code", "cursor"]);
 });
 
 test("MCP tools scan, organize, list, update, and open", async () => {

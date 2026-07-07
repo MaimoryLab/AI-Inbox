@@ -17,12 +17,13 @@ const DEFAULT_CODEX_HOME = join(homedir(), ".codex");
 const DEFAULT_CLAUDE_HOME = join(homedir(), ".claude", "projects");
 const MANAGED_LLM_CONFIG_FILE = "managed-llm.json";
 const IGNORED_ENV_KEYS = new Set(["AI_INBOX_LLM_" + "PYTHON"]);
-const SOURCE_ENV_KEYS = ["AI_INBOX_CODEX_HOME", "AI_INBOX_CLAUDE_HOME"] as const;
+const SOURCE_ENV_KEYS = ["AI_INBOX_CODEX_HOME", "AI_INBOX_CLAUDE_HOME", "AI_INBOX_CURSOR_HOME"] as const;
 
 export interface AppConfig {
   sources: {
     codex: { path?: string };
     "claude-code": { path?: string };
+    cursor: { path?: string };
   };
   llm: {
     enabled: boolean;
@@ -56,6 +57,7 @@ export type PublicAppConfig = AppConfig & {
 export const WRITABLE_ENV_KEYS = [
   "AI_INBOX_CODEX_HOME",
   "AI_INBOX_CLAUDE_HOME",
+  "AI_INBOX_CURSOR_HOME",
   "AI_INBOX_LLM_ENABLED",
   "AI_INBOX_LLM_PROVIDER",
   "AI_INBOX_LLM_MODEL",
@@ -76,7 +78,8 @@ export function defaultConfig(): AppConfig {
   return {
     sources: {
       codex: {},
-      "claude-code": {}
+      "claude-code": {},
+      cursor: {}
     },
     llm: {
       enabled: true,
@@ -99,6 +102,7 @@ export function defaultEnvConfig(includeApiKey?: string): EnvConfig {
   return sanitizeEnvConfig({
     AI_INBOX_CODEX_HOME: DEFAULT_CODEX_HOME,
     AI_INBOX_CLAUDE_HOME: DEFAULT_CLAUDE_HOME,
+    AI_INBOX_CURSOR_HOME: join(homedir(), ".cursor", "projects"),
     AI_INBOX_LLM_ENABLED: "true",
     AI_INBOX_LLM_PROVIDER: DEFAULT_LLM_PROVIDER,
     AI_INBOX_LLM_MODEL: DEFAULT_LLM_MODEL,
@@ -215,6 +219,7 @@ export function configToEnv(config: AppConfig): EnvConfig {
   return sanitizeEnvConfig({
     AI_INBOX_CODEX_HOME: parsed.sources.codex.path,
     AI_INBOX_CLAUDE_HOME: parsed.sources["claude-code"].path,
+    AI_INBOX_CURSOR_HOME: parsed.sources.cursor.path,
     AI_INBOX_LLM_ENABLED: String(parsed.llm.enabled),
     AI_INBOX_LLM_PROVIDER: parsed.llm.provider,
     AI_INBOX_LLM_MODEL: parsed.llm.model,
@@ -236,11 +241,12 @@ export function parseConfig(input: unknown): AppConfig {
   const keys = Object.keys(record);
   if (keys.some((key) => key !== "sources" && key !== "llm" && key !== "organize")) throw new Error("config_invalid");
   const sourceKeys = Object.keys(sources);
-  if (sourceKeys.some((key) => key !== "codex" && key !== "claude-code")) throw new Error("config_invalid");
+  if (sourceKeys.some((key) => key !== "codex" && key !== "claude-code" && key !== "cursor")) throw new Error("config_invalid");
   return {
     sources: {
       codex: sourceConfig(sources.codex),
-      "claude-code": sourceConfig(sources["claude-code"])
+      "claude-code": sourceConfig(sources["claude-code"]),
+      cursor: sourceConfig(sources.cursor ?? {})
     },
     llm: llmConfig(record.llm),
     organize: organizeConfig(record.organize)
@@ -301,13 +307,15 @@ function applyEnvConfig(config: AppConfig, env: EnvConfig): AppConfig {
   const next: AppConfig = {
     sources: {
       codex: { ...config.sources.codex },
-      "claude-code": { ...config.sources["claude-code"] }
+      "claude-code": { ...config.sources["claude-code"] },
+      cursor: { ...config.sources.cursor }
     },
     llm: { ...config.llm },
     organize: { ...config.organize }
   };
   if (env.AI_INBOX_CODEX_HOME) next.sources.codex = { path: cleanSourcePath(env.AI_INBOX_CODEX_HOME) };
   if (env.AI_INBOX_CLAUDE_HOME) next.sources["claude-code"] = { path: cleanSourcePath(env.AI_INBOX_CLAUDE_HOME) };
+  if (env.AI_INBOX_CURSOR_HOME) next.sources.cursor = { path: cleanSourcePath(env.AI_INBOX_CURSOR_HOME) };
   if (env.AI_INBOX_LLM_ENABLED !== undefined) next.llm.enabled = parseBoolean(env.AI_INBOX_LLM_ENABLED);
   if (env.AI_INBOX_LLM_PROVIDER !== undefined) {
     if (env.AI_INBOX_LLM_PROVIDER !== "openai") throw new Error("config_invalid");

@@ -303,6 +303,7 @@ test("HTTP local token protects writes and attachment reads", async () => {
     assert.equal((await getJson(server.url("/todos"))).status, 200);
     assert.equal((await postJson(server.url("/todos/clear"), {})).status, 403);
     assert.equal((await getJson(server.url("/attachments?observationId=protected-observation&index=0"))).status, 403);
+    assert.equal((await getJson(server.url("/attachments?observationId=protected-observation&index=0&token=local-token"))).status, 403);
     const cleared = await fetch(server.url("/todos/clear"), {
       method: "POST",
       headers: { "x-ai-inbox-token": "local-token" },
@@ -463,7 +464,10 @@ test("HTTP startup scanner discovers source paths before scanning", async () => 
 test("HTTP source scan uses default paths with environment overrides", async () => {
   const fixture = createFixture();
   const previousCodex = process.env.AI_INBOX_CODEX_HOME;
+  const previousCursor = process.env.AI_INBOX_CURSOR_HOME;
   process.env.AI_INBOX_CODEX_HOME = fixture.codex;
+  const cursor = createCursorHttpFixture(fixture.root);
+  process.env.AI_INBOX_CURSOR_HOME = cursor.root;
   const paths = getAppPaths(join(fixture.root, "home"));
   const db = openDatabase(paths);
   const server = await startServer(db, paths);
@@ -472,12 +476,56 @@ test("HTTP source scan uses default paths with environment overrides", async () 
     const response = await postJson(server.url("/sources/scan"), { source: "codex" });
     assert.equal(response.status, 200);
     assert.equal((await response.json()).scanned, 1);
+    const cursorResponse = await postJson(server.url("/sources/scan"), { source: "cursor" });
+    assert.equal(cursorResponse.status, 200);
+    assert.equal((await cursorResponse.json()).source, "cursor");
   } finally {
     if (previousCodex === undefined) {
       delete process.env.AI_INBOX_CODEX_HOME;
     } else {
       process.env.AI_INBOX_CODEX_HOME = previousCodex;
     }
+    if (previousCursor === undefined) {
+      delete process.env.AI_INBOX_CURSOR_HOME;
+    } else {
+      process.env.AI_INBOX_CURSOR_HOME = previousCursor;
+    }
+    await server.close();
+    db.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("HTTP API scans Cursor source and filters Cursor sessions", async () => {
+  const fixture = createFixture();
+  const cursor = createCursorHttpFixture(fixture.root);
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const server = await startServer(db, paths);
+
+  try {
+    const scan = await postJson(server.url("/sources/scan"), {
+      source: "cursor",
+      path: cursor.root
+    });
+    assert.equal(scan.status, 200);
+    assert.deepEqual(await scan.json(), {
+      source: "cursor",
+      scanned: 1,
+      observations: 2,
+      skipped: 0
+    });
+
+    const sources = await (await getJson(server.url("/sources"))).json();
+    assert.equal(sources.find((source: any) => source.source === "cursor").sessions, 1);
+
+    const sessions = await getJson(server.url("/sessions?source=cursor"));
+    assert.equal(sessions.status, 200);
+    const [session] = await sessions.json();
+    assert.equal(session.source, "cursor");
+    assert.equal(session.title, "Cursor: HTTP Cursor card");
+    assert.equal(session.path, cursor.dbPath);
+  } finally {
     await server.close();
     db.close();
     rmSync(fixture.root, { recursive: true, force: true });
@@ -521,7 +569,7 @@ test("HTTP settings persist source paths and scan uses config path", async () =>
     assert.equal(initialBody.organize.maxSessions, 16);
 
     const saved = await putJson(server.url("/settings"), {
-      sources: { codex: { path: fixture.codex }, "claude-code": { path: missingClaudePath } },
+      sources: { codex: { path: fixture.codex }, "claude-code": { path: missingClaudePath }, cursor: { path: fixture.root } },
       llm: {
         enabled: true,
         provider: "openai",
@@ -542,6 +590,7 @@ test("HTTP settings persist source paths and scan uses config path", async () =>
     const savedBody = await saved.json();
     assert.equal(savedBody.sources.codex.path, fixture.codex);
     assert.equal(savedBody.sources["claude-code"].path, missingClaudePath);
+    assert.equal(savedBody.sources.cursor.path, fixture.root);
     assert.equal(savedBody.llm.model, "custom/model");
     assert.equal(savedBody.llm.apiKeyConfigured, true);
     assert.equal(savedBody.llm.apiKeyMasked, "dum****alue");
@@ -565,6 +614,52 @@ test("HTTP settings persist source paths and scan uses config path", async () =>
   }
 });
 
+test("HTTP settings exposes managed llm key status without persisting the key", async () => {
+  const fixture = createFixture();
+  const previousManaged = process.env.AI_INBOX_MANAGED_LLM_API_KEY;
+  process.env.AI_INBOX_MANAGED_LLM_API_KEY = "dummy-managed-llm-key";
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const server = await startServer(db, paths);
+
+  try {
+    const initial = await getJson(server.url("/settings"));
+    assert.equal(initial.status, 200);
+    const initialBody = await initial.json();
+    assert.equal(initialBody.llm.apiKeyConfigured, true);
+    assert.equal(initialBody.llm.apiKey, undefined);
+    assert.doesNotMatch(JSON.stringify(initialBody), /dummy-managed-llm-key/);
+
+    const saved = await putJson(server.url("/settings"), {
+      sources: { codex: {}, "claude-code": {}, cursor: {} },
+      llm: {
+        enabled: true,
+        provider: "openai",
+        model: "deepseek/deepseek-v4-flash",
+        endpoint: "https://api.novita.ai/openai/v1",
+        thinkingDepth: "low",
+        timeoutMs: 120000
+      },
+      organize: {
+        sinceDays: 7,
+        maxInteractionsPerSession: 10,
+        maxSessions: 16,
+        maxObservationsPerSession: 40
+      }
+    });
+    assert.equal(saved.status, 200);
+    assert.equal((await saved.json()).llm.apiKeyConfigured, true);
+    assert.doesNotMatch(readFileSync(paths.envPath, "utf8"), /AI_INBOX_LLM_API_KEY/);
+    assert.doesNotMatch(readFileSync(paths.envPath, "utf8"), /dummy-managed-llm-key/);
+  } finally {
+    await server.close();
+    db.close();
+    if (previousManaged === undefined) delete process.env.AI_INBOX_MANAGED_LLM_API_KEY;
+    else process.env.AI_INBOX_MANAGED_LLM_API_KEY = previousManaged;
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test("HTTP settings rejects invalid config", async () => {
   const fixture = createFixture();
   const paths = getAppPaths(join(fixture.root, "home"));
@@ -573,10 +668,10 @@ test("HTTP settings rejects invalid config", async () => {
 
   try {
     assert.equal((await putJson(server.url("/settings"), { sources: { codex: {}, browser: {} } })).status, 400);
-    assert.equal((await putJson(server.url("/settings"), { sources: { codex: { path: "" }, "claude-code": {} } })).status, 400);
-    assert.equal((await putJson(server.url("/settings"), { sources: { codex: { path: 1 }, "claude-code": {} } })).status, 400);
+    assert.equal((await putJson(server.url("/settings"), { sources: { codex: { path: "" }, "claude-code": {}, cursor: {} } })).status, 400);
+    assert.equal((await putJson(server.url("/settings"), { sources: { codex: { path: 1 }, "claude-code": {}, cursor: {} } })).status, 400);
     assert.equal((await putJson(server.url("/settings"), {
-      sources: { codex: {}, "claude-code": {} },
+      sources: { codex: {}, "claude-code": {}, cursor: {} },
       llm: {
         enabled: true,
         provider: "openai",
@@ -603,13 +698,13 @@ test("HTTP settings clears llm api key when requested", async () => {
 
   try {
     const withKey = await putJson(server.url("/settings"), {
-      sources: { codex: {}, "claude-code": {} },
+      sources: { codex: {}, "claude-code": {}, cursor: {} },
       llm: {
         enabled: true,
         provider: "openai",
         model: "deepseek/deepseek-v4-flash",
         endpoint: "https://api.novita.ai/openai/v1",
-        thinkingDepth: "medium",
+        thinkingDepth: "low",
         timeoutMs: 120000,
         apiKey: "dummy-llm-key-value"
       },
@@ -622,13 +717,13 @@ test("HTTP settings clears llm api key when requested", async () => {
     assert.ok(existsSync(paths.envPath));
 
     const cleared = await putJson(server.url("/settings"), {
-      sources: { codex: {}, "claude-code": {} },
+      sources: { codex: {}, "claude-code": {}, cursor: {} },
       llm: {
         enabled: true,
         provider: "openai",
         model: "deepseek/deepseek-v4-flash",
         endpoint: "https://api.novita.ai/openai/v1",
-        thinkingDepth: "medium",
+        thinkingDepth: "low",
         timeoutMs: 120000,
         apiKey: ""
       },
@@ -651,7 +746,7 @@ test("HTTP browser ingest validates input", async () => {
   const fixture = createFixture();
   const paths = getAppPaths(join(fixture.root, "home"));
   const db = openDatabase(paths);
-  const server = await startServer(db, paths);
+  const server = await startServer(db, paths, {}, "local-token");
 
   try {
     assert.equal((await postJson(server.url("/browser/sessions"), {})).status, 400);
@@ -660,6 +755,82 @@ test("HTTP browser ingest validates input", async () => {
     assert.equal((await postJson(server.url("/browser/sessions"), { messages: [{ text: 1 }] })).status, 400);
     assert.equal((await postJson(server.url("/browser/sessions"), { messages: [{ text: "x", createdAt: "nope" }] })).status, 400);
     assert.equal((await postJson(server.url("/browser/sessions"), { messages: [{ role: "user", text: "Valid browser todo" }] })).status, 200);
+    const capture = await postJson(server.url("/api/browser-sessions"), {
+      capturedAt: "2026-07-06T00:00:00.000Z",
+      page: { url: "https://chatgpt.com/c/http-api", title: "ChatGPT", host: "chatgpt.com" },
+      conversation: {
+        provider: "chatgpt",
+        turns: [
+          { role: "human", text: "Capture this browser task" },
+          { role: "assistant", text: "Captured." }
+        ]
+      }
+    });
+    assert.equal(capture.status, 200);
+    assert.equal((await postJson(server.url("/api/browser-sessions"), {
+      page: {},
+      conversation: { provider: "chatgpt", turns: [{ text: "x" }] }
+    })).status, 400);
+  } finally {
+    await server.close();
+    db.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("HTTP organize includes browser capture sessions", async () => {
+  const fixture = createFixture();
+  const paths = getAppPaths(join(fixture.root, "home"));
+  const db = openDatabase(paths);
+  const server = await startServer(db, paths, {
+    llmExtractor: async (observations: any[]) => {
+      const observation = observations.find((item) => item.source === "browser" && item.role === "user");
+      assert.ok(observation);
+      assert.equal(observations.filter((item) => item.text === "Please create a browser capture follow-up todo").length, 1);
+      return {
+        ok: true,
+        todos: [{
+          title: "Follow up from browser capture",
+          description: "The browser capture should produce a grounded card.",
+          confidence: 0.9,
+          sourceObservationId: observation.id,
+          quote: observation.text,
+          dedupeKey: "browser-capture-follow-up"
+        }]
+      };
+    }
+  });
+
+  try {
+    const ingest = await postJson(server.url("/api/browser-sessions"), {
+      capturedAt: "2026-07-06T00:00:00.000Z",
+      page: { url: "https://chatgpt.com/c/browser-flow", title: "ChatGPT", host: "chatgpt.com" },
+      conversation: {
+        provider: "chatgpt",
+        turns: [
+          { role: "unknown", text: "Please create a browser capture follow-up todo" },
+          { role: "user", text: "Please create a browser capture follow-up todo" },
+          { role: "assistant", text: "I will track it." }
+        ]
+      }
+    });
+    assert.equal(ingest.status, 200);
+
+    const sessions = await getJson(server.url("/sessions?source=browser"));
+    assert.equal(sessions.status, 200);
+    const [session] = await sessions.json();
+    assert.equal(session.source, "browser");
+    assert.equal(session.path, "https://chatgpt.com/c/browser-flow");
+
+    const organized = await postJson(server.url("/todos/organize"), {});
+    assert.equal(organized.status, 200);
+    const todos = await getJson(server.url("/todos"));
+    const [todo] = await todos.json();
+    assert.equal(todo.title, "Follow up from browser capture");
+    assert.equal(todo.origin.source, "browser");
+    const evidence = await getJson(server.url(`/todos/${todo.id}/evidence`));
+    assert.equal(evidence.status, 200);
+    assert.equal((await evidence.json())[0].source, "browser");
   } finally {
     await server.close();
     db.close();
@@ -691,7 +862,10 @@ test("HTTP organize returns structured failure", async () => {
     const body = await response.json();
     assert.equal(response.status, 500);
     assert.equal(body.error, "organize_failed");
+    assert.equal(body.created, 0);
+    assert.equal(body.updated, 0);
     assert.deepEqual(body.warnings, ["organize_failed"]);
+    assert.equal(body.details.failureReason, "boom");
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     db.close();
@@ -1058,6 +1232,18 @@ function createFixture() {
     JSON.stringify({ role: "user", text: "Please add HTTP API routes", timestamp: new Date().toISOString() })
   ].join("\n"));
   return { root, codex, codexFile };
+}
+
+function createCursorHttpFixture(root: string) {
+  const cursorRoot = join(root, ".cursor", "projects");
+  const transcriptDir = join(cursorRoot, "Users-ppio-Documents-AI-Inbox-cursor-source", "agent-transcripts", "http-cursor");
+  mkdirSync(transcriptDir, { recursive: true });
+  const transcriptPath = join(transcriptDir, "http-cursor.jsonl");
+  writeFileSync(transcriptPath, [
+    JSON.stringify({ role: "user", title: "HTTP Cursor card", createdAt: "2026-01-01T00:00:00.000Z", message: { content: [{ type: "text", text: "Please expose Cursor sessions over HTTP" }] } }),
+    JSON.stringify({ role: "assistant", createdAt: "2026-01-01T00:00:01.000Z", message: { content: [{ type: "text", text: "Cursor sessions are exposed over HTTP." }] } })
+  ].join("\n"));
+  return { root: cursorRoot, dbPath: transcriptPath };
 }
 
 async function startServer(db: Database, paths = getAppPaths(), organizeOptions = {}, localToken?: string) {

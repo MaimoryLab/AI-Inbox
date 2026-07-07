@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
@@ -19,7 +18,7 @@ const HELP_TEXT = `Usage: ai-inbox [command]
 Commands:
   init [options]              Create local config.
   doctor                      Check local config, data, and LLM setup.
-  scan <codex|claude-code> [path]
+  scan <codex|claude-code|cursor> [path]
   extract|organize            Extract todos from configured sessions.
   regenerate --yes            Clear inbox cards and regenerate from all observations.
   list|ls                     List todos.
@@ -139,6 +138,7 @@ async function init(argv: string[]): Promise<number> {
     AI_INBOX_LLM_ENDPOINT: args.endpoint,
     AI_INBOX_CODEX_HOME: args["codex-home"],
     AI_INBOX_CLAUDE_HOME: args["claude-home"],
+    AI_INBOX_CURSOR_HOME: args["cursor-home"],
     AI_INBOX_ORGANIZE_SINCE_DAYS: args["since-days"],
     AI_INBOX_ORGANIZE_MAX_INTERACTIONS_PER_SESSION: args["max-interactions"],
     AI_INBOX_ORGANIZE_MAX_SESSIONS: args["max-sessions"],
@@ -164,6 +164,7 @@ async function promptInit(defaults: EnvConfig): Promise<EnvConfig> {
     return {
       AI_INBOX_CODEX_HOME: await ask(rl, "Codex source path", env.AI_INBOX_CODEX_HOME),
       AI_INBOX_CLAUDE_HOME: await ask(rl, "Claude Code source path", env.AI_INBOX_CLAUDE_HOME),
+      AI_INBOX_CURSOR_HOME: await ask(rl, "Cursor source path", env.AI_INBOX_CURSOR_HOME),
       AI_INBOX_LLM_ENABLED: await ask(rl, "LLM enabled", env.AI_INBOX_LLM_ENABLED),
       AI_INBOX_LLM_PROVIDER: await ask(rl, "LLM provider", env.AI_INBOX_LLM_PROVIDER),
       AI_INBOX_LLM_MODEL: await ask(rl, "LLM model", env.AI_INBOX_LLM_MODEL),
@@ -221,8 +222,7 @@ async function startUi(argv: string[] = [], command = "start"): Promise<number> 
   const paths = getAppPaths();
   const db = openDatabase(paths);
   const startupScanner = createStartupScanner(db, paths);
-  const localToken = randomBytes(24).toString("base64url");
-  const server = createAppServer({ db, paths, startupScan: startupScanner.status, localToken });
+  const server = createAppServer({ db, paths, startupScan: startupScanner.status });
   try {
     await listen(server, port);
   } catch (error) {
@@ -237,7 +237,7 @@ async function startUi(argv: string[] = [], command = "start"): Promise<number> 
   startupScanner.start();
   const address = server.address();
   if (!address || typeof address === "string") return 1;
-  console.log(`AI-Inbox UI: http://127.0.0.1:${address.port}/#token=${localToken}`);
+  console.log(`AI-Inbox UI: http://127.0.0.1:${address.port}/`);
   console.log("Press Ctrl+C to stop.");
   await new Promise<void>((resolve) => {
     const stop = () => {
@@ -264,7 +264,7 @@ function listen(server: ReturnType<typeof createAppServer>, port: number): Promi
 
 function scan(db: Database, source: string | undefined, path: string | undefined): number {
   if (!source) {
-    console.error("usage: ai-inbox scan <codex|claude-code> [path]");
+    console.error("usage: ai-inbox scan <codex|claude-code|cursor> [path]");
     return 1;
   }
 

@@ -99,7 +99,7 @@ export function createAppServer(options: {
     }
 
     if (req.method === "GET" && path === "/attachments") {
-      if (!authorizeLocalRequest(req, res, options.localToken, url.searchParams)) return;
+      if (!authorizeLocalRequest(req, res, options.localToken)) return;
       const db = requireDb(res, options.db);
       if (!db) return;
       serveAttachment(req, res, db, url.searchParams);
@@ -173,8 +173,7 @@ export function createAppServer(options: {
       return;
     }
 
-    if (req.method === "POST" && path === "/browser/sessions") {
-      if (!authorizeLocalRequest(req, res, options.localToken)) return;
+    if (req.method === "POST" && (path === "/browser/sessions" || path === "/api/browser-sessions")) {
       const db = requireDb(res, options.db);
       if (!db) return;
       const body = await readJson(req, res);
@@ -205,8 +204,17 @@ export function createAppServer(options: {
       } catch (error) {
         writeJson(res, 500, {
           error: "organize_failed",
+          runId: "",
+          scanned: 0,
+          sources: [],
+          created: 0,
+          updated: 0,
+          completed: 0,
+          ignored: 0,
+          engine: "llm",
           warnings: ["organize_failed"],
-          message: (error as Error).message
+          details: { failureReason: (error as Error).message },
+          durationMs: 0
         });
       } finally {
         organizeStatus.running = false;
@@ -363,17 +371,16 @@ function contentType(file: string): string {
   return "text/html; charset=utf-8";
 }
 
-function authorizeLocalRequest(req: IncomingMessage, res: ServerResponse<IncomingMessage>, token: string | undefined, params?: URLSearchParams): boolean {
+function authorizeLocalRequest(req: IncomingMessage, res: ServerResponse<IncomingMessage>, token: string | undefined): boolean {
   if (!token) return true;
   if (req.headers["x-ai-inbox-token"] === token) return true;
-  if (params?.get("token") === token) return true;
   writeJson(res, 403, { error: "forbidden" });
   return false;
 }
 
 function parseSessionOptions(params: URLSearchParams): { ok: true; options: ListSessionsOptions } | { ok: false } {
   const source = params.get("source") || undefined;
-  if (source !== undefined && source !== "codex" && source !== "claude-code" && source !== "browser") return { ok: false };
+  if (source !== undefined && source !== "codex" && source !== "claude-code" && source !== "cursor" && source !== "browser") return { ok: false };
   const sessionId = optionalText(params.get("sessionId"), 512);
   if (sessionId === null) return { ok: false };
   const limit = optionalInt(params.get("limit"), 1, 200);

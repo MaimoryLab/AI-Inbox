@@ -13,7 +13,7 @@ export interface SourceDiscoveryResult {
   path?: string;
 }
 
-const SOURCES: SessionSource[] = ["codex", "claude-code"];
+const SOURCES: SessionSource[] = ["codex", "claude-code", "cursor"];
 
 export function discoverSourcePaths(paths: AppPaths): SourceDiscoveryResult[] {
   return SOURCES.map((source) => {
@@ -60,11 +60,27 @@ function discoveredPath(source: SessionSource): string | undefined {
       : undefined;
   }
   const claudeHome = join(homedir(), ".claude", "projects");
-  return existsSync(claudeHome) ? claudeHome : undefined;
+  if (source === "claude-code") return existsSync(claudeHome) ? claudeHome : undefined;
+  const cursorProjects = join(homedir(), ".cursor", "projects");
+  if (existsSync(cursorProjects)) return cursorProjects;
+  const cursorHome = cursorWorkspaceStoragePath();
+  return existsSync(cursorHome) ? cursorHome : undefined;
 }
 
-function envKey(source: SessionSource): "AI_INBOX_CODEX_HOME" | "AI_INBOX_CLAUDE_HOME" {
-  return source === "codex" ? "AI_INBOX_CODEX_HOME" : "AI_INBOX_CLAUDE_HOME";
+function envKey(source: SessionSource): "AI_INBOX_CODEX_HOME" | "AI_INBOX_CLAUDE_HOME" | "AI_INBOX_CURSOR_HOME" {
+  if (source === "codex") return "AI_INBOX_CODEX_HOME";
+  if (source === "claude-code") return "AI_INBOX_CLAUDE_HOME";
+  return "AI_INBOX_CURSOR_HOME";
+}
+
+function cursorWorkspaceStoragePath(): string {
+  if (process.platform === "win32") {
+    return join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "Cursor", "User", "workspaceStorage");
+  }
+  if (process.platform === "darwin") {
+    return join(homedir(), "Library", "Application Support", "Cursor", "User", "workspaceStorage");
+  }
+  return join(homedir(), ".config", "Cursor", "User", "workspaceStorage");
 }
 
 function cleanPath(value: string | undefined): string | undefined {

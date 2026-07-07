@@ -43,12 +43,5 @@ function responseErrorCode(data: unknown): string {
 }
 
 export function localToken(): string {
-  const existing = sessionStorage.getItem("ai-inbox-token");
-  if (existing) return existing;
-  const token = new URLSearchParams(location.hash.replace(/^#/, "")).get("token") ?? "";
-  if (token) {
-    sessionStorage.setItem("ai-inbox-token", token);
-    history.replaceState(null, "", location.pathname + location.search);
-  }
-  return token;
+  return sessionStorage.getItem("ai-inbox-token") ?? "";
 }

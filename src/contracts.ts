@@ -21,6 +21,7 @@ export const HTTP_ROUTES = [
   "GET /sessions/:id/observations",
   "GET /attachments",
   "POST /browser/sessions",
+  "POST /api/browser-sessions",
   "POST /todos/organize",
   "GET /todos",
   "PATCH /todos/:id",
@@ -41,7 +42,7 @@ export const MCP_TOOLS = [
 ] as const;
 
 export type TodoStatus = "todo" | "done" | "ignored";
-export type SourceKind = "codex" | "claude-code" | "browser";
+export type SourceKind = "codex" | "claude-code" | "cursor" | "browser";
 export type OrganizeEngine = "llm";
 
 export interface SessionRecord {
@@ -151,6 +152,7 @@ export interface OrganizeResult {
       reason: string;
       retryable: boolean;
     }>;
+    failureReason?: string;
   };
   durationMs: number;
 }

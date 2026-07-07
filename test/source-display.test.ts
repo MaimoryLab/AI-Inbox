@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { attachmentMarkdownText, attachmentViewsFromText } from "../src/attachments.js";
-import { localToken } from "../src/web/src/api/client.js";
 import { sourceDisplayText } from "../src/web/src/components/observation-text.js";
 
 test("sourceDisplayText keeps attachment lines available for rendering", () => {
@@ -66,28 +65,4 @@ test("attachmentMarkdownText leaves remote attachments on their original URL", (
     attachmentMarkdownText("Image: Remote (https://example.com/image.png)", "obs-2"),
     "![Remote](https://example.com/image.png)"
   );
-});
-
-test("localToken can seed attachment image URLs before the first API call", () => {
-  const store = new Map<string, string>();
-  let replaced = "";
-  Object.defineProperty(globalThis, "sessionStorage", {
-    configurable: true,
-    value: {
-      getItem: (key: string) => store.get(key) ?? null,
-      setItem: (key: string, value: string) => store.set(key, value)
-    }
-  });
-  Object.defineProperty(globalThis, "location", {
-    configurable: true,
-    value: { hash: "#token=local-secret", pathname: "/sources", search: "" }
-  });
-  Object.defineProperty(globalThis, "history", {
-    configurable: true,
-    value: { replaceState: (_state: unknown, _title: string, url: string) => { replaced = url; } }
-  });
-
-  assert.equal(localToken(), "local-secret");
-  assert.equal(store.get("ai-inbox-token"), "local-secret");
-  assert.equal(replaced, "/sources");
 });

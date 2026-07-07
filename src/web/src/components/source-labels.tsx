@@ -8,6 +8,7 @@ import type { SourceFilter } from "../view-model.js";
 export const sourceLabels: Record<SourceKind, string> = {
   codex: "Codex",
   "claude-code": "Claude",
+  cursor: "Cursor",
   browser: "Browser"
 };
 
@@ -57,6 +58,7 @@ export function sessionProjectLabel(session: SessionRecord, locale: Locale): str
   if (projectPath) return projectPath;
   const parts = session.path.split("/").filter(Boolean);
   if (session.source === "claude-code") return readablePathSegment(parts.at(-2) ?? parts.at(-1)) ?? sourceLabel(session.source, locale);
+  if (session.source === "cursor") return readablePathSegment(parts.at(-2) ?? parts.at(-1)) ?? sourceLabel(session.source, locale);
   return readablePathSegment(parts.at(-3) ?? parts.at(-2) ?? parts.at(-1)) ?? sourceLabel(session.source, locale);
 }
 

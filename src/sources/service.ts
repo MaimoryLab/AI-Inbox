@@ -1,7 +1,7 @@
 import type { ObservationRecord, SessionRecord, SourceKind } from "../contracts.js";
 import type { Database } from "../db/index.js";
 
-const SOURCES: SourceKind[] = ["codex", "claude-code", "browser"];
+const SOURCES: SourceKind[] = ["codex", "claude-code", "cursor", "browser"];
 export interface ListSessionsOptions {
   source?: SourceKind;
   sessionId?: string;

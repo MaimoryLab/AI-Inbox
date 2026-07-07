@@ -1,7 +1,6 @@
 import ReactMarkdown from "react-markdown";
 import { displayAgentContextText, displayTurnAbortedText, isAgentContextText } from "../../../agent-context.js";
 import { attachmentMarkdownText } from "../../../attachments.js";
-import { localToken } from "../api/client.js";
 import type { ObservationRecord } from "../types.js";
 
 export function ObservationText({ observation, markdown }: { observation: ObservationRecord; markdown?: boolean }) {
@@ -13,7 +12,7 @@ export function ObservationText({ observation, markdown }: { observation: Observ
 export function MarkdownText({ text, markdown, observationId }: { text: string; markdown?: boolean; observationId?: string }) {
   const displayText = sourceDisplayText(text);
   if (!markdown) return <p className="whitespace-pre-wrap break-words text-sm leading-6 text-[var(--app-ink)]">{displayText}</p>;
-  const markdownText = observationId ? withAttachmentToken(attachmentMarkdownText(displayText, observationId)) : displayText;
+  const markdownText = observationId ? attachmentMarkdownText(displayText, observationId) : displayText;
 
   return (
     <div className="source-markdown break-words text-sm leading-6 text-[var(--app-ink)]">
@@ -43,10 +42,4 @@ export function MarkdownText({ text, markdown, observationId }: { text: string; 
 
 export function sourceDisplayText(text: string): string {
   return displayTurnAbortedText(displayAgentContextText(text));
-}
-
-function withAttachmentToken(text: string): string {
-  const token = localToken();
-  if (!token) return text;
-  return text.replaceAll(/\/attachments\?([^)\s]+)/g, `/attachments?$1&token=${encodeURIComponent(token)}`);
 }

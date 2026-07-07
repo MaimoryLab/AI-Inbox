@@ -7,9 +7,10 @@ import type { Database } from "../db/index.js";
 import { getAppPaths, type AppPaths } from "../paths.js";
 import { scanClaudeCodeSessions } from "./claude-code.js";
 import { scanCodexSessions } from "./codex.js";
+import { scanCursorSessions } from "./cursor.js";
 import type { ScanResult } from "./jsonl-source.js";
 
-export type SessionSource = Extract<SourceKind, "codex" | "claude-code">;
+export type SessionSource = Extract<SourceKind, "codex" | "claude-code" | "cursor">;
 
 export type SourceScanResult =
   | { ok: true; result: ScanResult; path: string; warning?: string }
@@ -42,9 +43,7 @@ export function scanSource(db: Database, source: unknown, explicitPath?: unknown
   if (existingRoots.length === 0) {
     return { ok: false, status: 400, error: "path_not_found" };
   }
-  const result = aggregateScanResults(existingRoots.map((path) => source === "codex"
-    ? scanCodexSessions(db, path)
-    : scanClaudeCodeSessions(db, path)));
+  const result = aggregateScanResults(existingRoots.map((path) => scanResolvedSource(db, source, path)));
   return {
     ok: true,
     result,
@@ -56,7 +55,7 @@ export function scanSource(db: Database, source: unknown, explicitPath?: unknown
 export function scanConfiguredSources(db: Database, paths: AppPaths = getAppPaths()): ConfiguredScanSummary {
   const sources: ConfiguredScanSummary["sources"] = [];
   const warnings: string[] = [];
-  for (const source of ["codex", "claude-code"] as const) {
+  for (const source of ["codex", "claude-code", "cursor"] as const) {
     const roots = sourceRoots(source, configuredSourcePath(source, paths) ?? defaultSourcePath(source));
     const existingRoots = roots.filter((path) => existsSync(path));
     if (existingRoots.length === 0) {
@@ -65,9 +64,7 @@ export function scanConfiguredSources(db: Database, paths: AppPaths = getAppPath
       sources.push({ source, path: roots.join(", "), warning });
       continue;
     }
-    const result = aggregateScanResults(existingRoots.map((path) => source === "codex"
-      ? scanCodexSessions(db, path)
-      : scanClaudeCodeSessions(db, path)));
+    const result = aggregateScanResults(existingRoots.map((path) => scanResolvedSource(db, source, path)));
     const warning = sourceSessionCount(db, source, roots) === 0 ? `${source}_no_sessions` : undefined;
     if (warning) warnings.push(warning);
     sources.push({ source, path: roots.join(", "), result, warning });
@@ -76,7 +73,7 @@ export function scanConfiguredSources(db: Database, paths: AppPaths = getAppPath
 }
 
 export function isSessionSource(source: unknown): source is SessionSource {
-  return source === "codex" || source === "claude-code";
+  return source === "codex" || source === "claude-code" || source === "cursor";
 }
 
 function envPath(value: string | undefined): string | undefined {
@@ -86,16 +83,29 @@ function envPath(value: string | undefined): string | undefined {
 function configuredSourcePath(source: SessionSource, paths: AppPaths): string | undefined {
   const config = loadConfig(paths);
   if (source === "codex") return envPath(process.env.AI_INBOX_CODEX_HOME) ?? config.sources.codex.path;
-  return envPath(process.env.AI_INBOX_CLAUDE_HOME) ?? config.sources["claude-code"].path;
+  if (source === "claude-code") return envPath(process.env.AI_INBOX_CLAUDE_HOME) ?? config.sources["claude-code"].path;
+  return envPath(process.env.AI_INBOX_CURSOR_HOME) ?? config.sources.cursor.path;
 }
 
 function defaultSourcePath(source: SessionSource): string {
-  return source === "codex" ? join(homedir(), ".codex") : join(homedir(), ".claude", "projects");
+  if (source === "codex") return join(homedir(), ".codex");
+  if (source === "claude-code") return join(homedir(), ".claude", "projects");
+  return defaultCursorPath();
 }
 
 function sourceRoots(source: SessionSource, path: string): string[] {
   if (source === "codex") return codexSessionRoots(path);
   return [path];
+}
+
+function scanResolvedSource(db: Database, source: SessionSource, path: string): ScanResult {
+  if (source === "codex") return scanCodexSessions(db, path);
+  if (source === "claude-code") return scanClaudeCodeSessions(db, path);
+  return scanCursorSessions(db, path);
+}
+
+function defaultCursorPath(): string {
+  return join(homedir(), ".cursor", "projects");
 }
 
 function codexSessionRoots(path: string): string[] {

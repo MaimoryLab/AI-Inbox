@@ -71,6 +71,26 @@ test("CLI init writes local env config and doctor reports it", async () => {
   }
 });
 
+test("CLI doctor reports managed llm key without printing it", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-cli-managed-"));
+  const previousHome = process.env.AI_INBOX_HOME;
+  const previousManaged = process.env.AI_INBOX_MANAGED_LLM_API_KEY;
+  process.env.AI_INBOX_HOME = join(dir, "home");
+  process.env.AI_INBOX_MANAGED_LLM_API_KEY = "dummy-managed-llm-key";
+
+  try {
+    const doctor = await capture(() => main(["doctor"]));
+    assert.equal(doctor.code, 0);
+    assert.match(doctor.stdout, /llm key: managed/);
+    assert.doesNotMatch(doctor.stdout, /dummy-managed-llm-key/);
+  } finally {
+    process.env.AI_INBOX_HOME = previousHome;
+    if (previousManaged === undefined) delete process.env.AI_INBOX_MANAGED_LLM_API_KEY;
+    else process.env.AI_INBOX_MANAGED_LLM_API_KEY = previousManaged;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("CLI reports empty lists and invalid todo updates", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-cli-empty-"));
   const previousHome = process.env.AI_INBOX_HOME;
@@ -139,9 +159,11 @@ test("CLI scan uses default source paths with environment overrides", async () =
   const previousHome = process.env.AI_INBOX_HOME;
   const previousCodex = process.env.AI_INBOX_CODEX_HOME;
   const previousClaude = process.env.AI_INBOX_CLAUDE_HOME;
+  const previousCursor = process.env.AI_INBOX_CURSOR_HOME;
   process.env.AI_INBOX_HOME = join(dir, "home");
   process.env.AI_INBOX_CODEX_HOME = join(dir, "codex-default");
   process.env.AI_INBOX_CLAUDE_HOME = join(dir, "claude-default");
+  process.env.AI_INBOX_CURSOR_HOME = createCursorCliFixture(dir, "cursor-default");
 
   try {
     mkdirSync(process.env.AI_INBOX_CODEX_HOME);
@@ -166,13 +188,23 @@ test("CLI scan uses default source paths with environment overrides", async () =
     assert.equal(claude.code, 0);
     assert.match(claude.stdout, /scanned: 1/);
 
+    const cursor = await capture(() => main(["scan", "cursor"]));
+    assert.equal(cursor.code, 0);
+    assert.match(cursor.stdout, /source: cursor/);
+    assert.match(cursor.stdout, /observations: 2/);
+
     const explicitScan = await capture(() => main(["scan", "codex", explicit]));
     assert.equal(explicitScan.code, 0);
     assert.match(explicitScan.stdout, /scanned: 1/);
+
+    const explicitCursor = await capture(() => main(["scan", "cursor", createCursorCliFixture(dir, "cursor-explicit")]));
+    assert.equal(explicitCursor.code, 0);
+    assert.match(explicitCursor.stdout, /source: cursor/);
   } finally {
     process.env.AI_INBOX_HOME = previousHome;
     process.env.AI_INBOX_CODEX_HOME = previousCodex;
     process.env.AI_INBOX_CLAUDE_HOME = previousClaude;
+    process.env.AI_INBOX_CURSOR_HOME = previousCursor;
     rmSync(dir, { recursive: true, force: true });
   }
 });
@@ -251,4 +283,15 @@ async function capture(fn: () => Promise<number>) {
     console.log = originalLog;
     console.error = originalError;
   }
+}
+
+function createCursorCliFixture(root: string, name: string): string {
+  const cursorRoot = join(root, name, ".cursor", "projects");
+  const transcriptDir = join(cursorRoot, "Users-ppio-Documents-AI-Inbox-cursor-source", "agent-transcripts", name);
+  mkdirSync(transcriptDir, { recursive: true });
+  writeFileSync(join(transcriptDir, `${name}.jsonl`), [
+    JSON.stringify({ role: "user", message: { content: [{ type: "text", text: "Please scan Cursor from the CLI" }] } }),
+    JSON.stringify({ role: "assistant", message: { content: [{ type: "text", text: "Cursor scanned from the CLI." }] } })
+  ].join("\n"));
+  return cursorRoot;
 }
