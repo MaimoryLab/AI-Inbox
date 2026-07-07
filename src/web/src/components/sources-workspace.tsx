@@ -38,7 +38,7 @@ export function SourcesWorkspace({ sessions, sourceSummaries, sourceFilter, sess
   const totalSessions = sourceFilter === "all"
     ? sourceSummaries.reduce((sum, source) => sum + source.sessions, 0)
     : sourceSummaries.find((source) => source.source === sourceFilter)?.sessions ?? 0;
-  const filters: SourceFilter[] = ["all", "codex", "claude-code", "cursor", "browser"];
+  const filters: SourceFilter[] = ["all", "codex", "claude-code", "cursor"];
   const projectOptions = useMemo(() => sessionProjectOptions(sessions, locale), [sessions, locale]);
   const selectedProject = projectFilter === "all" ? undefined : projectOptions.find((project) => project.key === projectFilter);
   const projectMenuOptions = useMemo(() => filterProjects(projectOptions, projectQuery), [projectOptions, projectQuery]);

@@ -81,7 +81,6 @@ export const appText = {
     timeMinute: (count: number) => `${count} 分钟`,
     timeHour: (count: number) => `${count} 小时`,
     timeDay: (count: number) => `${count} 天`,
-    browserSessions: "浏览器会话",
     openSourceSession: (title: string) => `打开 ${title} 的来源会话`,
     completeTodo: (title: string) => `完成 ${title}`,
     openTodoSources: (title: string) => `打开 ${title} 的来源`,
@@ -227,7 +226,6 @@ export const appText = {
     timeMinute: (count: number) => `${count}m`,
     timeHour: (count: number) => `${count}h`,
     timeDay: (count: number) => `${count}d`,
-    browserSessions: "Browser sessions",
     openSourceSession: (title: string) => `Open source session for ${title}`,
     completeTodo: (title: string) => `Complete ${title}`,
     openTodoSources: (title: string) => `Open sources for ${title}`,
@@ -314,14 +312,12 @@ const sourceNames: Record<Locale, Record<SourceKind, string>> = {
   "zh-CN": {
     codex: "Codex",
     "claude-code": "Claude",
-    cursor: "Cursor",
-    browser: "浏览器"
+    cursor: "Cursor"
   },
   "en-US": {
     codex: "Codex",
     "claude-code": "Claude",
-    cursor: "Cursor",
-    browser: "Browser"
+    cursor: "Cursor"
   }
 };
 

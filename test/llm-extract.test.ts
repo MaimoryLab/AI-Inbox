@@ -7,7 +7,7 @@ import { createLlmRunner } from "../src/extract/llm-runner.js";
 const observation = {
   id: "obs-1",
   sessionId: "session-1",
-  source: "browser" as const,
+  source: "cursor" as const,
   role: "user",
   text: "Please add LLM settings UI",
   createdAt: "2026-01-01T00:00:00.000Z"
@@ -16,7 +16,7 @@ const observation = {
 const assistantObservation = {
   id: "obs-2",
   sessionId: "session-1",
-  source: "browser" as const,
+  source: "cursor" as const,
   role: "assistant",
   text: "The settings UI is added; the remaining work is wiring the save action.",
   createdAt: "2026-01-01T00:01:00.000Z"
@@ -276,7 +276,7 @@ test("LLM runner separates user intent from latest agent progress in payload", a
   const middleAssistant = {
     id: "obs-middle",
     sessionId: "session-1",
-    source: "browser" as const,
+    source: "cursor" as const,
     role: "assistant",
     text: "I inspected the files and started editing the form.",
     createdAt: "2026-01-01T00:00:30.000Z"
@@ -284,7 +284,7 @@ test("LLM runner separates user intent from latest agent progress in payload", a
   const blockedAssistant = {
     id: "obs-blocked",
     sessionId: "session-1",
-    source: "browser" as const,
+    source: "cursor" as const,
     role: "assistant",
     text: "The remaining blocker is that saving fails with a validation error.",
     createdAt: "2026-01-01T00:02:00.000Z"
@@ -342,7 +342,7 @@ test("LLM runner merges low-information continuation turns into previous task ch
       {
         id: "obs-3",
         sessionId: "session-1",
-        source: "browser" as const,
+        source: "cursor" as const,
         role: "user",
         text: "continue",
         createdAt: "2026-01-01T00:02:00.000Z"
@@ -350,7 +350,7 @@ test("LLM runner merges low-information continuation turns into previous task ch
       {
         id: "obs-4",
         sessionId: "session-1",
-        source: "browser" as const,
+        source: "cursor" as const,
         role: "assistant",
         text: "Still remaining: wire the save action.",
         createdAt: "2026-01-01T00:03:00.000Z"

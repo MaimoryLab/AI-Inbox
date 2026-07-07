@@ -113,7 +113,7 @@ test("CLI reports empty lists and invalid todo updates", async () => {
     assert.equal(missingScanSource.code, 1);
     assert.match(missingScanSource.stderr, /usage: ai-inbox scan/);
 
-    const badSource = await capture(() => main(["scan", "browser", dir]));
+    const badSource = await capture(() => main(["scan", "unknown", dir]));
     assert.equal(badSource.code, 1);
     assert.match(badSource.stderr, /unsupported source/);
 

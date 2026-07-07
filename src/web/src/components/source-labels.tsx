@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { Code2, Globe2 } from "lucide-react";
+import { Code2 } from "lucide-react";
 import { sourceLabel, textFor, type Locale } from "../i18n.js";
 import { cn } from "../lib/utils.js";
 import type { SessionRecord, SourceKind, SourceSummary } from "../types.js";
@@ -8,15 +8,13 @@ import type { SourceFilter } from "../view-model.js";
 export const sourceLabels: Record<SourceKind, string> = {
   codex: "Codex",
   "claude-code": "Claude",
-  cursor: "Cursor",
-  browser: "Browser"
+  cursor: "Cursor"
 };
 
 export function SourceIcon({ source }: { source?: SourceKind }) {
   const className = cn("h-4 w-4 shrink-0", source ? "text-neutral-500" : "text-neutral-400");
   if (source === "codex") return <CodexIcon className={className} />;
   if (source === "claude-code") return <ClaudeIcon className={className} />;
-  if (source === "browser") return <Globe2 className={className} aria-hidden="true" />;
   return <Code2 className={className} aria-hidden="true" />;
 }
 
@@ -51,9 +49,6 @@ export function sourceCount(sources: SourceSummary[], filter: SourceFilter): num
 }
 
 export function sessionProjectLabel(session: SessionRecord, locale: Locale): string {
-  if (session.source === "browser") {
-    return session.path === "browser" ? textFor(locale).browserSessions : (readablePathSegment(session.path) ?? textFor(locale).browserSessions);
-  }
   const projectPath = readableProjectPath(session.projectPath);
   if (projectPath) return projectPath;
   const parts = session.path.split("/").filter(Boolean);

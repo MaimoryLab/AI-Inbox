@@ -21,7 +21,6 @@ test("package exposes only the ai-inbox CLI on supported Node LTS", () => {
   assert.equal(pkg.scripts["release:zip"], "npm run build && node scripts/build-release.mjs");
   assert.ok(pkg.files.includes("dist/public"));
   assert.ok(pkg.files.includes("dist/src"));
-  assert.ok(pkg.files.includes("browser-extension"));
   assert.ok(pkg.devDependencies.postject);
 });
 
@@ -44,7 +43,6 @@ test("release packaging builds runnable platform zips and no legacy ai-todo comm
   assert.match(script, /Compress-Archive/);
   assert.match(script, /ditto/);
   assert.match(script, /COPYFILE_DISABLE/);
-  assert.match(script, /browser-extension/);
   assert.match(script, /managed-llm\.json/);
   assert.match(script, /AI_INBOX_MANAGED_LLM_API_KEYS/);
   assert.match(script, /deepseek\/deepseek-v4-flash/);

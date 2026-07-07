@@ -6,7 +6,6 @@ import { attachmentViewsFromText, isRenderableImagePath } from "../attachments.j
 import { loadConfig, loadSecrets, parseSettingsUpdate, publicConfig, saveEnvConfig, settingsToEnv } from "../config.js";
 import type { Database } from "../db/index.js";
 import { getAppPaths, type AppPaths } from "../paths.js";
-import { ingestBrowserSession, validateBrowserSessionInput } from "../sources/browser.js";
 import { ensureDiscoveredSourceEnv, type SourceDiscoveryResult } from "../sources/discovery.js";
 import { scanConfiguredSources, scanSource as scanSourceSessions, type ConfiguredScanSummary } from "../sources/scan.js";
 import { listSessionObservations, listSessions, listSources, type ListSessionsOptions } from "../sources/service.js";
@@ -170,20 +169,6 @@ export function createAppServer(options: {
         return;
       }
       writeJson(res, 200, observations);
-      return;
-    }
-
-    if (req.method === "POST" && (path === "/browser/sessions" || path === "/api/browser-sessions")) {
-      const db = requireDb(res, options.db);
-      if (!db) return;
-      const body = await readJson(req, res);
-      if (!body) return;
-      const validated = validateBrowserSessionInput(body);
-      if (!validated.ok) {
-        writeJson(res, 400, { error: validated.error });
-        return;
-      }
-      writeJson(res, 200, ingestBrowserSession(db, validated.input));
       return;
     }
 
@@ -380,7 +365,7 @@ function authorizeLocalRequest(req: IncomingMessage, res: ServerResponse<Incomin
 
 function parseSessionOptions(params: URLSearchParams): { ok: true; options: ListSessionsOptions } | { ok: false } {
   const source = params.get("source") || undefined;
-  if (source !== undefined && source !== "codex" && source !== "claude-code" && source !== "cursor" && source !== "browser") return { ok: false };
+  if (source !== undefined && source !== "codex" && source !== "claude-code" && source !== "cursor") return { ok: false };
   const sessionId = optionalText(params.get("sessionId"), 512);
   if (sessionId === null) return { ok: false };
   const limit = optionalInt(params.get("limit"), 1, 200);

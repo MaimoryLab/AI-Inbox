@@ -111,7 +111,7 @@ export function TodoBoard(props: {
               </label>
               <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_minmax(12rem,18rem)] xl:items-start">
                 <div className="flex min-w-0 flex-wrap gap-2" aria-label={text.sourceFilter}>
-                  {(["all", "codex", "claude-code", "cursor", "browser"] as const).map((filter) => (
+                  {(["all", "codex", "claude-code", "cursor"] as const).map((filter) => (
                     <button
                       key={filter}
                       type="button"

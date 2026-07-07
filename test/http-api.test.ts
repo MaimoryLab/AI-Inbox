@@ -248,14 +248,14 @@ test("HTTP attachments only serve files referenced by an observation", async () 
   writeFileSync(attachment, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES (?, ?, ?, ?)").run(
     "attachment-session",
-    "browser",
-    "browser",
+    "cursor",
+    "cursor",
     "2026-01-01T00:00:00.000Z"
   );
   db.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
     "attachment-observation",
     "attachment-session",
-    "browser",
+    "cursor",
     "user",
     `Please review this.\nImage: Screenshot (${attachment})`,
     "2026-01-01T00:00:00.000Z"
@@ -285,14 +285,14 @@ test("HTTP local token protects writes and attachment reads", async () => {
   writeFileSync(attachment, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES (?, ?, ?, ?)").run(
     "protected-session",
-    "browser",
-    "browser",
+    "cursor",
+    "cursor",
     "2026-01-01T00:00:00.000Z"
   );
   db.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
     "protected-observation",
     "protected-session",
-    "browser",
+    "cursor",
     "user",
     `Please review this.\nImage: Screenshot (${attachment})`,
     "2026-01-01T00:00:00.000Z"
@@ -328,7 +328,7 @@ test("HTTP API returns small explicit errors", async () => {
   const server = await startServer(db, paths);
 
   try {
-    assert.equal((await postJson(server.url("/sources/scan"), { source: "browser", path: fixture.codex })).status, 400);
+    assert.equal((await postJson(server.url("/sources/scan"), { source: "unknown", path: fixture.codex })).status, 400);
     assert.equal((await postJson(server.url("/sources/scan"), { source: "codex", path: join(fixture.root, "missing") })).status, 400);
     assert.equal((await getJson(server.url("/sessions/missing/observations"))).status, 404);
     assert.equal((await patchJson(server.url("/todos/missing"), { status: "done" })).status, 404);
@@ -667,7 +667,7 @@ test("HTTP settings rejects invalid config", async () => {
   const server = await startServer(db, paths);
 
   try {
-    assert.equal((await putJson(server.url("/settings"), { sources: { codex: {}, browser: {} } })).status, 400);
+    assert.equal((await putJson(server.url("/settings"), { sources: { codex: {}, unknown: {} } })).status, 400);
     assert.equal((await putJson(server.url("/settings"), { sources: { codex: { path: "" }, "claude-code": {}, cursor: {} } })).status, 400);
     assert.equal((await putJson(server.url("/settings"), { sources: { codex: { path: 1 }, "claude-code": {}, cursor: {} } })).status, 400);
     assert.equal((await putJson(server.url("/settings"), {
@@ -735,102 +735,6 @@ test("HTTP settings clears llm api key when requested", async () => {
     assert.equal(cleared.status, 200);
     assert.equal((await cleared.json()).llm.apiKeyConfigured, false);
     assert.doesNotMatch(readFileSync(paths.envPath, "utf8"), /dummy-llm-key-value/);
-  } finally {
-    await server.close();
-    db.close();
-    rmSync(fixture.root, { recursive: true, force: true });
-  }
-});
-
-test("HTTP browser ingest validates input", async () => {
-  const fixture = createFixture();
-  const paths = getAppPaths(join(fixture.root, "home"));
-  const db = openDatabase(paths);
-  const server = await startServer(db, paths, {}, "local-token");
-
-  try {
-    assert.equal((await postJson(server.url("/browser/sessions"), {})).status, 400);
-    assert.equal((await postJson(server.url("/browser/sessions"), { messages: [] })).status, 400);
-    assert.equal((await postJson(server.url("/browser/sessions"), { messages: [{ text: "" }] })).status, 400);
-    assert.equal((await postJson(server.url("/browser/sessions"), { messages: [{ text: 1 }] })).status, 400);
-    assert.equal((await postJson(server.url("/browser/sessions"), { messages: [{ text: "x", createdAt: "nope" }] })).status, 400);
-    assert.equal((await postJson(server.url("/browser/sessions"), { messages: [{ role: "user", text: "Valid browser todo" }] })).status, 200);
-    const capture = await postJson(server.url("/api/browser-sessions"), {
-      capturedAt: "2026-07-06T00:00:00.000Z",
-      page: { url: "https://chatgpt.com/c/http-api", title: "ChatGPT", host: "chatgpt.com" },
-      conversation: {
-        provider: "chatgpt",
-        turns: [
-          { role: "human", text: "Capture this browser task" },
-          { role: "assistant", text: "Captured." }
-        ]
-      }
-    });
-    assert.equal(capture.status, 200);
-    assert.equal((await postJson(server.url("/api/browser-sessions"), {
-      page: {},
-      conversation: { provider: "chatgpt", turns: [{ text: "x" }] }
-    })).status, 400);
-  } finally {
-    await server.close();
-    db.close();
-    rmSync(fixture.root, { recursive: true, force: true });
-  }
-});
-
-test("HTTP organize includes browser capture sessions", async () => {
-  const fixture = createFixture();
-  const paths = getAppPaths(join(fixture.root, "home"));
-  const db = openDatabase(paths);
-  const server = await startServer(db, paths, {
-    llmExtractor: async (observations: any[]) => {
-      const observation = observations.find((item) => item.source === "browser" && item.role === "user");
-      assert.ok(observation);
-      assert.equal(observations.filter((item) => item.text === "Please create a browser capture follow-up todo").length, 1);
-      return {
-        ok: true,
-        todos: [{
-          title: "Follow up from browser capture",
-          description: "The browser capture should produce a grounded card.",
-          confidence: 0.9,
-          sourceObservationId: observation.id,
-          quote: observation.text,
-          dedupeKey: "browser-capture-follow-up"
-        }]
-      };
-    }
-  });
-
-  try {
-    const ingest = await postJson(server.url("/api/browser-sessions"), {
-      capturedAt: "2026-07-06T00:00:00.000Z",
-      page: { url: "https://chatgpt.com/c/browser-flow", title: "ChatGPT", host: "chatgpt.com" },
-      conversation: {
-        provider: "chatgpt",
-        turns: [
-          { role: "unknown", text: "Please create a browser capture follow-up todo" },
-          { role: "user", text: "Please create a browser capture follow-up todo" },
-          { role: "assistant", text: "I will track it." }
-        ]
-      }
-    });
-    assert.equal(ingest.status, 200);
-
-    const sessions = await getJson(server.url("/sessions?source=browser"));
-    assert.equal(sessions.status, 200);
-    const [session] = await sessions.json();
-    assert.equal(session.source, "browser");
-    assert.equal(session.path, "https://chatgpt.com/c/browser-flow");
-
-    const organized = await postJson(server.url("/todos/organize"), {});
-    assert.equal(organized.status, 200);
-    const todos = await getJson(server.url("/todos"));
-    const [todo] = await todos.json();
-    assert.equal(todo.title, "Follow up from browser capture");
-    assert.equal(todo.origin.source, "browser");
-    const evidence = await getJson(server.url(`/todos/${todo.id}/evidence`));
-    assert.equal(evidence.status, 200);
-    assert.equal((await evidence.json())[0].source, "browser");
   } finally {
     await server.close();
     db.close();

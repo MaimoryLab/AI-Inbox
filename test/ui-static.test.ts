@@ -86,7 +86,7 @@ test("React UI keeps card-first Sources wording and accessible icon controls", (
   assert.match(todoBoard, /\{props\.organizeHistory\}/);
   assert.match(app, /onRestore=\{\(id\) => void updateTodo\(id, "todo"\)\}/);
   assert.match(types, /discovery: Array/);
-  assert.match(types, /export type SourceKind = "codex" \| "claude-code" \| "cursor" \| "browser"/);
+  assert.match(types, /export type SourceKind = "codex" \| "claude-code" \| "cursor"/);
   assert.match(types, /cursor: \{ path\?: string \}/);
   assert.match(types, /Extract<SourceKind, "codex" \| "claude-code" \| "cursor">/);
   assert.match(types, /projectPath\?: string/);

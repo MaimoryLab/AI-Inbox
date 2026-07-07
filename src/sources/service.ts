@@ -1,7 +1,7 @@
 import type { ObservationRecord, SessionRecord, SourceKind } from "../contracts.js";
 import type { Database } from "../db/index.js";
 
-const SOURCES: SourceKind[] = ["codex", "claude-code", "cursor", "browser"];
+const SOURCES: SourceKind[] = ["codex", "claude-code", "cursor"];
 export interface ListSessionsOptions {
   source?: SourceKind;
   sessionId?: string;
@@ -23,6 +23,8 @@ export function listSessions(db: Database, options: ListSessionsOptions = {}): S
   if (options.source) {
     conditions.push("sessions.source = ?");
     params.push(options.source);
+  } else {
+    conditions.push("sessions.source IN ('codex', 'claude-code', 'cursor')");
   }
   if (options.sessionId) {
     conditions.push("sessions.id = ?");
@@ -72,7 +74,7 @@ export function listSessions(db: Database, options: ListSessionsOptions = {}): S
 }
 
 export function listSessionObservations(db: Database, sessionId: string): ObservationRecord[] | null {
-  const session = db.prepare("SELECT id FROM sessions WHERE id = ?").get(sessionId);
+  const session = db.prepare("SELECT id FROM sessions WHERE id = ? AND source IN ('codex', 'claude-code', 'cursor')").get(sessionId);
   if (!session) return null;
   return db.prepare(
     `SELECT

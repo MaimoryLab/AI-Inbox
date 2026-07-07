@@ -3,7 +3,6 @@ import { isAgentContextText, isTurnAbortedText } from "../agent-context.js";
 import type { ChainNodeSummary, OrganizeResult, SourceKind, TaskChainView, TodoCard, TodoMetadata, TodoOrigin, TodoStatus } from "../contracts.js";
 import type { Database } from "../db/index.js";
 import { stableId } from "../extract/rules.js";
-import { dedupeBrowserObservations } from "../sources/browser.js";
 
 export interface TodoEvidence {
   id: string;
@@ -222,13 +221,12 @@ function loadScopedObservations(db: Database, scope: OrganizeOptions["scope"]): 
     where = "WHERE datetime(created_at) >= datetime(?)";
     params.push(new Date(Date.now() - scope.sinceDays * 24 * 60 * 60 * 1000).toISOString());
   }
-  const observations = (db.prepare(
+  return (db.prepare(
     `SELECT id, session_id as sessionId, source, role, text, created_at as createdAt
      FROM observations
-     ${where}
+     ${where ? `${where} AND` : "WHERE"} source IN ('codex', 'claude-code', 'cursor')
      ORDER BY created_at, id`
   ).all(...params) as unknown as ObservationForOrganize[]).filter((observation) => !isNonUserDemandText(observation.text));
-  return dedupeBrowserObservations(observations);
 }
 
 function isNonUserDemandText(text: string): boolean {
@@ -922,11 +920,12 @@ export function listTodos(db: Database): TodoCard[] {
     LEFT JOIN evidence ON evidence.todo_id = todos.id
     GROUP BY todos.id
     ORDER BY todos.updated_at DESC`
-  ).all().map((row) => {
+  ).all().flatMap((row) => {
     const record = row as Record<string, unknown>;
     const metadata = parseTodoMetadata(record.metadataJson);
     const sourceObservationId = metadata.sourceObservationId || String(record.evidenceObservationId || "");
-    return {
+    if (isRemovedSourceObservation(db, sourceObservationId)) return [];
+    return [{
       id: String(record.id),
       title: String(record.title),
       description: String(record.description),
@@ -936,8 +935,14 @@ export function listTodos(db: Database): TodoCard[] {
       chain: todoChain(db, String(record.chainNodeId || "")),
       updatedAt: String(record.updatedAt),
       evidenceIds: JSON.parse(String(record.evidenceIds))
-    };
+    }];
   });
+}
+
+function isRemovedSourceObservation(db: Database, observationId: string): boolean {
+  if (!observationId) return false;
+  const row = db.prepare("SELECT source FROM observations WHERE id = ?").get(observationId) as { source: string } | undefined;
+  return !!row && row.source !== "codex" && row.source !== "claude-code" && row.source !== "cursor";
 }
 
 function todoChain(db: Database, chainNodeId: string): TaskChainView | undefined {

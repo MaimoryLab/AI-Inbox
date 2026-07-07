@@ -20,8 +20,6 @@ export const HTTP_ROUTES = [
   "GET /sessions",
   "GET /sessions/:id/observations",
   "GET /attachments",
-  "POST /browser/sessions",
-  "POST /api/browser-sessions",
   "POST /todos/organize",
   "GET /todos",
   "PATCH /todos/:id",
@@ -42,7 +40,7 @@ export const MCP_TOOLS = [
 ] as const;
 
 export type TodoStatus = "todo" | "done" | "ignored";
-export type SourceKind = "codex" | "claude-code" | "cursor" | "browser";
+export type SourceKind = "codex" | "claude-code" | "cursor";
 export type OrganizeEngine = "llm";
 
 export interface SessionRecord {

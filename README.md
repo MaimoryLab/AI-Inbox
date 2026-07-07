@@ -34,7 +34,7 @@ It is not a project management system. It is a local-first triage workspace for 
 | --- | --- | --- |
 | Codex | `~/.codex` | Sessions and archived sessions |
 | Claude Code | `~/.claude/projects` | Project conversation records |
-| Browser | Planned | Browser plugin support and browser session extraction are not implemented yet. We plan to add them as soon as possible. |
+| Cursor | `~/.cursor/projects` | Agent transcripts and supported local Cursor records |
 
 Scanning imports session text and readable attachment references. It does not copy attachment files.
 
@@ -217,7 +217,6 @@ The UI language preference is saved in the current browser, not in `.env`.
 
 - AI-Inbox is local-first: config, database, and scanned records stay under `~/.ai-inbox` unless you override `AI_INBOX_HOME`.
 - Session text remains local during scanning and review.
-- Browser plugin support is not implemented yet, so AI-Inbox does not collect browser sessions by itself today.
 - During `organize`, relevant snippets are sent to the bundled managed endpoint or your configured LLM endpoint for extraction.
 - Custom API keys are stored in local config only and must never be committed.
 - README screenshots and fixtures should use synthetic or heavily anonymized content only.

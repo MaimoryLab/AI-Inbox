@@ -1,4 +1,4 @@
-export type SourceKind = "codex" | "claude-code" | "cursor" | "browser";
+export type SourceKind = "codex" | "claude-code" | "cursor";
 export type TodoStatus = "todo" | "done" | "ignored";
 
 export interface TodoOrigin {

@@ -6,7 +6,6 @@ import test from "node:test";
 import { openDatabase } from "../src/db/index.js";
 import { getAppPaths } from "../src/paths.js";
 import { createAppServer } from "../src/server/index.js";
-import { ingestBrowserSession } from "../src/sources/browser.js";
 import { markAgentContext } from "../src/agent-context.js";
 import { clearTodoData, listTodos, organizeTodos, scopeObservations } from "../src/todos/service.js";
 
@@ -14,8 +13,8 @@ test("organize without an LLM extractor creates no rule fallback cards", async (
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-no-llm-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-1",
+    ingestTestSession(db, {
+      id: "cursor-1",
       messages: [
         { role: "user", text: "Please add a CLI doctor command" },
         { role: "assistant", text: "Implemented the doctor command" }
@@ -41,28 +40,28 @@ test("clearTodoData removes todo-derived rows and preserves source observations"
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-clear-todos-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-1",
+    ingestTestSession(db, {
+      id: "cursor-1",
       messages: [{ role: "user", text: "Please keep source observations" }]
     });
     db.prepare(
       "INSERT INTO task_chains (id, session_id, source, title, summary, status, current_node_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run("chain-1", "browser-1", "browser", "Chain", "Summary", "in_progress", "node-1", "2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z");
+    ).run("chain-1", "cursor-1", "cursor", "Chain", "Summary", "in_progress", "node-1", "2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z");
     db.prepare(
       "INSERT INTO task_chain_nodes (id, chain_id, observation_id, position, title, summary, owner, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run("node-1", "chain-1", "browser-1:0", 0, "Current", "Summary", "agent", "current", "2026-01-01T00:00:00.000Z");
+    ).run("node-1", "chain-1", "cursor-1:0", 0, "Current", "Summary", "agent", "current", "2026-01-01T00:00:00.000Z");
     db.prepare(
       "INSERT INTO todos (id, title, description, status, chain_node_id, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
     ).run("todo-1", "Clear old card", "Old generated card", "todo", "node-1", "2026-01-01T00:00:00.000Z");
     db.prepare(
       "INSERT INTO evidence (id, todo_id, observation_id, text) VALUES (?, ?, ?, ?)"
-    ).run("evidence-1", "todo-1", "browser-1:0", "Please keep source observations");
+    ).run("evidence-1", "todo-1", "cursor-1:0", "Please keep source observations");
     db.prepare(
       "INSERT INTO organize_runs (id, result_json, created_at) VALUES (?, ?, ?)"
     ).run("run-1", "{}", "2026-01-01T00:00:00.000Z");
     db.prepare(
       "INSERT INTO organize_checkpoints (session_id, checkpoint, updated_at) VALUES (?, ?, ?)"
-    ).run("browser-1", "checkpoint-1", "2026-01-01T00:00:00.000Z");
+    ).run("cursor-1", "checkpoint-1", "2026-01-01T00:00:00.000Z");
 
     const cleared = clearTodoData(db);
 
@@ -89,8 +88,8 @@ test("organize endpoint returns zero cards when LLM config is missing", async ()
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-http-"));
   const paths = getAppPaths(dir);
   const db = openDatabase(paths);
-  ingestBrowserSession(db, {
-    id: "browser-1",
+  ingestTestSession(db, {
+    id: "cursor-1",
     messages: [{ role: "user", text: "Need update settings persistence" }]
   });
   const server = createAppServer({ db, paths });
@@ -118,8 +117,8 @@ test("organize endpoint can use configured llm extraction", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-http-llm-"));
   const paths = getAppPaths(dir);
   const db = openDatabase(paths);
-  ingestBrowserSession(db, {
-    id: "browser-1",
+  ingestTestSession(db, {
+    id: "cursor-1",
     messages: [{ role: "user", text: "Please add HTTP LLM cards" }]
   });
   const observationId = String((db.prepare("SELECT id FROM observations LIMIT 1").get() as any).id);
@@ -162,8 +161,8 @@ test("llm organize creates grounded cards and dedupes by model key", async () =>
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-llm-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-1",
+    ingestTestSession(db, {
+      id: "cursor-1",
       messages: [
         { role: "user", text: "Please add LLM settings UI" },
         { role: "assistant", text: "I will add LLM settings UI controls." }
@@ -188,7 +187,7 @@ test("llm organize creates grounded cards and dedupes by model key", async () =>
       }]
     });
     const result = await organizeTodos(db, { llmExtractor: extractor });
-    db.prepare("UPDATE sessions SET updated_at = '2026-01-01T00:01:00.000Z' WHERE id = 'browser-1'").run();
+    db.prepare("UPDATE sessions SET updated_at = '2026-01-01T00:01:00.000Z' WHERE id = 'cursor-1'").run();
     const second = await organizeTodos(db, { llmExtractor: extractor });
     const todos = listTodos(db);
     db.close();
@@ -214,8 +213,8 @@ test("llm organize keeps provenance anchored to the validated source observation
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-provenance-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-1",
+    ingestTestSession(db, {
+      id: "cursor-1",
       messages: [{ role: "user", text: "Please keep the trusted source id" }]
     });
     const observationId = String((db.prepare("SELECT id FROM observations WHERE role = 'user' LIMIT 1").get() as any).id);
@@ -241,32 +240,32 @@ test("llm organize keeps provenance anchored to the validated source observation
 
     assert.equal(todo.metadata.sourceObservationId, observationId);
     assert.equal(todo.origin?.observationId, observationId);
-    assert.equal(todo.origin?.projectTitle, "browser");
+    assert.equal(todo.origin?.projectTitle, "cursor");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("todo origin trims browser project titles derived from slash paths", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-browser-origin-title-"));
+test("todo origin trims cursor project titles derived from slash paths", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-cursor-origin-title-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-e2e",
-      path: "Browser / E2E Check",
-      messages: [{ role: "user", text: "Please keep a clean browser project title" }]
+    ingestTestSession(db, {
+      id: "cursor-e2e",
+      path: "Cursor / E2E Check",
+      messages: [{ role: "user", text: "Please keep a clean cursor project title" }]
     });
     const observationId = String((db.prepare("SELECT id FROM observations WHERE role = 'user' LIMIT 1").get() as any).id);
     await organizeTodos(db, {
       llmExtractor: async () => ({
         ok: true,
         todos: [{
-          title: "Keep clean browser project title",
+          title: "Keep clean cursor project title",
           description: "Source labels should not keep separator whitespace.",
           confidence: 0.9,
           sourceObservationId: observationId,
-          quote: "Please keep a clean browser project title",
-          dedupeKey: "clean-browser-project-title"
+          quote: "Please keep a clean cursor project title",
+          dedupeKey: "clean-cursor-project-title"
         }]
       })
     });
@@ -305,8 +304,8 @@ test("todo origin falls back to session path when project path is missing", () =
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-origin-project-fallback-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES ('legacy-session', 'browser', 'Browser / Legacy Project', '2026-01-01T00:00:00.000Z')").run();
-    db.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES ('obs-legacy', 'legacy-session', 'browser', 'user', 'Please keep fallback project names', '2026-01-01T00:00:00.000Z')").run();
+    db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES ('legacy-session', 'cursor', 'Cursor / Legacy Project', '2026-01-01T00:00:00.000Z')").run();
+    db.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES ('obs-legacy', 'legacy-session', 'cursor', 'user', 'Please keep fallback project names', '2026-01-01T00:00:00.000Z')").run();
     db.prepare("INSERT INTO todos (id, title, description, status, metadata_json, updated_at) VALUES ('todo-legacy', 'Legacy project todo', 'Fallback path should still work.', 'todo', ?, '2026-01-01T00:00:00.000Z')")
       .run(JSON.stringify({ sourceObservationId: "obs-legacy" }));
     db.prepare("INSERT INTO evidence (id, todo_id, observation_id, text) VALUES ('evidence-legacy', 'todo-legacy', 'obs-legacy', 'Please keep fallback project names')").run();
@@ -314,7 +313,7 @@ test("todo origin falls back to session path when project path is missing", () =
     const [todo] = listTodos(db);
     db.close();
 
-    assert.equal(todo.origin?.projectPath, "Browser / Legacy Project");
+    assert.equal(todo.origin?.projectPath, "Cursor / Legacy Project");
     assert.equal(todo.origin?.projectTitle, "Legacy Project");
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -328,8 +327,8 @@ test("database migration adds task chain tables and keeps legacy todos listable"
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>;
     const todoColumns = db.prepare("PRAGMA table_info(todos)").all() as Array<{ name: string }>;
 
-    db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES ('legacy-session', 'browser', 'Browser / Legacy Chain', '2026-01-01T00:00:00.000Z')").run();
-    db.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES ('legacy-obs', 'legacy-session', 'browser', 'user', 'Please keep legacy cards visible', '2026-01-01T00:00:00.000Z')").run();
+    db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES ('legacy-session', 'cursor', 'Cursor / Legacy Chain', '2026-01-01T00:00:00.000Z')").run();
+    db.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES ('legacy-obs', 'legacy-session', 'cursor', 'user', 'Please keep legacy cards visible', '2026-01-01T00:00:00.000Z')").run();
     db.prepare("INSERT INTO todos (id, title, description, status, metadata_json, updated_at) VALUES ('legacy-todo', 'Keep legacy cards visible', 'Legacy cards should not require chain data.', 'todo', ?, '2026-01-01T00:00:00.000Z')")
       .run(JSON.stringify({ sourceObservationId: "legacy-obs" }));
     db.prepare("INSERT INTO evidence (id, todo_id, observation_id, text) VALUES ('legacy-evidence', 'legacy-todo', 'legacy-obs', 'Please keep legacy cards visible')").run();
@@ -347,13 +346,41 @@ test("database migration adds task chain tables and keeps legacy todos listable"
   }
 });
 
+test("listTodos hides cards backed only by removed source observations", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-removed-source-todos-"));
+  try {
+    const db = openDatabase(getAppPaths(dir));
+    db.prepare("INSERT INTO sessions (id, source, path, updated_at) VALUES (?, ?, ?, ?)").run("old-session", "browser", "old-source", new Date().toISOString());
+    db.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
+      "old-observation",
+      "old-session",
+      "browser",
+      "user",
+      "Please hide this old card",
+      new Date().toISOString()
+    );
+    db.prepare("INSERT INTO todos (id, title, description, status, metadata_json, updated_at) VALUES (?, ?, ?, ?, ?, ?)").run(
+      "old-card",
+      "Old card",
+      "Old source card",
+      "todo",
+      JSON.stringify({ sourceObservationId: "old-observation" }),
+      new Date().toISOString()
+    );
+    assert.deepEqual(listTodos(db), []);
+    db.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("llm organize persists task chains and returns current node cards with collapsed completed nodes", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-task-chain-write-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-chain",
-      path: "Browser / Chain Project",
+    ingestTestSession(db, {
+      id: "cursor-chain",
+      path: "Cursor / Chain Project",
       messages: [
         { role: "user", text: "Please redesign the inbox card structure" },
         { role: "assistant", text: "Completed the data audit. Remaining work is wiring the chain view." }
@@ -366,7 +393,7 @@ test("llm organize persists task chains and returns current node cards with coll
       llmExtractor: async () => ({
         ok: true,
         taskChains: [{
-          chainId: "browser-chain:todo-card-structure",
+          chainId: "cursor-chain:todo-card-structure",
           title: "Redesign inbox card structure",
           summary: "The data audit is complete; the UI still needs chain containers.",
           status: "in_progress",
@@ -434,8 +461,8 @@ test("llm organize preserves existing task chain links when a later legacy todo 
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-task-chain-preserve-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-chain-preserve",
+    ingestTestSession(db, {
+      id: "cursor-chain-preserve",
       messages: [
         { role: "user", text: "Please preserve the task chain link" },
         { role: "assistant", text: "The chain exists; update the card text only." }
@@ -463,7 +490,7 @@ test("llm organize preserves existing task chain links when a later legacy todo 
       })
     });
 
-    db.prepare("UPDATE sessions SET updated_at = '2026-01-01T00:01:00.000Z' WHERE id = 'browser-chain-preserve'").run();
+    db.prepare("UPDATE sessions SET updated_at = '2026-01-01T00:01:00.000Z' WHERE id = 'cursor-chain-preserve'").run();
     await organizeTodos(db, {
       llmExtractor: async () => ({
         ok: true,
@@ -491,8 +518,8 @@ test("llm organize stores user-owned blocked current nodes from task chains", as
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-task-chain-user-owner-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-blocked-chain",
+    ingestTestSession(db, {
+      id: "cursor-blocked-chain",
       messages: [
         { role: "user", text: "Deploy the integration when credentials are available" },
         { role: "assistant", text: "Blocked until the user provides the API key." }
@@ -536,8 +563,8 @@ test("llm organize rejects agent-only execution current nodes", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-agent-only-current-node-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-agent-only",
+    ingestTestSession(db, {
+      id: "cursor-agent-only",
       messages: [
         { role: "user", text: "Please improve the local dashboard review flow" },
         { role: "assistant", text: "The code is ready; next I will restart the service and verify the build." }
@@ -582,8 +609,8 @@ test("llm organize keeps agent nodes that explicitly need user confirmation", as
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-agent-user-confirmation-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-agent-confirm",
+    ingestTestSession(db, {
+      id: "cursor-agent-confirm",
       messages: [
         { role: "user", text: "Please clean up the leftover stash backup after the merge" },
         { role: "assistant", text: "The merge is complete; before deleting the stash backup I need user confirmation." }
@@ -632,8 +659,8 @@ test("llm organize ignores fully completed task chains without current nodes", a
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-task-chain-completed-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-completed-chain",
+    ingestTestSession(db, {
+      id: "cursor-completed-chain",
       messages: [
         { role: "user", text: "Please finish the release checklist" },
         { role: "assistant", text: "The release checklist is complete." }
@@ -673,8 +700,8 @@ test("llm organize batches input without rules fallback for failed batches", asy
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-llm-batch-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-1",
+    ingestTestSession(db, {
+      id: "cursor-1",
       messages: [
         { role: "user", text: "Please add batched card one" },
         { role: "user", text: "Please add batched card two" },
@@ -719,15 +746,15 @@ test("llm organize batches by session instead of mixing sessions", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-session-batch-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-1",
+    ingestTestSession(db, {
+      id: "cursor-1",
       messages: [
         { role: "user", text: "Please add session one card" },
         { role: "assistant", text: "I will add session one card." }
       ]
     });
-    ingestBrowserSession(db, {
-      id: "browser-2",
+    ingestTestSession(db, {
+      id: "cursor-2",
       messages: [
         { role: "user", text: "Please add session two card" },
         { role: "assistant", text: "I will add session two card." }
@@ -756,7 +783,7 @@ test("llm organize batches by session instead of mixing sessions", async () => {
 
     assert.equal(result.created, 2);
     assert.deepEqual(calls.map((call) => call.length), [1, 1]);
-    assert.deepEqual(calls.flat().sort(), ["browser-1", "browser-2"]);
+    assert.deepEqual(calls.flat().sort(), ["cursor-1", "cursor-2"]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -767,7 +794,7 @@ test("organize applies batch payload budget per LLM request instead of globally"
   try {
     const db = openDatabase(getAppPaths(dir));
     for (const sessionId of ["budget-1", "budget-2", "budget-3"]) {
-      ingestBrowserSession(db, {
+      ingestTestSession(db, {
         id: sessionId,
         messages: [{ role: "user", text: `Please add ${sessionId} card` }]
       });
@@ -811,7 +838,7 @@ test("llm organize extracts batches with bounded concurrency", async () => {
   try {
     const db = openDatabase(getAppPaths(dir));
     for (const sessionId of ["concurrent-1", "concurrent-2", "concurrent-3", "concurrent-4"]) {
-      ingestBrowserSession(db, {
+      ingestTestSession(db, {
         id: sessionId,
         messages: [{ role: "user", text: `Please add ${sessionId} card` }]
       });
@@ -853,8 +880,8 @@ test("organize limits scoped observations before LLM extraction", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-limits-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-1",
+    ingestTestSession(db, {
+      id: "cursor-1",
       messages: [
         { role: "user", text: `Please add ${"x".repeat(30)} one` },
         { role: "user", text: "Please add limited block two" },
@@ -889,8 +916,8 @@ test("organize limits newest sessions before per-session extraction", async () =
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-max-sessions-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    insertObservation(db, "old-obs", "old-session", "browser", "user", "Please add old card", new Date(Date.now() - 60_000).toISOString());
-    insertObservation(db, "new-obs", "new-session", "browser", "user", "Please add new card", new Date(Date.now()).toISOString());
+    insertObservation(db, "old-obs", "old-session", "cursor", "user", "Please add old card", new Date(Date.now() - 60_000).toISOString());
+    insertObservation(db, "new-obs", "new-session", "cursor", "user", "Please add new card", new Date(Date.now()).toISOString());
 
     const calls: string[] = [];
     const result = await organizeTodos(db, {
@@ -926,8 +953,8 @@ test("organize keeps newest sessions when payload user block budget is smaller t
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-newest-budget-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    insertObservation(db, "old-obs", "old-session", "browser", "user", "Please add old budget card", new Date(Date.now() - 60_000).toISOString());
-    insertObservation(db, "new-obs", "new-session", "browser", "user", "Please add new budget card", new Date(Date.now()).toISOString());
+    insertObservation(db, "old-obs", "old-session", "cursor", "user", "Please add old budget card", new Date(Date.now() - 60_000).toISOString());
+    insertObservation(db, "new-obs", "new-session", "cursor", "user", "Please add new budget card", new Date(Date.now()).toISOString());
 
     const calls: string[] = [];
     await organizeTodos(db, {
@@ -961,8 +988,8 @@ test("llm organize rejects task-chain cards anchored to assistant when user inte
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-assistant-card-source-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    insertObservation(db, "user-obs", "session-1", "browser", "user", "Please fix settings save", "2026-01-01T00:00:00.000Z");
-    insertObservation(db, "assistant-obs", "session-1", "browser", "assistant", "Saving is blocked by validation.", "2026-01-01T00:01:00.000Z");
+    insertObservation(db, "user-obs", "session-1", "cursor", "user", "Please fix settings save", "2026-01-01T00:00:00.000Z");
+    insertObservation(db, "assistant-obs", "session-1", "cursor", "assistant", "Saving is blocked by validation.", "2026-01-01T00:01:00.000Z");
 
     const result = await organizeTodos(db, {
       llmExtractor: async () => ({
@@ -997,8 +1024,8 @@ test("llm organize accepts user card source with assistant metadata progress sou
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-progress-source-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    insertObservation(db, "user-obs", "session-1", "browser", "user", "Please fix settings save", "2026-01-01T00:00:00.000Z");
-    insertObservation(db, "assistant-obs", "session-1", "browser", "assistant", "Saving is blocked by validation.", "2026-01-01T00:01:00.000Z");
+    insertObservation(db, "user-obs", "session-1", "cursor", "user", "Please fix settings save", "2026-01-01T00:00:00.000Z");
+    insertObservation(db, "assistant-obs", "session-1", "cursor", "assistant", "Saving is blocked by validation.", "2026-01-01T00:01:00.000Z");
 
     const result = await organizeTodos(db, {
       llmExtractor: async () => ({
@@ -1039,8 +1066,8 @@ test("organize trims final LLM payload for user and assistant text with details"
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-payload-budget-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-1",
+    ingestTestSession(db, {
+      id: "cursor-1",
       messages: [
         { role: "user", text: `Please add ${"user ".repeat(100)}card` },
         { role: "assistant", text: `Assistant status ${"assistant ".repeat(100)}remaining work` }
@@ -1065,7 +1092,7 @@ test("organize trims final LLM payload for user and assistant text with details"
     db.close();
 
     assert.ok(result.warnings.includes("llm_input_truncated"));
-    assert.ok(result.details?.truncations?.some((item) => item.sessionId === "browser-1" && item.role === "assistant"));
+    assert.ok(result.details?.truncations?.some((item) => item.sessionId === "cursor-1" && item.role === "assistant"));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -1075,8 +1102,8 @@ test("organize records provider failure details while other sessions succeed", a
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-failure-details-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, { id: "failed-session", messages: [{ role: "user", text: "Please add failed card" }] });
-    ingestBrowserSession(db, { id: "ok-session", messages: [{ role: "user", text: "Please add ok card" }] });
+    ingestTestSession(db, { id: "failed-session", messages: [{ role: "user", text: "Please add failed card" }] });
+    ingestTestSession(db, { id: "ok-session", messages: [{ role: "user", text: "Please add ok card" }] });
 
     const result = await organizeTodos(db, {
       llmExtractor: async (observations) => {
@@ -1124,8 +1151,8 @@ test("llm organize rejects process, status, and tool-polluted candidates", async
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-quality-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-1",
+    ingestTestSession(db, {
+      id: "cursor-1",
       messages: [
         { role: "user", text: "我会做最后一次状态确认，确保工作区干净。服务可用，健康检查已完成。" },
         { role: "assistant", text: "Bash(git status) process exited 0" }
@@ -1160,8 +1187,8 @@ test("llm organize suppresses near duplicate cards with different model keys", a
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-near-dupe-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-1",
+    ingestTestSession(db, {
+      id: "cursor-1",
       messages: [
         { role: "user", text: "后续需要修复 CI 失败，并重新跑测试。" },
         { role: "user", text: "需要重新跑测试并修复 CI 失败。" }
@@ -1206,8 +1233,8 @@ test("llm organize updates an active near-duplicate card when the model key chan
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-update-drifted-key-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-drift",
+    ingestTestSession(db, {
+      id: "cursor-drift",
       messages: [
         { role: "user", text: "Please fix settings save validation" },
         { role: "assistant", text: "Validation still blocks saving settings." }
@@ -1229,7 +1256,7 @@ test("llm organize updates an active near-duplicate card when the model key chan
       })
     });
 
-    db.prepare("UPDATE sessions SET updated_at = '2026-01-01T00:01:00.000Z' WHERE id = 'browser-drift'").run();
+    db.prepare("UPDATE sessions SET updated_at = '2026-01-01T00:01:00.000Z' WHERE id = 'cursor-drift'").run();
     const second = await organizeTodos(db, {
       llmExtractor: async () => ({
         ok: true,
@@ -1261,8 +1288,8 @@ test("organize skips sessions whose checkpoint was already processed", async () 
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-checkpoint-skip-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-checkpoint",
+    ingestTestSession(db, {
+      id: "cursor-checkpoint",
       messages: [{ role: "user", text: "Please add checkpointed card" }]
     });
     const observationId = String((db.prepare("SELECT id FROM observations WHERE role = 'user' LIMIT 1").get() as any).id);
@@ -1302,8 +1329,8 @@ test("organize retries sessions whose previous LLM batch failed", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-checkpoint-retry-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-retry",
+    ingestTestSession(db, {
+      id: "cursor-retry",
       messages: [{ role: "user", text: "Please add retryable card" }]
     });
     const observationId = String((db.prepare("SELECT id FROM observations WHERE role = 'user' LIMIT 1").get() as any).id);
@@ -1347,8 +1374,8 @@ test("organize retries sessions whose previous candidates were rejected", async 
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-checkpoint-invalid-retry-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-invalid-retry",
+    ingestTestSession(db, {
+      id: "cursor-invalid-retry",
       messages: [{ role: "user", text: "Please add rejected candidate retry" }]
     });
     const observationId = String((db.prepare("SELECT id FROM observations WHERE role = 'user' LIMIT 1").get() as any).id);
@@ -1402,8 +1429,8 @@ test("llm unavailable returns warnings without creating rules cards", async () =
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-llm-unavailable-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-1",
+    ingestTestSession(db, {
+      id: "cursor-1",
       messages: [{ role: "user", text: "Please add fallback warnings" }]
     });
 
@@ -1426,8 +1453,8 @@ test("llm organize rejects ungrounded model output without rules fallback", asyn
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-organize-llm-invalid-"));
   try {
     const db = openDatabase(getAppPaths(dir));
-    ingestBrowserSession(db, {
-      id: "browser-1",
+    ingestTestSession(db, {
+      id: "cursor-1",
       messages: [{ role: "user", text: "Please add grounded evidence checks" }]
     });
     const observationId = String((db.prepare("SELECT id FROM observations LIMIT 1").get() as any).id);
@@ -1536,7 +1563,7 @@ test("organize with maxSessions selects the newest session across sources", asyn
     const db = openDatabase(getAppPaths(dir));
     const now = Date.now();
     insertObservation(db, "codex-old-user", "codex-old", "codex", "user", "Please handle old Codex work", new Date(now - 3000).toISOString());
-    insertObservation(db, "browser-mid-user", "browser-mid", "browser", "user", "Please handle browser work", new Date(now - 2000).toISOString());
+    insertObservation(db, "cursor-mid-user", "cursor-mid", "cursor", "user", "Please handle cursor work", new Date(now - 2000).toISOString());
     insertObservation(db, "claude-new-user", "claude-new", "claude-code", "user", "Please handle new Claude work", new Date(now - 1000).toISOString());
     const seenSessionIds: string[] = [];
 
@@ -1581,7 +1608,31 @@ test("organize batches sessions newest first instead of insertion order", async 
 });
 
 function observation(id: string, sessionId: string, role: string, text: string, createdAt: string) {
-  return { id, sessionId, source: "browser" as const, role, text, createdAt };
+  return { id, sessionId, source: "cursor" as const, role, text, createdAt };
+}
+
+function ingestTestSession(
+  db: ReturnType<typeof openDatabase>,
+  input: { id: string; path?: string; messages: Array<{ role: string; text: string; createdAt?: string }> }
+) {
+  const updatedAt = input.messages.at(-1)?.createdAt ?? new Date().toISOString();
+  db.prepare("INSERT OR REPLACE INTO sessions (id, source, path, updated_at) VALUES (?, ?, ?, ?)").run(
+    input.id,
+    "cursor",
+    input.path ?? "cursor",
+    updatedAt
+  );
+  db.prepare("DELETE FROM observations WHERE session_id = ?").run(input.id);
+  for (const [index, message] of input.messages.entries()) {
+    db.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
+      `${input.id}:${index}`,
+      input.id,
+      "cursor",
+      message.role,
+      message.text,
+      message.createdAt ?? updatedAt
+    );
+  }
 }
 
 function insertObservation(

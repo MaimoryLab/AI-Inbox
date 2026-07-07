@@ -12,7 +12,6 @@
     "dist/cli.js",
     "dist/src",
     "dist/public",
-    "browser-extension",
     "LICENSE",
     "README.md"
   ],
