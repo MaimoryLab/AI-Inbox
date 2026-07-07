@@ -229,6 +229,7 @@ test("React UI keeps card-first Sources wording and accessible icon controls", (
   assert.match(app, /error instanceof ApiError/);
   assert.match(app, /organizeResultFromError/);
   assert.match(app, /organizeFailureReasonText/);
+  assert.match(app, /dedupeBatchFailures/);
   assert.match(app, /result\.details\?\.failureReason/);
   assert.match(types, /reason: string/);
   assert.match(types, /failureReason\?: string/);

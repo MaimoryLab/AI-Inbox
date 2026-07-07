@@ -353,9 +353,10 @@ function OrganizeHistoryPanel({ items, locale }: { items: OrganizeHistoryItem[];
               )}
               {result.details?.batchFailures?.length ? (
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-[var(--app-muted)]">
-                  {result.details.batchFailures.map((failure) => (
-                    <li key={`${failure.sessionId}-${failure.warning}-${failure.reason}`}>
+                  {dedupeBatchFailures(result.details.batchFailures).map((failure) => (
+                    <li key={`${failure.warning}-${failure.reason}`}>
                       {localizedUserFacingError(failure.warning, locale)} {organizeFailureReasonText(failure.reason, locale)}
+                      {failure.count > 1 ? ` ×${failure.count}` : ""}
                     </li>
                   ))}
                 </ul>
@@ -367,6 +368,17 @@ function OrganizeHistoryPanel({ items, locale }: { items: OrganizeHistoryItem[];
       </div>
     </details>
   );
+}
+
+function dedupeBatchFailures(failures: NonNullable<NonNullable<OrganizeResult["details"]>["batchFailures"]>) {
+  const byReason = new Map<string, { warning: string; reason: string; count: number }>();
+  for (const failure of failures) {
+    const key = `${failure.warning}\0${failure.reason}`;
+    const current = byReason.get(key);
+    if (current) current.count++;
+    else byReason.set(key, { warning: failure.warning, reason: failure.reason, count: 1 });
+  }
+  return Array.from(byReason.values());
 }
 
 function OrganizeDetailsSummary({ result, locale }: { result: OrganizeResult; locale: Locale }) {
