@@ -472,7 +472,11 @@ function projectPathString(value: unknown): string | null {
     try {
       return fileURLToPath(text);
     } catch {
-      return null;
+      try {
+        return decodeURIComponent(new URL(text).pathname);
+      } catch {
+        return null;
+      }
     }
   }
   return text;
