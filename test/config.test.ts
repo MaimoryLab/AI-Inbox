@@ -315,7 +315,7 @@ test("default env generation writes necessary values without empty api key", () 
     ensureDefaultEnv(paths);
     const text = readFileSync(paths.envPath, "utf8");
     assert.match(text, /AI_INBOX_CODEX_HOME=.*\.codex/);
-    assert.match(text, /AI_INBOX_CURSOR_HOME=.*\.cursor\/projects/);
+    assert.match(text, /AI_INBOX_CURSOR_HOME=.*\.cursor[\\/]projects/);
     assert.doesNotMatch(text, /AI_INBOX_CODEX_HOME=.*\.codex\/sessions/);
     assert.match(text, /AI_INBOX_LLM_MODEL=deepseek\/deepseek-v4-flash/);
     assert.match(text, /AI_INBOX_LLM_THINKING_DEPTH=low/);
