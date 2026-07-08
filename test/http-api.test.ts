@@ -277,7 +277,7 @@ test("HTTP attachments only serve files referenced by an observation", async () 
   }
 });
 
-test("HTTP local token protects writes and attachment reads", async () => {
+test("HTTP API local workspace writes do not require a local token", async () => {
   const fixture = createFixture();
   const paths = getAppPaths(join(fixture.root, "home"));
   const db = openDatabase(paths);
@@ -297,23 +297,12 @@ test("HTTP local token protects writes and attachment reads", async () => {
     `Please review this.\nImage: Screenshot (${attachment})`,
     "2026-01-01T00:00:00.000Z"
   );
-  const server = await startServer(db, paths, {}, "local-token");
+  const server = await startServer(db, paths);
 
   try {
     assert.equal((await getJson(server.url("/todos"))).status, 200);
-    assert.equal((await postJson(server.url("/todos/clear"), {})).status, 403);
-    assert.equal((await getJson(server.url("/attachments?observationId=protected-observation&index=0"))).status, 403);
-    assert.equal((await getJson(server.url("/attachments?observationId=protected-observation&index=0&token=local-token"))).status, 403);
-    const cleared = await fetch(server.url("/todos/clear"), {
-      method: "POST",
-      headers: { "x-ai-inbox-token": "local-token" },
-      body: JSON.stringify({})
-    });
-    assert.equal(cleared.status, 200);
-    const okAttachment = await fetch(server.url("/attachments?observationId=protected-observation&index=0"), {
-      headers: { "x-ai-inbox-token": "local-token" }
-    });
-    assert.equal(okAttachment.status, 200);
+    assert.equal((await postJson(server.url("/todos/clear"), {})).status, 200);
+    assert.equal((await getJson(server.url("/attachments?observationId=protected-observation&index=0"))).status, 200);
   } finally {
     await server.close();
     db.close();
@@ -1150,8 +1139,8 @@ function createCursorHttpFixture(root: string) {
   return { root: cursorRoot, dbPath: transcriptPath };
 }
 
-async function startServer(db: Database, paths = getAppPaths(), organizeOptions = {}, localToken?: string) {
-  const server = createAppServer({ db, paths, organizeOptions, localToken });
+async function startServer(db: Database, paths = getAppPaths(), organizeOptions = {}) {
+  const server = createAppServer({ db, paths, organizeOptions });
   await new Promise<void>((resolve) => server.listen(0, resolve));
   const address = server.address();
   assert.ok(address && typeof address !== "string");

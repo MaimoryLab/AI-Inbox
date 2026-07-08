@@ -4,8 +4,8 @@ import { AppShell } from "./components/app-shell.js";
 import { SettingsWorkspace } from "./components/settings-workspace.js";
 import { SourcesWorkspace } from "./components/sources-workspace.js";
 import { TodoBoard } from "./components/todo-board.js";
-import { organizeFailureReasonText, readLocale, textFor, writeLocale, type Locale } from "./i18n.js";
-import type { ObservationRecord, OrganizeResult, OrganizeStatus, PublicAppConfig, SessionRecord, SourceSummary, StartupScanStatus, TodoCard, TodoEvidence } from "./types.js";
+import { organizeFailureReasonText, preflightCheckText, readLocale, textFor, writeLocale, type Locale } from "./i18n.js";
+import type { ObservationRecord, OrganizeResult, OrganizeStatus, PreflightResult, PublicAppConfig, SessionRecord, SourceSummary, StartupScanStatus, TodoCard, TodoEvidence } from "./types.js";
 import type { SourceFilter, View } from "./view-model.js";
 
 const SESSION_PAGE_SIZE = 50;
@@ -145,9 +145,16 @@ export function App() {
   async function organize() {
     if (organizeRunning) return;
     setBusy(true);
-    setOrganizeRunning(true);
     setStatus(text.organizing);
     try {
+      const preflight = await api<PreflightResult>("/diagnostics/preflight", { method: "POST", body: {} });
+      if (!preflight.canOrganize) {
+        const result = preflightFailureResult(preflight, locale);
+        setStatus(text.preflightFailed);
+        rememberOrganizeResult(result);
+        return;
+      }
+      setOrganizeRunning(true);
       const result = await api<OrganizeResult>("/todos/organize", { method: "POST", body: {} });
       await refresh();
       setStatus(organizeStatus(result, locale));
@@ -427,6 +434,21 @@ function organizeResultFromError(error: ApiError): OrganizeResult | null {
   const record = data as Partial<OrganizeResult>;
   if (typeof record.created !== "number" || typeof record.updated !== "number" || !Array.isArray(record.warnings)) return null;
   return record as OrganizeResult;
+}
+
+function preflightFailureResult(preflight: PreflightResult, locale: Locale): OrganizeResult {
+  const failed = preflight.checks.filter((check) => check.status === "fail");
+  return {
+    created: 0,
+    updated: 0,
+    warnings: ["organize_failed"],
+    details: {
+      failureReason: failed
+        .map((check) => preflightCheckText(check, locale))
+        .join("\n")
+    },
+    durationMs: preflight.durationMs
+  };
 }
 
 function startupStatusMessage(startup: StartupScanStatus | null, locale: Locale): string {

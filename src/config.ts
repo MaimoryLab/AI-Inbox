@@ -6,6 +6,7 @@ import type { AppPaths } from "./paths.js";
 
 export const DEFAULT_LLM_MODEL = "deepseek/deepseek-v4-flash";
 export const DEFAULT_LLM_PROVIDER = "openai";
+export const DEFAULT_LLM_PROTOCOL = "openai-chat";
 export const DEFAULT_LLM_ENDPOINT = "https://api.novita.ai/openai/v1";
 export const DEFAULT_LLM_TIMEOUT_MS = 120000;
 export const DEFAULT_ORGANIZE_SINCE_DAYS = 7;
@@ -18,6 +19,7 @@ const DEFAULT_CLAUDE_HOME = join(homedir(), ".claude", "projects");
 const MANAGED_LLM_CONFIG_FILE = "managed-llm.json";
 const IGNORED_ENV_KEYS = new Set(["AI_INBOX_LLM_" + "PYTHON"]);
 const SOURCE_ENV_KEYS = ["AI_INBOX_CODEX_HOME", "AI_INBOX_CLAUDE_HOME", "AI_INBOX_CURSOR_HOME"] as const;
+export type LlmProtocol = "openai-chat" | "openai-responses" | "anthropic-messages";
 
 export interface AppConfig {
   sources: {
@@ -28,6 +30,7 @@ export interface AppConfig {
   llm: {
     enabled: boolean;
     provider: "openai";
+    protocol: LlmProtocol;
     model: string;
     endpoint: string;
     thinkingDepth: "low" | "medium" | "high";
@@ -59,6 +62,7 @@ export const WRITABLE_ENV_KEYS = [
   "AI_INBOX_CLAUDE_HOME",
   "AI_INBOX_CURSOR_HOME",
   "AI_INBOX_LLM_ENABLED",
+  "AI_INBOX_LLM_PROTOCOL",
   "AI_INBOX_LLM_PROVIDER",
   "AI_INBOX_LLM_MODEL",
   "AI_INBOX_LLM_ENDPOINT",
@@ -84,6 +88,7 @@ export function defaultConfig(): AppConfig {
     llm: {
       enabled: true,
       provider: DEFAULT_LLM_PROVIDER,
+      protocol: DEFAULT_LLM_PROTOCOL,
       model: DEFAULT_LLM_MODEL,
       endpoint: DEFAULT_LLM_ENDPOINT,
       thinkingDepth: "low",
@@ -104,6 +109,7 @@ export function defaultEnvConfig(includeApiKey?: string): EnvConfig {
     AI_INBOX_CLAUDE_HOME: DEFAULT_CLAUDE_HOME,
     AI_INBOX_CURSOR_HOME: join(homedir(), ".cursor", "projects"),
     AI_INBOX_LLM_ENABLED: "true",
+    AI_INBOX_LLM_PROTOCOL: DEFAULT_LLM_PROTOCOL,
     AI_INBOX_LLM_PROVIDER: DEFAULT_LLM_PROVIDER,
     AI_INBOX_LLM_MODEL: DEFAULT_LLM_MODEL,
     AI_INBOX_LLM_ENDPOINT: DEFAULT_LLM_ENDPOINT,
@@ -119,7 +125,7 @@ export function defaultEnvConfig(includeApiKey?: string): EnvConfig {
 
 export function loadConfig(paths: AppPaths): AppConfig {
   const jsonConfig = loadJsonConfig(paths);
-  return parseConfig(applyEnvConfig(jsonConfig, loadEnvConfig(paths)));
+  return parseConfig(applyEnvConfig(applyManagedLlmConfig(jsonConfig), loadEnvConfig(paths)));
 }
 
 export function saveConfig(paths: AppPaths, config: AppConfig): void {
@@ -221,6 +227,7 @@ export function configToEnv(config: AppConfig): EnvConfig {
     AI_INBOX_CLAUDE_HOME: parsed.sources["claude-code"].path,
     AI_INBOX_CURSOR_HOME: parsed.sources.cursor.path,
     AI_INBOX_LLM_ENABLED: String(parsed.llm.enabled),
+    AI_INBOX_LLM_PROTOCOL: parsed.llm.protocol,
     AI_INBOX_LLM_PROVIDER: parsed.llm.provider,
     AI_INBOX_LLM_MODEL: parsed.llm.model,
     AI_INBOX_LLM_ENDPOINT: parsed.llm.endpoint,
@@ -317,9 +324,11 @@ function applyEnvConfig(config: AppConfig, env: EnvConfig): AppConfig {
   if (env.AI_INBOX_CLAUDE_HOME) next.sources["claude-code"] = { path: cleanSourcePath(env.AI_INBOX_CLAUDE_HOME) };
   if (env.AI_INBOX_CURSOR_HOME) next.sources.cursor = { path: cleanSourcePath(env.AI_INBOX_CURSOR_HOME) };
   if (env.AI_INBOX_LLM_ENABLED !== undefined) next.llm.enabled = parseBoolean(env.AI_INBOX_LLM_ENABLED);
+  if (env.AI_INBOX_LLM_PROTOCOL !== undefined) next.llm.protocol = parseLlmProtocol(env.AI_INBOX_LLM_PROTOCOL);
   if (env.AI_INBOX_LLM_PROVIDER !== undefined) {
     if (env.AI_INBOX_LLM_PROVIDER !== "openai") throw new Error("config_invalid");
     next.llm.provider = "openai";
+    if (env.AI_INBOX_LLM_PROTOCOL === undefined) next.llm.protocol = "openai-chat";
   }
   if (env.AI_INBOX_LLM_MODEL) next.llm.model = env.AI_INBOX_LLM_MODEL;
   if (env.AI_INBOX_LLM_ENDPOINT) next.llm.endpoint = env.AI_INBOX_LLM_ENDPOINT;
@@ -368,11 +377,12 @@ function llmConfig(value: unknown): AppConfig["llm"] {
   const input = objectValue(value);
   if (!input) throw new Error("config_invalid");
   const keys = Object.keys(input);
-  if (keys.some((key) => !["enabled", "provider", "model", "endpoint", "thinkingDepth", "timeoutMs"].includes(key))) {
+  if (keys.some((key) => !["enabled", "provider", "protocol", "model", "endpoint", "thinkingDepth", "timeoutMs"].includes(key))) {
     throw new Error("config_invalid");
   }
   if (typeof input.enabled !== "boolean") throw new Error("config_invalid");
   if (input.provider !== "openai") throw new Error("config_invalid");
+  const protocol = input.protocol === undefined ? "openai-chat" : parseLlmProtocol(input.protocol);
   const model = nonEmptyString(input.model);
   const endpoint = nonEmptyString(input.endpoint);
   const thinkingDepth = parseThinkingDepth(input.thinkingDepth);
@@ -380,7 +390,17 @@ function llmConfig(value: unknown): AppConfig["llm"] {
   if (typeof timeoutMs !== "number" || !Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 600000) {
     throw new Error("config_invalid");
   }
-  return { enabled: input.enabled, provider: "openai", model, endpoint, thinkingDepth, timeoutMs };
+  return { enabled: input.enabled, provider: "openai", protocol, model, endpoint, thinkingDepth, timeoutMs };
+}
+
+function applyManagedLlmConfig(config: AppConfig): AppConfig {
+  const record = managedLlmRecord();
+  if (!record) return config;
+  const llm = { ...config.llm };
+  if (typeof record.protocol === "string") llm.protocol = parseLlmProtocol(record.protocol);
+  if (typeof record.model === "string" && record.model.trim()) llm.model = record.model.trim();
+  if (typeof record.endpoint === "string" && record.endpoint.trim()) llm.endpoint = record.endpoint.trim();
+  return { ...config, llm };
 }
 
 function organizeConfig(value: unknown): AppConfig["organize"] {
@@ -415,12 +435,16 @@ function parseSecrets(input: unknown): AppSecrets {
 }
 
 function loadManagedArtifactSecrets(paths: AppPaths): AppSecrets | undefined {
-  const configPath = managedLlmConfigPath();
-  if (!existsSync(configPath)) return undefined;
-  const record = objectValue(JSON.parse(readFileSync(configPath, "utf8")));
+  const record = managedLlmRecord();
   const keys = parseManagedKeys(record?.apiKeys);
   if (keys.length === 0) return undefined;
   return { llmApiKey: selectManagedKey(keys, paths), llmApiKeySource: "managed" };
+}
+
+function managedLlmRecord(): Record<string, unknown> | null {
+  const configPath = managedLlmConfigPath();
+  if (!existsSync(configPath)) return null;
+  return objectValue(JSON.parse(readFileSync(configPath, "utf8")));
 }
 
 function loadManagedEnvSecrets(paths: AppPaths): AppSecrets | undefined {
@@ -454,6 +478,7 @@ function sanitizeEnvConfig(input: EnvConfig): EnvConfig {
     const text = String(value).trim();
     if (!text) continue;
     if (/[\r\n]/.test(text)) throw new Error("env_invalid");
+    if (key === "AI_INBOX_LLM_PROTOCOL") parseLlmProtocol(text);
     env[key] = text;
   }
   return env;
@@ -489,6 +514,11 @@ function nonEmptyString(value: unknown): string {
 function parseThinkingDepth(value: unknown): "low" | "medium" | "high" {
   if (value !== "low" && value !== "medium" && value !== "high") throw new Error("config_invalid");
   return value;
+}
+
+function parseLlmProtocol(value: unknown): LlmProtocol {
+  if (value === "openai-chat" || value === "openai-responses" || value === "anthropic-messages") return value;
+  throw new Error("config_invalid");
 }
 
 function parseBoolean(value: string): boolean {

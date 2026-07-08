@@ -118,6 +118,90 @@ test("LLM runner sends OpenAI-compatible request and parses grounded todos", asy
   }
 });
 
+test("LLM runner sends OpenAI Responses request and parses output text", async () => {
+  const server = await startMockProvider(async (request) => {
+    assert.equal(request.url, "/v1/responses");
+    assert.equal(request.headers.authorization, "Bearer dummy-llm-key-value");
+    const payload = await readJson(request);
+    assert.equal(payload.model, "test/responses-model");
+    assert.match(payload.instructions, /AI-Inbox cards/);
+    assert.equal(typeof payload.input, "string");
+    assert.equal(payload.text.format.type, "json_object");
+    return jsonResponse({
+      output_text: JSON.stringify({
+        todos: [{
+          title: "Add Responses protocol",
+          description: "Wire OpenAI Responses protocol for extraction.",
+          confidence: 0.9,
+          sourceObservationId: "obs-1",
+          quote: "Please add LLM settings UI",
+          dedupeKey: "add-responses-protocol"
+        }]
+      })
+    });
+  });
+
+  try {
+    const runner = createLlmRunner(
+      { ...defaultConfig().llm, protocol: "openai-responses", model: "test/responses-model", endpoint: server.url("/v1") },
+      { llmApiKey: "dummy-llm-key-value" }
+    );
+    const result = await runner([observation, assistantObservation]);
+    assert.equal(result.ok, true);
+    assert.equal(result.ok && result.todos?.[0].title, "Add Responses protocol");
+  } finally {
+    await server.close();
+  }
+});
+
+test("LLM runner sends Anthropic Messages request and parses tool input", async () => {
+  const server = await startMockProvider(async (request) => {
+    assert.equal(request.url, "/v1/messages");
+    assert.equal(request.headers["x-api-key"], "dummy-llm-key-value");
+    assert.equal(request.headers["anthropic-version"], "2023-06-01");
+    const payload = await readJson(request);
+    assert.equal(payload.model, "claude-test");
+    assert.match(payload.system, /AI-Inbox cards/);
+    assert.equal(payload.messages[0].role, "user");
+    assert.equal(payload.tool_choice.name, "emit_ai_inbox_cards");
+    return jsonResponse({
+      content: [{
+        type: "tool_use",
+        name: "emit_ai_inbox_cards",
+        input: {
+          taskChains: [{
+            title: "Add Anthropic protocol",
+            summary: "Anthropic protocol needs to be wired.",
+            status: "in_progress",
+            completedNodes: [],
+            currentNode: {
+              title: "Add Anthropic protocol",
+              description: "Wire Anthropic Messages protocol for extraction.",
+              owner: "agent",
+              confidence: 0.9,
+              sourceObservationId: "obs-1",
+              quote: "Please add LLM settings UI",
+              dedupeKey: "add-anthropic-protocol"
+            }
+          }]
+        }
+      }]
+    });
+  });
+
+  try {
+    const runner = createLlmRunner(
+      { ...defaultConfig().llm, protocol: "anthropic-messages", model: "claude-test", endpoint: server.url("/v1") },
+      { llmApiKey: "dummy-llm-key-value" }
+    );
+    const result = await runner([observation, assistantObservation]);
+    assert.equal(result.ok, true);
+    assert.equal(result.ok && result.taskChains?.[0].title, "Add Anthropic protocol");
+  } finally {
+    await server.close();
+  }
+});
+
 test("LLM runner sends task chain instructions and parses structured task chains", async () => {
   const server = await startMockProvider(async (request) => {
     const payload = await readJson(request);

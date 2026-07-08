@@ -50,6 +50,7 @@ test("CLI init writes local env config and doctor reports it", async () => {
     const init = await capture(() => main([
       "init",
       "--api-key", "dummy-llm-key-value",
+      "--llm-protocol", "anthropic-messages",
       "--model", "custom/model",
       "--endpoint", "https://llm.example.test/v1",
       "--codex-home", join(dir, "codex"),
@@ -59,12 +60,72 @@ test("CLI init writes local env config and doctor reports it", async () => {
     ]));
     assert.equal(init.code, 0);
     const envText = readFileSync(join(process.env.AI_INBOX_HOME, ".env"), "utf8");
+    assert.match(envText, /AI_INBOX_LLM_PROTOCOL=anthropic-messages/);
     assert.match(envText, /AI_INBOX_LLM_MODEL=custom\/model/);
     assert.match(envText, /AI_INBOX_LLM_API_KEY=dummy-llm-key-value/);
     const doctor = await capture(() => main(["doctor"]));
     assert.equal(doctor.code, 0);
+    assert.match(doctor.stdout, /llm protocol: anthropic-messages/);
     assert.match(doctor.stdout, /llm key: configured/);
+    assert.match(doctor.stdout, /ai-inbox preflight/);
     assert.doesNotMatch(doctor.stdout, /dummy-llm-key-value/);
+  } finally {
+    process.env.AI_INBOX_HOME = previousHome;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI config get and set expose settings available in the UI", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-cli-config-"));
+  const previousHome = process.env.AI_INBOX_HOME;
+  process.env.AI_INBOX_HOME = join(dir, "home");
+
+  try {
+    const set = await capture(() => main([
+      "config", "set",
+      "--llm-protocol", "anthropic-messages",
+      "--endpoint", "https://api.anthropic.com/v1",
+      "--model", "claude-test",
+      "--api-key", "dummy-llm-key-value",
+      "--timeout-ms", "30000",
+      "--thinking-depth", "medium",
+      "--codex-home", join(dir, "codex"),
+      "--since-days", "3",
+      "--max-sessions", "5",
+      "--max-observations", "12"
+    ]));
+    assert.equal(set.code, 0);
+    assert.match(set.stdout, /settings updated/);
+
+    const get = await capture(() => main(["config", "get", "--json"]));
+    assert.equal(get.code, 0);
+    const body = JSON.parse(get.stdout);
+    assert.equal(body.llm.protocol, "anthropic-messages");
+    assert.equal(body.llm.model, "claude-test");
+    assert.equal(body.llm.endpoint, "https://api.anthropic.com/v1");
+    assert.equal(body.llm.apiKeyConfigured, true);
+    assert.equal(body.llm.apiKey, undefined);
+    assert.equal(body.sources.codex.path, join(dir, "codex"));
+    assert.equal(body.organize.sinceDays, 3);
+    assert.equal(body.organize.maxSessions, 5);
+    assert.equal(body.organize.maxObservationsPerSession, 12);
+  } finally {
+    process.env.AI_INBOX_HOME = previousHome;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI preflight reports configuration failures as JSON", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-cli-preflight-"));
+  const previousHome = process.env.AI_INBOX_HOME;
+  process.env.AI_INBOX_HOME = join(dir, "home");
+
+  try {
+    const preflight = await capture(() => main(["preflight", "--json"]));
+    assert.equal(preflight.code, 1);
+    const body = JSON.parse(preflight.stdout);
+    assert.equal(body.canOrganize, false);
+    assert.equal(body.checks.find((check: any) => check.id === "llm_api_key").reason, "api_key_missing");
   } finally {
     process.env.AI_INBOX_HOME = previousHome;
     rmSync(dir, { recursive: true, force: true });

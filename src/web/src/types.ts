@@ -1,5 +1,6 @@
 export type SourceKind = "codex" | "claude-code" | "cursor";
 export type TodoStatus = "todo" | "done" | "ignored";
+export type LlmProtocol = "openai-chat" | "openai-responses" | "anthropic-messages";
 
 export interface TodoOrigin {
   source: SourceKind;
@@ -112,6 +113,7 @@ export interface PublicAppConfig {
   llm: {
     enabled: boolean;
     provider: "openai";
+    protocol: LlmProtocol;
     model: string;
     endpoint: string;
     thinkingDepth: "low" | "medium" | "high";
@@ -163,6 +165,19 @@ export interface OrganizeResult {
 export interface OrganizeStatus {
   running: boolean;
   startedAt?: string;
+}
+
+export interface PreflightResult {
+  ok: boolean;
+  canOrganize: boolean;
+  durationMs: number;
+  checks: Array<{
+    id: string;
+    status: "pass" | "warn" | "fail" | "skipped";
+    message: string;
+    reason?: string;
+    durationMs?: number;
+  }>;
 }
 
 export interface StartupScanStatus {

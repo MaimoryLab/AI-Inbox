@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { attachmentViewsFromText, isRenderableImagePath } from "../attachments.js";
 import { loadConfig, loadSecrets, parseSettingsUpdate, publicConfig, saveEnvConfig, settingsToEnv } from "../config.js";
 import type { Database } from "../db/index.js";
+import { runPreflight } from "../diagnostics/preflight.js";
 import { getAppPaths, type AppPaths } from "../paths.js";
 import { ensureDiscoveredSourceEnv, type SourceDiscoveryResult } from "../sources/discovery.js";
 import { scanConfiguredSources, scanSource as scanSourceSessions, type ConfiguredScanSummary } from "../sources/scan.js";
@@ -63,7 +64,6 @@ export function createAppServer(options: {
   publicDir?: string;
   organizeOptions?: OrganizeOptions;
   startupScan?: StartupScanStatus;
-  localToken?: string;
 } = {}) {
   const paths = options.paths ?? getAppPaths();
   const publicDir = options.publicDir ?? PUBLIC_DIR;
@@ -98,7 +98,6 @@ export function createAppServer(options: {
     }
 
     if (req.method === "GET" && path === "/attachments") {
-      if (!authorizeLocalRequest(req, res, options.localToken)) return;
       const db = requireDb(res, options.db);
       if (!db) return;
       serveAttachment(req, res, db, url.searchParams);
@@ -115,7 +114,6 @@ export function createAppServer(options: {
     }
 
     if (req.method === "PUT" && path === "/settings") {
-      if (!authorizeLocalRequest(req, res, options.localToken)) return;
       const body = await readJson(req, res);
       if (!body) return;
       try {
@@ -137,7 +135,6 @@ export function createAppServer(options: {
     }
 
     if (req.method === "POST" && path === "/sources/scan") {
-      if (!authorizeLocalRequest(req, res, options.localToken)) return;
       const db = requireDb(res, options.db);
       if (!db) return;
       const body = await readJson(req, res);
@@ -173,7 +170,6 @@ export function createAppServer(options: {
     }
 
     if (req.method === "POST" && path === "/todos/organize") {
-      if (!authorizeLocalRequest(req, res, options.localToken)) return;
       const db = requireDb(res, options.db);
       if (!db) return;
       if (organizeStatus.running) {
@@ -209,7 +205,6 @@ export function createAppServer(options: {
     }
 
     if (req.method === "POST" && path === "/todos/clear") {
-      if (!authorizeLocalRequest(req, res, options.localToken)) return;
       const db = requireDb(res, options.db);
       if (!db) return;
       writeJson(res, 200, clearTodoData(db));
@@ -238,7 +233,6 @@ export function createAppServer(options: {
 
     const todoMatch = path.match(/^\/todos\/([^/]+)$/);
     if (req.method === "PATCH" && todoMatch) {
-      if (!authorizeLocalRequest(req, res, options.localToken)) return;
       const db = requireDb(res, options.db);
       if (!db) return;
       const body = await readJson(req, res);
@@ -253,6 +247,20 @@ export function createAppServer(options: {
         return;
       }
       writeJson(res, 200, listTodos(db).find((todo) => todo.id === id));
+      return;
+    }
+
+    if (req.method === "POST" && path === "/diagnostics/preflight") {
+      const db = requireDb(res, options.db);
+      if (!db) return;
+      const body = await readJson(req, res);
+      if (!body) return;
+      try {
+        const result = await runPreflight(db, paths, Object.keys(body).length === 0 ? undefined : body);
+        writeJson(res, 200, result);
+      } catch {
+        writeJson(res, 400, { error: "preflight_failed" });
+      }
       return;
     }
 
@@ -354,13 +362,6 @@ function contentType(file: string): string {
   if (extname(file) === ".webp") return "image/webp";
   if (extname(file) === ".avif") return "image/avif";
   return "text/html; charset=utf-8";
-}
-
-function authorizeLocalRequest(req: IncomingMessage, res: ServerResponse<IncomingMessage>, token: string | undefined): boolean {
-  if (!token) return true;
-  if (req.headers["x-ai-inbox-token"] === token) return true;
-  writeJson(res, 403, { error: "forbidden" });
-  return false;
 }
 
 function parseSessionOptions(params: URLSearchParams): { ok: true; options: ListSessionsOptions } | { ok: false } {

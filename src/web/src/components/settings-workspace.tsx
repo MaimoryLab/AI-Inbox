@@ -1,9 +1,9 @@
 import { ChevronDown, Save, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useRef, useState, type ChangeEvent } from "react";
 import { api, localizedUserFacingError } from "../api/client.js";
-import { sourceLabel, textFor, type Locale } from "../i18n.js";
+import { preflightCheckText, sourceLabel, textFor, type Locale } from "../i18n.js";
 import { cn } from "../lib/utils.js";
-import type { PublicAppConfig, StartupScanStatus } from "../types.js";
+import type { LlmProtocol, PreflightResult, PublicAppConfig, StartupScanStatus } from "../types.js";
 import type { SessionSource, SourceScanResult } from "../view-model.js";
 import { Button, Card, Field, Input, SectionTitle, StatusCallout } from "./ui.js";
 
@@ -20,8 +20,10 @@ export function SettingsWorkspace({ settings, startup, locale, onLocale, onSaved
   const [apiKey, setApiKey] = useState("");
   const [clearKey, setClearKey] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [clearingTodos, setClearingTodos] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [preflight, setPreflight] = useState<PreflightResult | null>(null);
   const clearDialogRef = useRef<HTMLDialogElement>(null);
 
   async function save() {
@@ -31,19 +33,7 @@ export function SettingsWorkspace({ settings, startup, locale, onLocale, onSaved
       const changedSources = changedSourcePaths(settings.sources, form.sources);
       const saved = await api<PublicAppConfig>("/settings", {
         method: "PUT",
-        body: {
-          sources: form.sources,
-          llm: {
-            enabled: form.llm.enabled,
-            provider: "openai",
-            model: form.llm.model,
-            endpoint: form.llm.endpoint,
-            thinkingDepth: form.llm.thinkingDepth,
-            timeoutMs: form.llm.timeoutMs,
-            ...(clearKey ? { apiKey: "" } : apiKey ? { apiKey } : {})
-          },
-          organize: form.organize
-        }
+        body: settingsPayload(form, clearKey ? "" : apiKey || undefined)
       });
       setForm(saved);
       await onSaved(await scanChangedSources(changedSources, locale));
@@ -51,6 +41,21 @@ export function SettingsWorkspace({ settings, startup, locale, onLocale, onSaved
       setSaveError((error as Error).message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function testExtractionConfig() {
+    setTesting(true);
+    setSaveError("");
+    try {
+      setPreflight(await api<PreflightResult>("/diagnostics/preflight", {
+        method: "POST",
+        body: settingsPayload(form, clearKey ? "" : apiKey || undefined)
+      }));
+    } catch (error) {
+      setSaveError((error as Error).message);
+    } finally {
+      setTesting(false);
     }
   }
 
@@ -173,6 +178,17 @@ export function SettingsWorkspace({ settings, startup, locale, onLocale, onSaved
           <ChevronDown className="h-4 w-4 text-[var(--app-subtle)]" aria-hidden="true" />
         </summary>
         <div className="mt-3 grid gap-4 text-sm text-[var(--app-muted)] md:grid-cols-2">
+          <Field label={text.llmProtocol}>
+            <select
+              className="h-10 min-w-0 rounded-md border border-[var(--app-border-strong)] bg-[var(--app-surface)] px-3 text-sm text-[var(--app-ink)] outline-none transition focus:border-[var(--app-accent)]"
+              value={form.llm.protocol}
+              onChange={(event: ChangeEvent<HTMLSelectElement>) => setForm({ ...form, llm: { ...form.llm, protocol: event.target.value as LlmProtocol } })}
+            >
+              <option value="openai-chat">{text.openaiChatProtocol}</option>
+              <option value="openai-responses">{text.openaiResponsesProtocol}</option>
+              <option value="anthropic-messages">{text.anthropicMessagesProtocol}</option>
+            </select>
+          </Field>
           <Field label={text.apiKey}>
             <Input type="password" autoComplete="off" placeholder={settings.llm.apiKeyConfigured ? `${text.configured} ${settings.llm.apiKeySource === "managed" ? text.managed : settings.llm.apiKeyMasked}` : text.pasteApiKey} value={apiKey} onChange={(event: ChangeEvent<HTMLInputElement>) => setApiKey(event.target.value)} />
           </Field>
@@ -186,6 +202,23 @@ export function SettingsWorkspace({ settings, startup, locale, onLocale, onSaved
           <Field label={text.endpoint}>
             <Input value={form.llm.endpoint} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, llm: { ...form.llm, endpoint: event.target.value } })} />
           </Field>
+          <div className="md:col-span-2">
+            <Button type="button" variant="secondary" disabled={testing} onClick={() => void testExtractionConfig()}>
+              {testing ? text.testingExtractionConfig : text.testExtractionConfig}
+            </Button>
+            {preflight && (
+              <StatusCallout tone={preflight.canOrganize ? "neutral" : "danger"} className="mt-3">
+                {preflight.canOrganize ? text.preflightPassed : text.preflightFailed}
+                <span className="mt-2 grid gap-1">
+                  {preflight.checks.map((check) => (
+                    <span key={check.id} className={cn("block", preflightCheckClass(check.status))}>
+                      {preflightCheckText(check, locale)}
+                    </span>
+                  ))}
+                </span>
+              </StatusCallout>
+            )}
+          </div>
           <p>{text.startupScan}: {startup?.status ?? "idle"}</p>
           <p>{text.extraction}: {settings.llm.apiKeyConfigured ? text.configured : text.needsSetup}</p>
           {startup?.warnings.map((warning: string) => <p key={warning}>{localizedUserFacingError(warning, locale)}</p>)}
@@ -224,6 +257,23 @@ export function SettingsWorkspace({ settings, startup, locale, onLocale, onSaved
   );
 }
 
+function settingsPayload(form: PublicAppConfig, apiKey?: string) {
+  return {
+    sources: form.sources,
+    llm: {
+      enabled: form.llm.enabled,
+      provider: "openai",
+      protocol: form.llm.protocol,
+      model: form.llm.model,
+      endpoint: form.llm.endpoint,
+      thinkingDepth: form.llm.thinkingDepth,
+      timeoutMs: form.llm.timeoutMs,
+      ...(apiKey !== undefined ? { apiKey } : {})
+    },
+    organize: form.organize
+  };
+}
+
 function changedSourcePaths(
   before: PublicAppConfig["sources"],
   after: PublicAppConfig["sources"]
@@ -238,6 +288,13 @@ function discoveryStatusLabel(status: "configured" | "discovered" | "missing", l
   if (status === "configured") return text.discoveryConfigured;
   if (status === "discovered") return text.discoveryDiscovered;
   return text.discoveryMissing;
+}
+
+function preflightCheckClass(status: PreflightResult["checks"][number]["status"]): string {
+  if (status === "pass") return "text-emerald-700";
+  if (status === "fail") return "text-red-700";
+  if (status === "warn") return "text-amber-700";
+  return "text-[var(--app-subtle)]";
 }
 
 async function scanChangedSources(sources: SessionSource[], locale: Locale): Promise<string | undefined> {

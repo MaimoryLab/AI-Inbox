@@ -188,27 +188,15 @@ async function requestTodos(config: AppConfig["llm"], apiKey: string, userConten
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
   try {
-    const response = await fetch(chatCompletionsUrl(config.endpoint), {
+    const response = await fetch(llmUrl(config), {
       method: "POST",
-      headers: {
-        "authorization": `Bearer ${apiKey}`,
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({
-        model: config.model,
-        temperature: 0,
-        reasoning_effort: config.thinkingDepth,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: TODO_EXTRACTION_PROMPT },
-          { role: "user", content: userContent }
-        ]
-      }),
+      headers: llmHeaders(config, apiKey),
+      body: JSON.stringify(llmBody(config, userContent)),
       signal: controller.signal
     });
     const text = await response.text();
     if (!response.ok) throw new Error(`http_${response.status}`);
-    return parseChatCompletionResponse(text);
+    return parseLlmResponse(config, text);
   } catch (error) {
     if ((error as Error).name === "AbortError") throw new Error("timeout");
     if (isKnownRunnerError((error as Error).message)) throw error;
@@ -218,8 +206,73 @@ async function requestTodos(config: AppConfig["llm"], apiKey: string, userConten
   }
 }
 
-function chatCompletionsUrl(endpoint: string): string {
-  return `${endpoint.replace(/\/+$/u, "")}/chat/completions`;
+function llmUrl(config: AppConfig["llm"]): string {
+  const endpoint = config.endpoint.replace(/\/+$/u, "");
+  if (config.protocol === "openai-responses") return `${endpoint}/responses`;
+  if (config.protocol === "anthropic-messages") return `${endpoint}/messages`;
+  return `${endpoint}/chat/completions`;
+}
+
+function llmHeaders(config: AppConfig["llm"], apiKey: string): Record<string, string> {
+  if (config.protocol === "anthropic-messages") {
+    return {
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json"
+    };
+  }
+  return {
+    "authorization": `Bearer ${apiKey}`,
+    "content-type": "application/json"
+  };
+}
+
+function llmBody(config: AppConfig["llm"], userContent: string): Record<string, unknown> {
+  if (config.protocol === "openai-responses") {
+    return {
+      model: config.model,
+      instructions: TODO_EXTRACTION_PROMPT,
+      input: userContent,
+      text: { format: { type: "json_object" } }
+    };
+  }
+  if (config.protocol === "anthropic-messages") {
+    return {
+      model: config.model,
+      max_tokens: 4096,
+      system: TODO_EXTRACTION_PROMPT,
+      messages: [{ role: "user", content: userContent }],
+      tools: [{
+        name: "emit_ai_inbox_cards",
+        description: "Return extracted AI-Inbox cards as structured JSON.",
+        input_schema: {
+          type: "object",
+          additionalProperties: true,
+          properties: {
+            todos: { type: "array" },
+            taskChains: { type: "array" }
+          }
+        }
+      }],
+      tool_choice: { type: "tool", name: "emit_ai_inbox_cards" }
+    };
+  }
+  return {
+    model: config.model,
+    temperature: 0,
+    reasoning_effort: config.thinkingDepth,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: TODO_EXTRACTION_PROMPT },
+      { role: "user", content: userContent }
+    ]
+  };
+}
+
+function parseLlmResponse(config: AppConfig["llm"], text: string): LlmExtractResult {
+  if (config.protocol === "openai-responses") return parseResponsesResponse(text);
+  if (config.protocol === "anthropic-messages") return parseAnthropicMessagesResponse(text);
+  return parseChatCompletionResponse(text);
 }
 
 function parseChatCompletionResponse(text: string): LlmExtractResult {
@@ -231,6 +284,54 @@ function parseChatCompletionResponse(text: string): LlmExtractResult {
   if (typeof content !== "string") throw new Error("invalid_schema");
   const envelope = parseJsonRecord(stripJsonFence(content));
   const todos = parseTodoEnvelope(envelope);
+  if (!todos) throw new Error("invalid_schema");
+  return todos;
+}
+
+function parseResponsesResponse(text: string): LlmExtractResult {
+  const body = parseJsonRecord(text);
+  const direct = parseTodoEnvelope(body);
+  if (direct) return direct;
+  if (typeof body.output_text === "string") return parseTodoEnvelopeOrThrow(body.output_text);
+  const output = Array.isArray(body.output) ? body.output : [];
+  for (const item of output) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const content = Array.isArray((item as Record<string, unknown>).content)
+      ? (item as Record<string, unknown>).content as unknown[]
+      : [];
+    for (const block of content) {
+      if (!block || typeof block !== "object" || Array.isArray(block)) continue;
+      const textValue = (block as Record<string, unknown>).text;
+      if (typeof textValue === "string") return parseTodoEnvelopeOrThrow(textValue);
+    }
+  }
+  throw new Error("invalid_schema");
+}
+
+function parseAnthropicMessagesResponse(text: string): LlmExtractResult {
+  const body = parseJsonRecord(text);
+  const direct = parseTodoEnvelope(body);
+  if (direct) return direct;
+  const content = Array.isArray(body.content) ? body.content : [];
+  for (const block of content) {
+    if (!block || typeof block !== "object" || Array.isArray(block)) continue;
+    const record = block as Record<string, unknown>;
+    if (record.type === "tool_use" && record.name === "emit_ai_inbox_cards" && record.input && typeof record.input === "object" && !Array.isArray(record.input)) {
+      const todos = parseTodoEnvelope(record.input as Record<string, unknown>);
+      if (!todos) throw new Error("invalid_schema");
+      return todos;
+    }
+  }
+  for (const block of content) {
+    if (!block || typeof block !== "object" || Array.isArray(block)) continue;
+    const textValue = (block as Record<string, unknown>).text;
+    if (typeof textValue === "string") return parseTodoEnvelopeOrThrow(textValue);
+  }
+  throw new Error("invalid_schema");
+}
+
+function parseTodoEnvelopeOrThrow(text: string): LlmExtractResult {
+  const todos = parseTodoEnvelope(parseJsonRecord(stripJsonFence(text)));
   if (!todos) throw new Error("invalid_schema");
   return todos;
 }

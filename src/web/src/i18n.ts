@@ -143,6 +143,14 @@ export const appText = {
     cancel: "取消",
     advancedDiagnostics: "高级诊断",
     advancedLlmSettings: "高级 LLM 配置",
+    llmProtocol: "协议",
+    testExtractionConfig: "测试抽取配置",
+    testingExtractionConfig: "正在测试...",
+    preflightFailed: "配置检测失败，详情如下。",
+    preflightPassed: "配置检测通过。",
+    openaiChatProtocol: "OpenAI Chat Completions（OpenAI-compatible / Novita）",
+    openaiResponsesProtocol: "OpenAI Responses API",
+    anthropicMessagesProtocol: "Anthropic Messages API",
     model: "模型",
     endpoint: "Endpoint",
     startupScan: "启动扫描",
@@ -288,6 +296,14 @@ export const appText = {
     cancel: "Cancel",
     advancedDiagnostics: "Advanced diagnostics",
     advancedLlmSettings: "Advanced LLM settings",
+    llmProtocol: "API protocol",
+    testExtractionConfig: "Test extraction config",
+    testingExtractionConfig: "Testing...",
+    preflightFailed: "Configuration check failed. Details below.",
+    preflightPassed: "Configuration check passed.",
+    openaiChatProtocol: "OpenAI Chat Completions (OpenAI-compatible / Novita)",
+    openaiResponsesProtocol: "OpenAI Responses API",
+    anthropicMessagesProtocol: "Anthropic Messages API",
     model: "Model",
     endpoint: "Endpoint",
     startupScan: "Startup scan",
@@ -371,6 +387,11 @@ const errorMessages: Record<Locale, Record<string, string>> = {
 const reasonMessages: Record<Locale, Record<string, string>> = {
   "zh-CN": {
     api_key_missing: "可能原因：默认抽取服务未配置，请在高级 LLM 配置中填写 API key。",
+    source_paths_missing: "可能原因：没有发现 Codex、Claude 或 Cursor 来源路径。",
+    source_observations_missing: "可能原因：当前回看范围内没有可整理的来源消息，请先扫描来源。",
+    endpoint_invalid: "可能原因：Endpoint 不是有效的 HTTP/HTTPS URL。",
+    model_not_found: "可能原因：当前模型 ID 没有出现在 provider 的模型列表中。",
+    json_mode_rejected: "可能原因：当前 provider 或模型不支持配置的 JSON 输出模式。",
     llm_disabled: "可能原因：Settings 中的 LLM extraction 已关闭。",
     http_401: "可能原因：API key 被 LLM 服务拒绝，key 可能填错、过期，或不属于当前 endpoint/provider。",
     http_403: "可能原因：API key 没有权限，可能是模型权限、账号策略或额度限制。",
@@ -388,6 +409,11 @@ const reasonMessages: Record<Locale, Record<string, string>> = {
   },
   "en-US": {
     api_key_missing: "Possible cause: the default extraction service is not configured. Add an API key in Advanced LLM settings.",
+    source_paths_missing: "Possible cause: no Codex, Claude, or Cursor source path was found.",
+    source_observations_missing: "Possible cause: no source messages are available in the current look-back window. Scan sources first.",
+    endpoint_invalid: "Possible cause: the endpoint is not a valid HTTP/HTTPS URL.",
+    model_not_found: "Possible cause: the current model ID was not listed by the provider.",
+    json_mode_rejected: "Possible cause: the provider or model rejected the configured JSON output mode.",
     llm_disabled: "Possible cause: LLM extraction is disabled in Settings.",
     http_401: "Possible cause: the LLM service rejected the API key. It may be wrong, expired, or not for this endpoint/provider.",
     http_403: "Possible cause: the API key lacks permission, model access, account policy access, or quota.",
@@ -420,3 +446,75 @@ export function userErrorText(error: string, locale: Locale = readLocale()): str
 export function organizeFailureReasonText(reason: string, locale: Locale = readLocale()): string {
   return reasonMessages[locale][reason] ?? reason.replace(/_/g, " ");
 }
+
+export function preflightCheckText(check: {
+  id: string;
+  status: "pass" | "warn" | "fail" | "skipped";
+  message: string;
+  reason?: string;
+}, locale: Locale = readLocale()): string {
+  const passText = preflightPassMessages[locale][check.id];
+  if (check.status === "pass" && passText) return passText;
+  const label = preflightCheckNames[locale][check.id] ?? check.id.replace(/_/g, " ");
+  const status = preflightStatusNames[locale][check.status] ?? check.status;
+  const detail = check.reason ? organizeFailureReasonText(check.reason, locale) : check.message;
+  if (check.status === "skipped") return `${status}：${label}`;
+  return `${status}：${label}，${detail}`;
+}
+
+const preflightStatusNames: Record<Locale, Record<string, string>> = {
+  "zh-CN": {
+    pass: "通过",
+    warn: "注意",
+    fail: "失败",
+    skipped: "跳过"
+  },
+  "en-US": {
+    pass: "Passed",
+    warn: "Warning",
+    fail: "Failed",
+    skipped: "Skipped"
+  }
+};
+
+const preflightCheckNames: Record<Locale, Record<string, string>> = {
+  "zh-CN": {
+    source_paths: "来源路径",
+    source_observations: "会话内容",
+    llm_protocol: "协议配置",
+    llm_endpoint: "Endpoint",
+    llm_api_key: "API key",
+    llm_models: "模型列表",
+    llm_chat: "试探调用"
+  },
+  "en-US": {
+    source_paths: "source paths",
+    source_observations: "source messages",
+    llm_protocol: "API protocol",
+    llm_endpoint: "endpoint",
+    llm_api_key: "API key",
+    llm_models: "model list",
+    llm_chat: "probe request"
+  }
+};
+
+const preflightPassMessages: Record<Locale, Record<string, string>> = {
+  "zh-CN": {
+    source_paths: "通过：已发现来源路径",
+    source_observations: "通过：已有可整理的会话内容",
+    llm_protocol: "通过：协议配置有效",
+    llm_endpoint: "通过：Endpoint 是有效的 URL",
+    llm_api_key: "通过：API key 已配置",
+    llm_models: "通过：模型列表检查通过",
+    llm_chat: "通过：试探调用成功"
+  },
+  "en-US": {
+    source_paths: "Passed: source path found",
+    source_observations: "Passed: source messages are available",
+    llm_protocol: "Passed: API protocol is valid",
+    llm_endpoint: "Passed: endpoint is a valid URL",
+    llm_api_key: "Passed: API key is configured",
+    llm_models: "Passed: model list check succeeded",
+    llm_chat: "Passed: probe request succeeded"
+  }
+};

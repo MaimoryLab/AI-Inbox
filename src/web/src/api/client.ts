@@ -8,10 +8,8 @@ export class ApiError extends Error {
 }
 
 export async function api<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
-  const token = localToken();
   const headers: Record<string, string> = {};
   if (options.body !== undefined) headers["content-type"] = "application/json";
-  if (token) headers["x-ai-inbox-token"] = token;
   const response = await fetch(path, {
     method: options.method ?? "GET",
     headers: Object.keys(headers).length > 0 ? headers : undefined,
@@ -40,8 +38,4 @@ function responseErrorCode(data: unknown): string {
     if (typeof record.message === "string") return record.message;
   }
   return "Request failed";
-}
-
-export function localToken(): string {
-  return sessionStorage.getItem("ai-inbox-token") ?? "";
 }

@@ -36,6 +36,7 @@ test("config reads defaults and persists source paths", () => {
       llm: {
         enabled: true,
         provider: "openai",
+        protocol: "openai-chat",
         model: "deepseek/deepseek-v4-flash",
         endpoint: "https://api.novita.ai/openai/v1",
         thinkingDepth: "low",
@@ -58,6 +59,7 @@ test("config reads defaults and persists source paths", () => {
       llm: {
         enabled: true,
         provider: "openai" as const,
+        protocol: "anthropic-messages" as const,
         model: "custom/model",
         endpoint: "https://llm.example.test/v1",
         thinkingDepth: "high" as const,
@@ -99,6 +101,7 @@ test("config rejects invalid files and preserves source path precedence", () => 
       llm: {
         enabled: true,
         provider: "openai",
+        protocol: "openai-chat",
         model: "deepseek/deepseek-v4-flash",
         endpoint: "https://api.novita.ai/openai/v1",
         thinkingDepth: "low",
@@ -145,6 +148,7 @@ test("config rejects invalid llm settings", () => {
       llm: {
         enabled: true,
         provider: "anthropic" as any,
+        protocol: "openai-chat",
         model: "model",
         endpoint: "https://example.test/v1",
         thinkingDepth: "medium",
@@ -157,6 +161,7 @@ test("config rejects invalid llm settings", () => {
       llm: {
         enabled: true,
         provider: "openai",
+        protocol: "openai-chat",
         model: "",
         endpoint: "https://example.test/v1",
         thinkingDepth: "medium",
@@ -169,6 +174,7 @@ test("config rejects invalid llm settings", () => {
       llm: {
         enabled: true,
         provider: "openai",
+        protocol: "openai-chat",
         model: "model",
         endpoint: "",
         thinkingDepth: "medium",
@@ -181,6 +187,7 @@ test("config rejects invalid llm settings", () => {
       llm: {
         enabled: true,
         provider: "openai",
+        protocol: "openai-chat",
         model: "model",
         endpoint: "https://example.test/v1",
         thinkingDepth: "medium",
@@ -188,6 +195,25 @@ test("config rejects invalid llm settings", () => {
       },
       organize: { sinceDays: 7, maxInteractionsPerSession: 10, maxSessions: 8, maxObservationsPerSession: 40 }
     }), /config_invalid/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("config reads llm protocol and maps legacy provider", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-config-protocol-"));
+  try {
+    const paths = getAppPaths(dir);
+    saveEnvConfig(paths, parseEnvFile([
+      "AI_INBOX_LLM_PROVIDER=openai",
+      "AI_INBOX_LLM_MODEL=legacy/model"
+    ].join("\n")));
+    assert.equal(loadConfig(paths).llm.protocol, "openai-chat");
+
+    saveEnvConfig(paths, parseEnvFile("AI_INBOX_LLM_PROTOCOL=anthropic-messages"));
+    assert.equal(loadConfig(paths).llm.protocol, "anthropic-messages");
+    assert.match(formatEnvFile(settingsToEnv(loadConfig(paths), {})), /AI_INBOX_LLM_PROTOCOL=anthropic-messages/);
+    assert.throws(() => parseEnvFile("AI_INBOX_LLM_PROTOCOL=bad-protocol"), /env_invalid|config_invalid/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -26,6 +26,7 @@ export interface LlmDoctorStatus {
   enabled: boolean;
   keyConfigured: boolean;
   keyStatus: "configured" | "managed" | "missing";
+  protocol: string;
   model: string;
   endpoint: string;
 }
@@ -37,6 +38,7 @@ export function getLlmDoctorStatus(paths: AppPaths): LlmDoctorStatus {
     enabled: config.llm.enabled,
     keyConfigured: !!secrets.llmApiKey,
     keyStatus: secrets.llmApiKey ? secrets.llmApiKeySource ?? "configured" : "missing",
+    protocol: config.llm.protocol,
     model: config.llm.model,
     endpoint: config.llm.endpoint
   };

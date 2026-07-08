@@ -8,7 +8,8 @@ import { getAppPaths } from "./paths.js";
 import { runMcpStdio } from "./mcp/stdio.js";
 import { createAppServer, createStartupScanner } from "./server/index.js";
 import { scanSource } from "./sources/scan.js";
-import { defaultEnvConfig, ensureDefaultEnv, type EnvConfig } from "./config.js";
+import { defaultEnvConfig, ensureDefaultEnv, loadConfig, loadSecrets, publicConfig, saveEnvConfig, settingsToEnv, type AppConfig, type EnvConfig } from "./config.js";
+import { runPreflight } from "./diagnostics/preflight.js";
 import { getLlmDoctorStatus, organizeConfiguredTodos } from "./todos/configured.js";
 import { clearTodoData, listTodos, updateTodoStatus } from "./todos/service.js";
 
@@ -18,6 +19,9 @@ const HELP_TEXT = `Usage: ai-inbox [command]
 Commands:
   init [options]              Create local config.
   doctor                      Check local config, data, and LLM setup.
+  preflight [--json]          Test source and LLM readiness.
+  config get [--json]         Print current config.
+  config set [options]        Update local config.
   scan <codex|claude-code|cursor> [path]
   extract|organize            Extract todos from configured sessions.
   regenerate --yes            Clear inbox cards and regenerate from all observations.
@@ -51,11 +55,29 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     if (!existsSync(paths.envPath)) console.log("env status: missing; run ai-inbox init");
     console.log(`data: ${paths.dataDir}`);
     console.log(`llm enabled: ${llm.enabled}`);
+    console.log(`llm protocol: ${llm.protocol}`);
     console.log(`llm key: ${llm.keyStatus}`);
     console.log(`llm model: ${llm.model}`);
     console.log(`llm endpoint: ${llm.endpoint}`);
+    console.log("preflight: run ai-inbox preflight for a live source and LLM probe");
     console.log("ok");
     return 0;
+  }
+
+  if (command === "preflight") {
+    return withDatabase(async (db) => {
+      const result = await runPreflight(db, getAppPaths());
+      if (argv.includes("--json")) {
+        console.log(JSON.stringify(result, null, 2));
+      } else {
+        printPreflightResult(result);
+      }
+      return result.canOrganize ? 0 : 1;
+    });
+  }
+
+  if (command === "config") {
+    return configCommand(argv.slice(1));
   }
 
   if (command === "scan") {
@@ -132,6 +154,7 @@ async function init(argv: string[]): Promise<number> {
   const args = parseOptions(argv);
   let env: EnvConfig = {
     AI_INBOX_LLM_ENABLED: args["llm-enabled"],
+    AI_INBOX_LLM_PROTOCOL: args["llm-protocol"],
     AI_INBOX_LLM_PROVIDER: args.provider,
     AI_INBOX_LLM_API_KEY: args["api-key"],
     AI_INBOX_LLM_MODEL: args.model,
@@ -166,6 +189,7 @@ async function promptInit(defaults: EnvConfig): Promise<EnvConfig> {
       AI_INBOX_CLAUDE_HOME: await ask(rl, "Claude Code source path", env.AI_INBOX_CLAUDE_HOME),
       AI_INBOX_CURSOR_HOME: await ask(rl, "Cursor source path", env.AI_INBOX_CURSOR_HOME),
       AI_INBOX_LLM_ENABLED: await ask(rl, "LLM enabled", env.AI_INBOX_LLM_ENABLED),
+      AI_INBOX_LLM_PROTOCOL: await ask(rl, "LLM protocol", env.AI_INBOX_LLM_PROTOCOL),
       AI_INBOX_LLM_PROVIDER: await ask(rl, "LLM provider", env.AI_INBOX_LLM_PROVIDER),
       AI_INBOX_LLM_MODEL: await ask(rl, "LLM model", env.AI_INBOX_LLM_MODEL),
       AI_INBOX_LLM_ENDPOINT: await ask(rl, "LLM endpoint", env.AI_INBOX_LLM_ENDPOINT),
@@ -210,6 +234,54 @@ async function withDatabase(fn: (db: Database) => number | Promise<number>): Pro
   } finally {
     db.close();
   }
+}
+
+async function configCommand(argv: string[]): Promise<number> {
+  const action = argv[0];
+  const args = parseOptions(argv.slice(1));
+  const paths = getAppPaths();
+  if (action === "get") {
+    const settings = publicConfig(loadConfig(paths), loadSecrets(paths));
+    if (argv.includes("--json")) console.log(JSON.stringify(settings, null, 2));
+    else {
+      console.log(`llm protocol: ${settings.llm.protocol}`);
+      console.log(`llm key: ${settings.llm.apiKeySource ?? (settings.llm.apiKeyConfigured ? "configured" : "missing")}`);
+      console.log(`llm model: ${settings.llm.model}`);
+      console.log(`llm endpoint: ${settings.llm.endpoint}`);
+    }
+    return 0;
+  }
+  if (action === "set") {
+    const current = loadConfig(paths);
+    const next: AppConfig = {
+      sources: {
+        codex: args["codex-home"] ? { path: args["codex-home"] } : current.sources.codex,
+        "claude-code": args["claude-home"] ? { path: args["claude-home"] } : current.sources["claude-code"],
+        cursor: args["cursor-home"] ? { path: args["cursor-home"] } : current.sources.cursor
+      },
+      llm: {
+        ...current.llm,
+        enabled: args["llm-enabled"] === undefined ? current.llm.enabled : args["llm-enabled"] === "true",
+        protocol: (args["llm-protocol"] ?? current.llm.protocol) as AppConfig["llm"]["protocol"],
+        model: args.model ?? current.llm.model,
+        endpoint: args.endpoint ?? current.llm.endpoint,
+        thinkingDepth: (args["thinking-depth"] ?? current.llm.thinkingDepth) as AppConfig["llm"]["thinkingDepth"],
+        timeoutMs: args["timeout-ms"] ? Number(args["timeout-ms"]) : current.llm.timeoutMs
+      },
+      organize: {
+        ...current.organize,
+        sinceDays: args["since-days"] ? Number(args["since-days"]) : current.organize.sinceDays,
+        maxInteractionsPerSession: args["max-interactions"] ? Number(args["max-interactions"]) : current.organize.maxInteractionsPerSession,
+        maxSessions: args["max-sessions"] ? Number(args["max-sessions"]) : current.organize.maxSessions,
+        maxObservationsPerSession: args["max-observations"] ? Number(args["max-observations"]) : current.organize.maxObservationsPerSession
+      }
+    };
+    saveEnvConfig(paths, settingsToEnv(next, loadSecrets(paths), args["api-key"]));
+    console.log("settings updated");
+    return 0;
+  }
+  console.error("usage: ai-inbox config <get|set> [options]");
+  return 1;
 }
 
 async function startUi(argv: string[] = [], command = "start"): Promise<number> {
@@ -309,6 +381,14 @@ function printOrganizeResult(result: Awaited<ReturnType<typeof organizeConfigure
   if (result.warnings.length > 0) console.log(`warnings: ${result.warnings.join(",")}`);
   for (const failure of result.details?.batchFailures ?? []) {
     console.log(`failure: ${failure.warning} ${failure.reason} retryable=${failure.retryable}`);
+  }
+}
+
+function printPreflightResult(result: Awaited<ReturnType<typeof runPreflight>>): void {
+  console.log(`can organize: ${result.canOrganize}`);
+  console.log(`duration ms: ${result.durationMs}`);
+  for (const check of result.checks) {
+    console.log(`${check.status} ${check.id}${check.reason ? ` ${check.reason}` : ""}: ${check.message}`);
   }
 }
 
