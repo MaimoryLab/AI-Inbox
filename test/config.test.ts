@@ -14,6 +14,7 @@ import {
   maskSecret,
   parseEnvFile,
   publicConfig,
+  parseSettingsUpdate,
   saveConfig,
   saveEnvConfig,
   saveSecrets,
@@ -137,6 +138,18 @@ test("config rejects invalid files and preserves source path precedence", () => 
     }
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("settings update can clear the saved Cursor path", () => {
+  const base = defaultConfig();
+  assert.deepEqual(parseSettingsUpdate({
+    ...base,
+    sources: { ...base.sources, cursor: { path: "" } }
+  }).config.sources.cursor, {});
+  assert.deepEqual(parseSettingsUpdate({
+    ...base,
+    sources: { ...base.sources, cursor: { path: null } }
+  }).config.sources.cursor, {});
 });
 
 test("config rejects invalid llm settings", () => {
@@ -555,6 +568,48 @@ test("source discovery falls back to Cursor workspaceStorage when agent projects
   }
 });
 
+test("configured scan uses new Cursor projects when old default path was saved", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-cursor-upgrade-"));
+  const previousHome = process.env.HOME;
+  const previousUserProfile = process.env.USERPROFILE;
+  const previousCursor = process.env.AI_INBOX_CURSOR_HOME;
+  const previousAppData = process.env.APPDATA;
+  delete process.env.AI_INBOX_CURSOR_HOME;
+
+  try {
+    process.env.HOME = dir;
+    process.env.USERPROFILE = dir;
+    process.env.APPDATA = join(dir, "AppData", "Roaming");
+    const paths = getAppPaths(join(dir, "home"));
+    const legacy = cursorWorkspaceStoragePath(dir);
+    const projects = join(dir, ".cursor", "projects");
+    mkdirSync(legacy, { recursive: true });
+    writeCursorTranscript(projects, "Users-ppio-Documents-AI-Inbox", "upgrade");
+    saveEnvConfig(paths, { AI_INBOX_CURSOR_HOME: legacy });
+
+    const db = openDatabase(paths);
+    try {
+      const scan = scanConfiguredSources(db, paths);
+      const cursor = scan.sources.find((source) => source.source === "cursor");
+      assert.equal(cursor?.result?.observations, 1);
+      assert.equal(cursor?.path, `${projects}, ${legacy}`);
+      assert.ok(!scan.warnings.includes("cursor_no_sessions"));
+    } finally {
+      db.close();
+    }
+  } finally {
+    if (previousHome === undefined) delete process.env.HOME;
+    else process.env.HOME = previousHome;
+    if (previousUserProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = previousUserProfile;
+    if (previousCursor === undefined) delete process.env.AI_INBOX_CURSOR_HOME;
+    else process.env.AI_INBOX_CURSOR_HOME = previousCursor;
+    if (previousAppData === undefined) delete process.env.APPDATA;
+    else process.env.APPDATA = previousAppData;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("codex home expands to sessions and archived sessions roots", () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-codex-roots-"));
   try {
@@ -586,4 +641,13 @@ function cursorWorkspaceStoragePath(home: string): string {
   if (process.platform === "win32") return join(process.env.APPDATA ?? join(home, "AppData", "Roaming"), "Cursor", "User", "workspaceStorage");
   if (process.platform === "darwin") return join(home, "Library", "Application Support", "Cursor", "User", "workspaceStorage");
   return join(home, ".config", "Cursor", "User", "workspaceStorage");
+}
+
+function writeCursorTranscript(root: string, project: string, id: string): void {
+  const dir = join(root, project, "agent-transcripts", id);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, `${id}.jsonl`), JSON.stringify({
+    role: "user",
+    message: { content: [{ type: "text", text: "Please scan upgraded Cursor projects" }] }
+  }));
 }

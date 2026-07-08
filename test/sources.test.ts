@@ -184,6 +184,58 @@ test("cursor scanner reads agent transcript JSONL and checkpoints unchanged tran
   }
 });
 
+test("cursor scanner uses user request summary when transcript title is noisy", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-cursor-title-noisy-"));
+  const appDb = openDatabase(getAppPaths(join(dir, "home")));
+  try {
+    const projectsRoot = join(dir, ".cursor", "projects");
+    writeCursorAgentTranscript(projectsRoot, "Users-ppio-Documents-AI-Inbox-cursor-source", "b6d6a47e-f8a9-4fc3-ae3e-dafe3f6fb9e2", [
+      {
+        role: "user",
+        title: "/Users/ppio/Documents/AI-Inbox-cursor-source b6d6a47e-f8a9-4fc3-ae3e-dafe3f6fb9e2",
+        message: { content: [{ type: "text", text: "<user_query>\n| Name | Value |\n| --- | --- |\n| Skip | This table |\nReview source table rendering and Cursor titles.\n</user_query>" }] }
+      },
+      { role: "assistant", message: { content: [{ type: "text", text: "Reviewed." }] } }
+    ]);
+
+    assert.equal(scanCursorSessions(appDb, projectsRoot).observations, 2);
+    const session = appDb.prepare("SELECT title FROM sessions WHERE source = 'cursor'").get() as { title: string };
+    assert.equal(session.title, "Cursor: Review source table rendering and Cursor titles.");
+  } finally {
+    appDb.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("cursor scanner falls back to project name instead of workspace hash", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-cursor-title-project-"));
+  const appDb = openDatabase(getAppPaths(join(dir, "home")));
+  try {
+    const workspaceStorage = join(dir, "workspaceStorage");
+    const workspace = join(workspaceStorage, "48fcaf76a0123456789abcdef");
+    mkdirSync(workspace, { recursive: true });
+    writeFileSync(join(workspace, "workspace.json"), JSON.stringify({ folder: "file:///Users/demo/AI-Inbox" }));
+    const stateDb = join(workspace, "state.vscdb");
+    writeCursorItemTable(stateDb, {
+      "b6d6a47e-f8a9-4fc3-ae3e-dafe3f6fb9e2": {
+        id: "b6d6a47e-f8a9-4fc3-ae3e-dafe3f6fb9e2",
+        title: "b6d6a47e-f8a9-4fc3-ae3e-dafe3f6fb9e2",
+        messages: [
+          { role: "user", text: "| Name | Value |\n| --- | --- |\n| Skip | This table |", createdAt: "2026-01-01T00:00:00.000Z" },
+          { role: "assistant", markdown: "Project fallback is readable.", createdAt: "2026-01-01T00:00:01.000Z" }
+        ]
+      }
+    });
+
+    assert.equal(scanCursorSessions(appDb, workspaceStorage).observations, 2);
+    const session = appDb.prepare("SELECT title FROM sessions WHERE source = 'cursor'").get() as { title: string };
+    assert.equal(session.title, "Cursor: AI-Inbox");
+  } finally {
+    appDb.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("cursor scanner rescans checkpointed agent transcripts with old noisy observations", () => {
   const dir = mkdtempSync(join(tmpdir(), "ai-inbox-cursor-agent-dirty-"));
   const appDb = openDatabase(getAppPaths(join(dir, "home")));
@@ -220,6 +272,39 @@ test("cursor scanner rescans checkpointed agent transcripts with old noisy obser
       observations: 0,
       skipped: 1
     });
+  } finally {
+    appDb.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("cursor scanner rescans checkpointed agent transcripts with old noisy titles", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ai-inbox-cursor-agent-dirty-title-"));
+  const appDb = openDatabase(getAppPaths(join(dir, "home")));
+  try {
+    const projectsRoot = join(dir, ".cursor", "projects");
+    const transcript = writeCursorAgentTranscript(projectsRoot, "Users-ppio-Documents-AI-Inbox-cursor-source", "38250851-9cfc-4110-9cba-76e3639c737e", [
+      { role: "user", message: { content: [{ type: "text", text: "Fix Cursor source titles." }] } },
+      { role: "assistant", message: { content: [{ type: "text", text: "Done." }] } }
+    ]);
+    const transcriptTime = new Date("2026-01-01T00:00:20.000Z");
+    utimesSync(transcript, transcriptTime, transcriptTime);
+    const fileStat = statSync(transcript);
+    const sessionId = createHash("sha1").update(["cursor-agent", transcript].join("\0")).digest("hex");
+    appDb.prepare("INSERT INTO sessions (id, source, path, title, updated_at) VALUES (?, 'cursor', ?, ?, ?)")
+      .run(sessionId, transcript, "Cursor: 38250851-9cfc-4110-9cba-76e3639c737e", "2026-01-01T00:00:20.000Z");
+    appDb.prepare("INSERT INTO observations (id, session_id, source, role, text, created_at) VALUES (?, ?, 'cursor', 'user', ?, ?)")
+      .run("old-cursor-observation", sessionId, "Fix Cursor source titles.", "2026-01-01T00:00:19.000Z");
+    appDb.prepare("INSERT INTO scan_checkpoints (source, path, mtime_ms, size) VALUES ('cursor', ?, ?, ?)").run(transcript, fileStat.mtimeMs, fileStat.size);
+
+    assert.deepEqual(scanCursorSessions(appDb, projectsRoot), {
+      source: "cursor",
+      scanned: 1,
+      observations: 2,
+      skipped: 0
+    });
+    const session = appDb.prepare("SELECT title FROM sessions WHERE id = ?").get(sessionId) as { title: string };
+    assert.equal(session.title, "Cursor: Fix Cursor source titles.");
   } finally {
     appDb.close();
     rmSync(dir, { recursive: true, force: true });

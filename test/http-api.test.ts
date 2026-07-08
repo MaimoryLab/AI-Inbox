@@ -589,6 +589,28 @@ test("HTTP settings persist source paths and scan uses config path", async () =>
     assert.match(readFileSync(paths.envPath, "utf8"), /AI_INBOX_LLM_API_KEY=dummy-llm-key-value/);
     assert.match(readFileSync(paths.envPath, "utf8"), /AI_INBOX_ORGANIZE_MAX_SESSIONS=200/);
 
+    const resetCursor = await putJson(server.url("/settings"), {
+      sources: { codex: { path: fixture.codex }, "claude-code": { path: missingClaudePath }, cursor: { path: "" } },
+      llm: {
+        enabled: true,
+        provider: "openai",
+        protocol: "openai-chat",
+        model: "custom/model",
+        endpoint: "https://llm.example.test/v1",
+        thinkingDepth: "high",
+        timeoutMs: 30000
+      },
+      organize: {
+        sinceDays: 30,
+        maxInteractionsPerSession: 15,
+        maxSessions: 200,
+        maxObservationsPerSession: 40
+      }
+    });
+    assert.equal(resetCursor.status, 200);
+    assert.equal((await resetCursor.json()).sources.cursor.path, undefined);
+    assert.doesNotMatch(readFileSync(paths.envPath, "utf8"), /AI_INBOX_CURSOR_HOME/);
+
     const scan = await postJson(server.url("/sources/scan"), { source: "codex" });
     assert.equal(scan.status, 200);
     assert.equal((await scan.json()).scanned, 1);

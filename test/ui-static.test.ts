@@ -17,6 +17,12 @@ test("React UI keeps card-first Sources wording and accessible icon controls", (
   const css = readFileSync("src/web/src/styles/globals.css", "utf8");
   const frontend = [app, appShell, todoBoard, sourcesWorkspace, observationText, settingsWorkspace, ui, css].join("\n");
 
+  assert.match(observationText, /import remarkGfm from "remark-gfm"/);
+  assert.match(observationText, /remarkPlugins=\{\[remarkGfm\]\}/);
+  assert.match(css, /\.source-markdown table/);
+  assert.match(css, /\.source-markdown th,/);
+  assert.match(css, /\.source-markdown td/);
+
   assert.match(viewModel, /type View = "todos" \| "sources" \| "settings"/);
   assert.match(i18n, /type Locale = "zh-CN" \| "en-US"/);
   assert.match(i18n, /const defaultLocale: Locale = "zh-CN"/);
@@ -62,6 +68,7 @@ test("React UI keeps card-first Sources wording and accessible icon controls", (
   assert.match(app, /ensureSessionLoaded/);
   assert.match(settingsWorkspace, /scanChangedSources/);
   assert.match(settingsWorkspace, /text\.cursorSource/);
+  assert.match(settingsWorkspace, /text\.autoDiscoverCursor/);
   assert.match(settingsWorkspace, /clearDialogRef/);
   assert.match(settingsWorkspace, /showModal\(\)/);
   assert.match(settingsWorkspace, /text\.clearTodoCards/);

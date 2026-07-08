@@ -18,6 +18,8 @@ const SOURCES: SessionSource[] = ["codex", "claude-code", "cursor"];
 export function discoverSourcePaths(paths: AppPaths): SourceDiscoveryResult[] {
   return SOURCES.map((source) => {
     const configured = configuredPath(source, paths);
+    const upgradedCursor = source === "cursor" ? upgradedCursorPath(configured) : undefined;
+    if (upgradedCursor) return { source, status: "discovered", path: upgradedCursor };
     if (configured) return { source, status: "configured", path: configured };
     const discovered = discoveredPath(source);
     if (discovered) return { source, status: "discovered", path: discovered };
@@ -67,6 +69,12 @@ function discoveredPath(source: SessionSource): string | undefined {
   return existsSync(cursorHome) ? cursorHome : undefined;
 }
 
+function upgradedCursorPath(configured: string | undefined): string | undefined {
+  if (!configured || cleanPath(process.env.AI_INBOX_CURSOR_HOME)) return undefined;
+  const cursorProjects = join(homedir(), ".cursor", "projects");
+  return samePath(configured, cursorWorkspaceStoragePath()) && existsSync(cursorProjects) ? cursorProjects : undefined;
+}
+
 function envKey(source: SessionSource): "AI_INBOX_CODEX_HOME" | "AI_INBOX_CLAUDE_HOME" | "AI_INBOX_CURSOR_HOME" {
   if (source === "codex") return "AI_INBOX_CODEX_HOME";
   if (source === "claude-code") return "AI_INBOX_CLAUDE_HOME";
@@ -85,4 +93,9 @@ function cursorWorkspaceStoragePath(): string {
 
 function cleanPath(value: string | undefined): string | undefined {
   return value?.trim() || undefined;
+}
+
+function samePath(a: string, b: string): boolean {
+  const clean = (value: string) => value.replace(/\\/gu, "/").replace(/\/+$/u, "");
+  return clean(a) === clean(b);
 }

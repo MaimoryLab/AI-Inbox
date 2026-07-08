@@ -199,14 +199,23 @@ export function publicConfig(config: AppConfig, secrets: AppSecrets): PublicAppC
 export function parseSettingsUpdate(input: unknown): { config: AppConfig; apiKey?: string } {
   const record = objectValue(input);
   if (!record) throw new Error("config_invalid");
-  const llm = objectValue(record.llm);
+  const normalized = normalizeSettingsUpdate(record);
+  const llm = objectValue(normalized.llm);
   const apiKey = llm && "apiKey" in llm ? llm.apiKey : undefined;
   if (apiKey !== undefined && typeof apiKey !== "string") throw new Error("config_invalid");
   if (llm && "apiKey" in llm) {
     const { apiKey: _apiKey, ...rest } = llm;
-    return { config: parseConfig({ ...record, llm: rest }), apiKey };
+    return { config: parseConfig({ ...normalized, llm: rest }), apiKey };
   }
-  return { config: parseConfig(record) };
+  return { config: parseConfig(normalized) };
+}
+
+function normalizeSettingsUpdate(record: Record<string, unknown>): Record<string, unknown> {
+  const sources = objectValue(record.sources);
+  const cursor = sources ? objectValue(sources.cursor) : undefined;
+  if (!cursor || !("path" in cursor) || (cursor.path !== "" && cursor.path !== null)) return record;
+  const { path: _path, ...restCursor } = cursor;
+  return { ...record, sources: { ...sources, cursor: restCursor } };
 }
 
 export function settingsToEnv(config: AppConfig, currentSecrets: AppSecrets, apiKey?: string): EnvConfig {

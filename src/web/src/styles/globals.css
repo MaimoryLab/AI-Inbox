@@ -176,6 +176,27 @@ textarea {
   color: var(--app-muted);
 }
 
+.source-markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 0 0 0.75rem;
+}
+
+.source-markdown th,
+.source-markdown td {
+  border: 1px solid var(--app-border);
+  padding: 0.35rem 0.5rem;
+  vertical-align: top;
+  word-break: break-word;
+}
+
+.source-markdown th {
+  background: var(--app-surface-muted);
+  font-weight: 600;
+}
+
 .source-markdown a {
   color: var(--app-accent);
   text-decoration: underline;

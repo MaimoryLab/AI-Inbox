@@ -41,7 +41,7 @@ export function scanCursorSessions(db: Database, root: string): ScanResult {
     const checkpoint = db.prepare(
       "SELECT mtime_ms, size FROM scan_checkpoints WHERE source = ? AND path = ?"
     ).get("cursor", path) as { mtime_ms: number; size: number } | undefined;
-    if (checkpoint?.mtime_ms === stat.mtimeMs && checkpoint.size === stat.size) {
+    if (checkpoint?.mtime_ms === stat.mtimeMs && checkpoint.size === stat.size && !hasDirtyCursorSessionTitleForPath(db, path)) {
       skipped++;
       continue;
     }
@@ -52,7 +52,7 @@ export function scanCursorSessions(db: Database, root: string): ScanResult {
     for (const conversation of conversations) {
       const sessionId = idFor("cursor", path, conversation.nativeId);
       sessionIds.add(sessionId);
-      const title = cursorSessionTitle(conversation, path);
+      const title = cursorSessionTitle(conversation, path, projectPath);
       const updatedAt = conversation.updatedAt ?? new Date(stat.mtimeMs).toISOString();
       db.prepare(
         "INSERT OR REPLACE INTO sessions (id, source, path, title, project_path, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
@@ -104,7 +104,12 @@ function scanCursorAgentTranscript(db: Database, path: string): ScanResult {
   const checkpoint = db.prepare(
     "SELECT mtime_ms, size FROM scan_checkpoints WHERE source = ? AND path = ?"
   ).get("cursor", path) as { mtime_ms: number; size: number } | undefined;
-  if (checkpoint?.mtime_ms === stat.mtimeMs && checkpoint.size === stat.size && !hasDirtyCursorTranscriptObservations(db, sessionId)) {
+  if (
+    checkpoint?.mtime_ms === stat.mtimeMs &&
+    checkpoint.size === stat.size &&
+    !hasDirtyCursorTranscriptObservations(db, sessionId) &&
+    !hasDirtyCursorSessionTitle(db, sessionId)
+  ) {
     return { source: "cursor", scanned: 0, observations: 0, skipped: 1 };
   }
 
@@ -117,9 +122,10 @@ function scanCursorAgentTranscript(db: Database, path: string): ScanResult {
     return { source: "cursor", scanned: 1, observations: 0, skipped: 0 };
   }
 
+  const projectPath = cursorAgentProjectPath(path);
   db.prepare(
     "INSERT OR REPLACE INTO sessions (id, source, path, title, project_path, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
-  ).run(sessionId, "cursor", path, cursorSessionTitle(conversation, path), cursorAgentProjectPath(path), conversation.updatedAt ?? new Date(stat.mtimeMs).toISOString());
+  ).run(sessionId, "cursor", path, cursorSessionTitle(conversation, path, projectPath), projectPath, conversation.updatedAt ?? new Date(stat.mtimeMs).toISOString());
   for (const [index, message] of conversation.messages.entries()) {
     db.prepare(
       "INSERT OR REPLACE INTO observations (id, session_id, source, role, text, created_at) VALUES (?, ?, ?, ?, ?, ?)"
@@ -383,6 +389,21 @@ function hasDirtyCursorTranscriptObservations(db: Database, sessionId: string): 
   );
 }
 
+function hasDirtyCursorSessionTitle(db: Database, sessionId: string): boolean {
+  const row = db.prepare("SELECT title FROM sessions WHERE id = ?").get(sessionId) as { title: string | null } | undefined;
+  return dirtyCursorSessionTitle(row?.title);
+}
+
+function hasDirtyCursorSessionTitleForPath(db: Database, path: string): boolean {
+  const rows = db.prepare("SELECT title FROM sessions WHERE source = 'cursor' AND path = ?").all(path) as Array<{ title: string | null }>;
+  return rows.some((row) => dirtyCursorSessionTitle(row.title));
+}
+
+function dirtyCursorSessionTitle(title: string | null | undefined): boolean {
+  const value = title?.replace(/^Cursor:\s*/iu, "").trim();
+  return value ? noisyCursorTitle(value) : false;
+}
+
 function cursorInjectedTimestamp(line: string): boolean {
   const text = line.trim().replace(/^<timestamp>/iu, "").replace(/<\/timestamp>$/iu, "").trim();
   return /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), [A-Z][a-z]{2} \d{1,2}, \d{4}, \d{1,2}:\d{2} (AM|PM) \(UTC[+-]\d{1,2}\)$/u.test(text);
@@ -406,9 +427,69 @@ function dedupeConversations(conversations: CursorConversation[]): CursorConvers
   return [...byId.values()];
 }
 
-function cursorSessionTitle(conversation: CursorConversation, dbPath: string): string {
-  const title = conversation.title ?? readableWorkspaceName(dbPath) ?? "Cursor workspace";
+function cursorSessionTitle(conversation: CursorConversation, dbPath: string, projectPath: string | null = null): string {
+  const title =
+    readableCursorTitle(conversation.title) ??
+    userSummaryTitle(conversation.messages) ??
+    projectName(projectPath) ??
+    readableWorkspaceName(dbPath) ??
+    `Cursor session ${shortConversationId(conversation.nativeId)}`;
   return `Cursor: ${title}`;
+}
+
+function readableCursorTitle(value: string | undefined): string | undefined {
+  const title = truncateTitle(cleanCursorText(value ?? ""));
+  if (!title || noisyCursorTitle(title)) return undefined;
+  return title;
+}
+
+function noisyCursorTitle(title: string): boolean {
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(title)) return true;
+  if (/^[0-9a-f]{16,}$/iu.test(title)) return true;
+  if (/^(?:\/|[A-Za-z]:[\\/])/u.test(title)) return true;
+  if (/^(?:Users|home)-[^ ]+-/u.test(title)) return true;
+  return /(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,})/iu.test(title) && /[\\/]/u.test(title);
+}
+
+function userSummaryTitle(messages: CursorMessage[]): string | undefined {
+  for (const message of messages) {
+    if (message.role !== "user") continue;
+    const title = firstReadableUserLine(message.text);
+    if (title) return title;
+  }
+  return undefined;
+}
+
+function firstReadableUserLine(text: string): string | undefined {
+  let inCode = false;
+  for (const rawLine of text.replace(/<\/?user_query>/giu, "").split(/\r?\n/u)) {
+    const line = rawLine.trim();
+    if (line.startsWith("```")) {
+      inCode = !inCode;
+      continue;
+    }
+    if (inCode || !line || line === "[REDACTED]" || cursorInjectedTimestamp(line)) continue;
+    if (line.startsWith("|") && line.includes("|")) continue;
+    if (/^[|:\-\s]+$/u.test(line)) continue;
+    const cleaned = line.replace(/^#{1,6}\s+/u, "").replace(/^[-*]\s+/u, "").trim();
+    if (cleaned && !/^<[^>]+>$/u.test(cleaned)) return truncateTitle(cleaned);
+  }
+  return undefined;
+}
+
+function projectName(path: string | null): string | undefined {
+  if (!path) return undefined;
+  const name = basename(path);
+  return name && !noisyCursorTitle(name) ? truncateTitle(name) : undefined;
+}
+
+function shortConversationId(nativeId: string): string {
+  const match = nativeId.match(/[0-9a-f]{8}/iu);
+  return match?.[0] ?? nativeId.slice(0, 8);
+}
+
+function truncateTitle(title: string): string {
+  return title.length > 80 ? `${title.slice(0, 77).trimEnd()}...` : title;
 }
 
 function readableWorkspaceName(dbPath: string): string | undefined {

@@ -1,4 +1,4 @@
-import { ChevronDown, Save, SlidersHorizontal, Trash2 } from "lucide-react";
+import { ChevronDown, RefreshCcw, Save, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useRef, useState, type ChangeEvent } from "react";
 import { api, localizedUserFacingError } from "../api/client.js";
 import { preflightCheckText, sourceLabel, textFor, type Locale } from "../i18n.js";
@@ -119,9 +119,17 @@ export function SettingsWorkspace({ settings, startup, locale, onLocale, onSaved
                   <Field label={text.claudeSource}>
                     <Input autoComplete="off" value={form.sources["claude-code"].path ?? ""} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, sources: { ...form.sources, "claude-code": { path: event.target.value } } })} />
                   </Field>
-                  <Field label={text.cursorSource}>
-                    <Input autoComplete="off" value={form.sources.cursor.path ?? ""} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, sources: { ...form.sources, cursor: { path: event.target.value } } })} />
-                  </Field>
+                  <div className="grid gap-1.5 text-sm font-medium text-[var(--app-muted)]">
+                    <span>{text.cursorSource}</span>
+                    <div className="flex gap-2">
+                      <Input className="min-w-0 flex-1" autoComplete="off" value={form.sources.cursor.path ?? ""} onChange={(event: ChangeEvent<HTMLInputElement>) => setForm({ ...form, sources: { ...form.sources, cursor: { path: event.target.value } } })} />
+                      <Button type="button" variant="secondary" size="sm" onClick={() => setForm({ ...form, sources: { ...form.sources, cursor: { path: "" } } })}>
+                        <RefreshCcw className="h-4 w-4" aria-hidden="true" />
+                        {text.autoDiscoverCursor}
+                      </Button>
+                    </div>
+                    <span className="text-xs font-normal text-[var(--app-subtle)]">{text.autoDiscoverCursorHint}</span>
+                  </div>
                 </div>
                 {startup?.discovery.length ? (
                   <div className="rounded-md border border-[var(--app-border)] bg-[var(--app-surface-muted)] p-3">

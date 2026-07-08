@@ -90,6 +90,7 @@ test("CLI config get and set expose settings available in the UI", async () => {
       "--timeout-ms", "30000",
       "--thinking-depth", "medium",
       "--codex-home", join(dir, "codex"),
+      "--cursor-home", join(dir, "old-cursor"),
       "--since-days", "3",
       "--max-sessions", "5",
       "--max-observations", "12"
@@ -106,9 +107,14 @@ test("CLI config get and set expose settings available in the UI", async () => {
     assert.equal(body.llm.apiKeyConfigured, true);
     assert.equal(body.llm.apiKey, undefined);
     assert.equal(body.sources.codex.path, join(dir, "codex"));
+    assert.equal(body.sources.cursor.path, join(dir, "old-cursor"));
     assert.equal(body.organize.sinceDays, 3);
     assert.equal(body.organize.maxSessions, 5);
     assert.equal(body.organize.maxObservationsPerSession, 12);
+
+    const reset = await capture(() => main(["config", "set", "--reset-cursor-path"]));
+    assert.equal(reset.code, 0);
+    assert.doesNotMatch(readFileSync(join(process.env.AI_INBOX_HOME, ".env"), "utf8"), /AI_INBOX_CURSOR_HOME/);
   } finally {
     process.env.AI_INBOX_HOME = previousHome;
     rmSync(dir, { recursive: true, force: true });

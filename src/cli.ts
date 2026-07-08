@@ -257,7 +257,7 @@ async function configCommand(argv: string[]): Promise<number> {
       sources: {
         codex: args["codex-home"] ? { path: args["codex-home"] } : current.sources.codex,
         "claude-code": args["claude-home"] ? { path: args["claude-home"] } : current.sources["claude-code"],
-        cursor: args["cursor-home"] ? { path: args["cursor-home"] } : current.sources.cursor
+        cursor: args["reset-cursor-path"] ? {} : args["cursor-home"] ? { path: args["cursor-home"] } : current.sources.cursor
       },
       llm: {
         ...current.llm,

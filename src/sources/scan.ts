@@ -26,6 +26,7 @@ export function resolveSourcePath(source: SessionSource, explicitPath?: string, 
 }
 
 export function resolveSourcePaths(source: SessionSource, explicitPath?: string, paths: AppPaths = getAppPaths()): string[] {
+  if (source === "cursor") return cursorSourceRoots(explicitPath, paths);
   return sourceRoots(source, sourceBasePath(source, explicitPath, paths));
 }
 
@@ -48,7 +49,9 @@ export function scanSource(db: Database, source: unknown, explicitPath?: unknown
     ok: true,
     result,
     path: roots.join(", "),
-    warning: sourceSessionCount(db, source, roots) === 0 ? `${source}_no_sessions` : undefined
+    warning: sourceSessionCount(db, source, roots) === 0
+      ? noSessionWarning(source, paths, typeof explicitPath === "string" && explicitPath ? true : false)
+      : undefined
   };
 }
 
@@ -56,7 +59,7 @@ export function scanConfiguredSources(db: Database, paths: AppPaths = getAppPath
   const sources: ConfiguredScanSummary["sources"] = [];
   const warnings: string[] = [];
   for (const source of ["codex", "claude-code", "cursor"] as const) {
-    const roots = sourceRoots(source, configuredSourcePath(source, paths) ?? defaultSourcePath(source));
+    const roots = resolveSourcePaths(source, undefined, paths);
     const existingRoots = roots.filter((path) => existsSync(path));
     if (existingRoots.length === 0) {
       const warning = `${source}_path_not_found`;
@@ -65,7 +68,7 @@ export function scanConfiguredSources(db: Database, paths: AppPaths = getAppPath
       continue;
     }
     const result = aggregateScanResults(existingRoots.map((path) => scanResolvedSource(db, source, path)));
-    const warning = sourceSessionCount(db, source, roots) === 0 ? `${source}_no_sessions` : undefined;
+    const warning = sourceSessionCount(db, source, roots) === 0 ? noSessionWarning(source, paths, false) : undefined;
     if (warning) warnings.push(warning);
     sources.push({ source, path: roots.join(", "), result, warning });
   }
@@ -106,6 +109,50 @@ function scanResolvedSource(db: Database, source: SessionSource, path: string): 
 
 function defaultCursorPath(): string {
   return join(homedir(), ".cursor", "projects");
+}
+
+function cursorSourceRoots(explicitPath: string | undefined, paths: AppPaths): string[] {
+  if (explicitPath) return [explicitPath];
+  const processPath = envPath(process.env.AI_INBOX_CURSOR_HOME);
+  if (processPath) return [processPath];
+  const configured = loadConfig(paths).sources.cursor.path;
+  const projects = defaultCursorPath();
+  const legacy = cursorWorkspaceStoragePath();
+  if (!configured) return uniquePaths([projects, legacy]);
+  if (samePath(configured, legacy) && existsSync(projects)) return uniquePaths([projects, configured]);
+  return [configured];
+}
+
+function cursorWorkspaceStoragePath(): string {
+  if (process.platform === "win32") {
+    return join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "Cursor", "User", "workspaceStorage");
+  }
+  if (process.platform === "darwin") {
+    return join(homedir(), "Library", "Application Support", "Cursor", "User", "workspaceStorage");
+  }
+  return join(homedir(), ".config", "Cursor", "User", "workspaceStorage");
+}
+
+function noSessionWarning(source: SessionSource, paths: AppPaths, explicitPath: boolean): string {
+  if (!explicitPath && source === "cursor" && savedCursorPathIsLegacy(paths) && existsSync(defaultCursorPath())) {
+    return "cursor_legacy_path_reset_available";
+  }
+  return `${source}_no_sessions`;
+}
+
+function savedCursorPathIsLegacy(paths: AppPaths): boolean {
+  if (envPath(process.env.AI_INBOX_CURSOR_HOME)) return false;
+  const configured = loadConfig(paths).sources.cursor.path;
+  return !!configured && samePath(configured, cursorWorkspaceStoragePath());
+}
+
+function uniquePaths(paths: string[]): string[] {
+  return Array.from(new Set(paths));
+}
+
+function samePath(a: string, b: string): boolean {
+  const clean = (value: string) => normalizePathSeparators(value).replace(/\/+$/u, "");
+  return clean(a) === clean(b);
 }
 
 function codexSessionRoots(path: string): string[] {

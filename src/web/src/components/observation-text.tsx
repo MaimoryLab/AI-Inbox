@@ -1,4 +1,5 @@
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { displayAgentContextText, displayTurnAbortedText, isAgentContextText } from "../../../agent-context.js";
 import { attachmentMarkdownText } from "../../../attachments.js";
 import type { ObservationRecord } from "../types.js";
@@ -18,6 +19,7 @@ export function MarkdownText({ text, markdown, observationId }: { text: string; 
     <div className="source-markdown break-words text-sm leading-6 text-[var(--app-ink)]">
       <ReactMarkdown
         skipHtml
+        remarkPlugins={[remarkGfm]}
         components={{
           a: ({ children, ...props }) => (
             <a {...props} target="_blank" rel="noreferrer">
